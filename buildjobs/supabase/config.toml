@@ -1,0 +1,3 @@
+# phone-otp se llama ANTES de crear cuenta → no exige JWT
+[functions.phone-otp]
+verify_jwt = false

@@ -1,0 +1,1042 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/router/routes.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/models/professional.dart';
+import '../../../../shared/models/review.dart';
+import '../../../../shared/widgets/async_value_widget.dart';
+import '../../../../shared/widgets/premium_button.dart';
+import 'professional_owner_gallery_section.dart';
+import '../../../../shared/widgets/profession_tags_row.dart';
+import '../../../../shared/widgets/rating_stars.dart';
+import '../../../../shared/widgets/responsive_layout.dart';
+import '../../../../shared/widgets/spring_pressable.dart';
+import '../../../../shared/widgets/work_gallery_strip.dart';
+
+/// Vista pública del perfil profesional (la misma que ven los clientes).
+class ProfessionalPublicProfileBody extends ConsumerWidget {
+  const ProfessionalPublicProfileBody({
+    super.key,
+    required this.companyId,
+    this.bottomPadding = 80,
+    this.isOwnerView = false,
+  });
+
+  final String companyId;
+  final double bottomPadding;
+  final bool isOwnerView;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final companyAsync = ref.watch(professionalDetailProvider(companyId));
+    final reviewsAsync = ref.watch(professionalReviewsProvider(companyId));
+    final dateFormat = DateFormat('d MMM yyyy', 'es');
+
+    return companyAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 12),
+              Text('Error al cargar: $e', textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              PremiumButton(
+                label: 'Reintentar',
+                expand: false,
+                onPressed: () =>
+                    ref.invalidate(professionalDetailProvider(companyId)),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (company) {
+        if (company == null) {
+          return const Center(child: Text('Profesional no encontrado'));
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(professionalDetailProvider(companyId));
+            ref.invalidate(professionalReviewsProvider(companyId));
+            await Future.wait([
+              ref.read(professionalDetailProvider(companyId).future),
+              ref.read(professionalReviewsProvider(companyId).future),
+            ]);
+          },
+          child: ResponsiveContent(
+            maxWidth: 900,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+              child: _ProfessionalProfileContent(
+                company: company,
+                reviewsAsync: reviewsAsync,
+                dateFormat: dateFormat,
+                isOwnerView: isOwnerView,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ProfessionalProfileContent extends StatelessWidget {
+  const _ProfessionalProfileContent({
+    required this.company,
+    required this.reviewsAsync,
+    required this.dateFormat,
+    this.isOwnerView = false,
+  });
+
+  final Professional company;
+  final AsyncValue<List<Review>> reviewsAsync;
+  final DateFormat dateFormat;
+  final bool isOwnerView;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _HeaderImage(imageUrl: company.profilePhoto),
+        const SizedBox(height: 16),
+        Text(
+          company.name,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            RatingStars(rating: company.rating),
+            const SizedBox(width: 8),
+            Text(
+              '${company.reviewCount} reseñas',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ProfessionTagsRow(
+          professions: company.professions.isNotEmpty
+              ? company.professions
+              : [company.profession],
+          maxVisible: 12,
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            const Icon(
+              Icons.location_on_outlined,
+              size: 16,
+              color: AppTheme.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              company.city,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+            ),
+          ],
+        ),
+        if (company.description != null && _cleanDescription(company.description!).isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Sobre este profesional',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 8),
+          _ExpandableDescription(text: _cleanDescription(company.description!)),
+        ],
+        const SizedBox(height: 24),
+        _ContactCard(
+          city: company.city,
+          address: company.address,
+          phone: company.phone,
+          website: company.website,
+        ),
+        if (!isOwnerView) ...[
+          const SizedBox(height: 16),
+          _SendMessageButton(
+            professionalId: company.id,
+            professionalName: company.name,
+            professionalPhoto: company.profilePhoto,
+          ),
+        ],
+        const SizedBox(height: 24),
+        Text(
+          'Galería de trabajos',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        const SizedBox(height: 12),
+        if (isOwnerView)
+          ProfessionalOwnerGallerySection(
+            professionalId: company.id,
+            photoUrls: company.workGalleryPhotos,
+          )
+        else
+          WorkGalleryStrip(photoUrls: company.workGalleryPhotos),
+        const Divider(height: 40),
+        AsyncValueWidget<List<Review>>(
+          value: reviewsAsync,
+          loadingMessage: 'Cargando reseñas...',
+          empty: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Reseñas',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  isOwnerView
+                      ? 'Aún no tienes reseñas. Cuando los clientes te valoren, aparecerán aquí.'
+                      : 'Aún no hay reseñas. ¡Sé el primero!',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          data: (reviews) => _ReviewsSection(
+            reviews: reviews,
+            dateFormat: dateFormat,
+            isOwnerView: isOwnerView,
+            professionalId: company.id,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Elimina el fragmento "Tel: ..." que se añadía al bio durante el registro antiguo.
+String _cleanDescription(String description) {
+  return description
+      .replaceAll(RegExp(r'\n\nTel:.*$', dotAll: true), '')
+      .trim();
+}
+
+/// Descripción expandible: muestra 4 líneas por defecto y un botón "Ver más".
+class _ExpandableDescription extends StatefulWidget {
+  const _ExpandableDescription({required this.text});
+  final String text;
+
+  @override
+  State<_ExpandableDescription> createState() =>
+      _ExpandableDescriptionState();
+}
+
+class _ExpandableDescriptionState extends State<_ExpandableDescription> {
+  bool _expanded = false;
+
+  /// Heurística rápida: >200 caracteres o >3 saltos de línea → probable overflow.
+  bool _likelyOverflows(String text) =>
+      text.length > 200 || '\n'.allMatches(text).length > 3;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 220),
+          crossFadeState: _expanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          firstChild: Text(
+            widget.text,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSecondary,
+                  height: 1.55,
+                ),
+          ),
+          secondChild: Text(
+            widget.text,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSecondary,
+                  height: 1.55,
+                ),
+          ),
+        ),
+        // Muestra el botón si el texto es probablemente mayor a 4 líneas
+        if (_likelyOverflows(widget.text))
+          GestureDetector(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                _expanded ? 'Ver menos' : 'Ver más',
+                style: const TextStyle(
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _HeaderImage extends StatelessWidget {
+  const _HeaderImage({this.imageUrl});
+
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        height: 220,
+        width: double.infinity,
+        child: imageUrl != null && imageUrl!.isNotEmpty
+            ? Image.network(
+                imageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _placeholder(),
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return const Center(child: CircularProgressIndicator());
+                },
+              )
+            : _placeholder(),
+      ),
+    );
+  }
+
+  Widget _placeholder() {
+    return Container(
+      color: AppTheme.surfaceElevated,
+      child: const Center(
+        child: Icon(Icons.construction, size: 64, color: AppTheme.textSecondary),
+      ),
+    );
+  }
+}
+
+class _ContactCard extends StatelessWidget {
+  const _ContactCard({
+    required this.city,
+    this.address,
+    this.phone,
+    this.website,
+  });
+
+  final String city;
+  final String? address;
+  final String? phone;
+  final String? website;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Contacto',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            _ContactRow(icon: Icons.location_city, label: 'Ciudad', value: city),
+            if (address != null && address!.isNotEmpty)
+              _ContactRow(
+                icon: Icons.location_on,
+                label: 'Dirección',
+                value: address!,
+              ),
+            if (phone != null && phone!.isNotEmpty)
+              _ContactRow(
+                icon: Icons.phone,
+                label: 'Teléfono',
+                value: phone!,
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: phone!));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Teléfono copiado al portapapeles'),
+                    ),
+                  );
+                },
+                trailing: const Icon(Icons.copy, size: 18),
+              ),
+            if (website != null && website!.isNotEmpty)
+              _ContactRow(
+                icon: Icons.language,
+                label: 'Web',
+                value: website!,
+                isLink: true,
+                onTap: () async {
+                  final raw = website!.trim();
+                  final uri = Uri.tryParse(
+                    raw.startsWith('http') ? raw : 'https://$raw',
+                  );
+                  if (uri != null && await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } else {
+                    Clipboard.setData(ClipboardData(text: raw));
+                  }
+                },
+                trailing: const Icon(Icons.open_in_new_rounded,
+                    size: 16, color: AppTheme.primary),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactRow extends StatelessWidget {
+  const _ContactRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.onTap,
+    this.trailing,
+    this.isLink = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+  final bool isLink;
+
+  @override
+  Widget build(BuildContext context) {
+    return SpringPressable(
+      onTap: onTap,
+      pressedScale: 0.98,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20, color: AppTheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSecondary,
+                        ),
+                  ),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: isLink ? AppTheme.primary : null,
+                      decoration:
+                          isLink ? TextDecoration.underline : null,
+                      decorationColor:
+                          isLink ? AppTheme.primary : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (trailing != null) trailing!,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Ordenado de reseñas ───────────────────────────────────────────────────────
+
+enum _ReviewSort {
+  recent('Más recientes', Icons.schedule_rounded),
+  oldest('Más antiguas', Icons.history_rounded),
+  best('Mejor valoradas', Icons.star_rounded),
+  worst('Peor valoradas', Icons.star_outline_rounded);
+
+  const _ReviewSort(this.label, this.icon);
+  final String label;
+  final IconData icon;
+}
+
+class _ReviewsSection extends StatefulWidget {
+  const _ReviewsSection({
+    required this.reviews,
+    required this.dateFormat,
+    required this.isOwnerView,
+    required this.professionalId,
+  });
+
+  final List<Review> reviews;
+  final DateFormat dateFormat;
+  final bool isOwnerView;
+  final String professionalId;
+
+  @override
+  State<_ReviewsSection> createState() => _ReviewsSectionState();
+}
+
+class _ReviewsSectionState extends State<_ReviewsSection> {
+  _ReviewSort _sort = _ReviewSort.recent;
+
+  List<Review> get _sorted {
+    final list = [...widget.reviews];
+    switch (_sort) {
+      case _ReviewSort.recent:
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      case _ReviewSort.oldest:
+        list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      case _ReviewSort.best:
+        list.sort((a, b) {
+          final cmp = b.rating.compareTo(a.rating);
+          return cmp != 0 ? cmp : b.createdAt.compareTo(a.createdAt);
+        });
+      case _ReviewSort.worst:
+        list.sort((a, b) {
+          final cmp = a.rating.compareTo(b.rating);
+          return cmp != 0 ? cmp : b.createdAt.compareTo(a.createdAt);
+        });
+    }
+    return list;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = _sorted;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Cabecera con contador y selector de orden ──────────────────
+        Row(
+          children: [
+            Text(
+              'Reseñas',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceElevated,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${sorted.length}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+            const Spacer(),
+            // Selector de orden
+            PopupMenuButton<_ReviewSort>(
+              initialValue: _sort,
+              onSelected: (v) => setState(() => _sort = v),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              color: AppTheme.surface,
+              itemBuilder: (_) => _ReviewSort.values
+                  .map(
+                    (s) => PopupMenuItem<_ReviewSort>(
+                      value: s,
+                      child: Row(
+                        children: [
+                          Icon(
+                            s.icon,
+                            size: 18,
+                            color: s == _sort
+                                ? AppTheme.primary
+                                : AppTheme.textSecondary,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            s.label,
+                            style: TextStyle(
+                              color: s == _sort
+                                  ? AppTheme.primary
+                                  : AppTheme.textPrimary,
+                              fontWeight: s == _sort
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceElevated,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.divider),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_sort.icon, size: 15, color: AppTheme.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      _sort.label,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.arrow_drop_down,
+                      size: 18,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // ── Lista de reseñas ordenadas ──────────────────────────────────
+        ...sorted.map(
+          (review) => _ReviewTile(
+            review: review,
+            dateFormat: widget.dateFormat,
+            isOwnerView: widget.isOwnerView,
+            professionalId: widget.professionalId,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ReviewTile extends ConsumerStatefulWidget {
+  const _ReviewTile({
+    required this.review,
+    required this.dateFormat,
+    required this.isOwnerView,
+    required this.professionalId,
+  });
+
+  final Review review;
+  final DateFormat dateFormat;
+  final bool isOwnerView;
+  final String professionalId;
+
+  @override
+  ConsumerState<_ReviewTile> createState() => _ReviewTileState();
+}
+
+class _ReviewTileState extends ConsumerState<_ReviewTile> {
+  bool _showReplyField = false;
+  final _replyController = TextEditingController();
+  bool _isSavingReply = false;
+
+  @override
+  void dispose() {
+    _replyController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveReply() async {
+    final text = _replyController.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _isSavingReply = true);
+    try {
+      await ref.read(reviewRepositoryProvider).replyToReview(
+            reviewId: widget.review.id,
+            reply: text,
+          );
+      ref.invalidate(professionalReviewsProvider(widget.professionalId));
+      if (mounted) setState(() => _showReplyField = false);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al guardar respuesta: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingReply = false);
+    }
+  }
+
+  Future<void> _deleteReply() async {
+    await ref
+        .read(reviewRepositoryProvider)
+        .deleteReply(widget.review.id);
+    ref.invalidate(professionalReviewsProvider(widget.professionalId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final review = widget.review;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Cabecera: avatar + nombre + fecha + estrellas ──────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _UserAvatar(
+                  name: review.userName,
+                  avatarUrl: review.userAvatarUrl,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        review.userName,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        widget.dateFormat.format(review.createdAt),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textSecondary,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                RatingStars(rating: review.rating.toDouble(), showValue: false),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── Título y cuerpo ────────────────────────────────────────
+            Text(
+              review.title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(review.body),
+
+            // ── Fotos de la reseña ─────────────────────────────────────
+            if (review.photoUrls.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 80,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: review.photoUrls.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, i) => GestureDetector(
+                    onTap: () => PhotoGalleryLightbox.show(
+                      context,
+                      photoUrls: review.photoUrls,
+                      initialIndex: i,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: review.photoUrls[i],
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 80,
+                          height: 80,
+                          color: AppTheme.surfaceElevated,
+                          child: const Icon(Icons.broken_image_outlined,
+                              color: AppTheme.textSecondary),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
+            // ── Respuesta del profesional ──────────────────────────────
+            if (review.ownerReply != null && review.ownerReply!.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceElevated,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.divider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.storefront_outlined,
+                          size: 16,
+                          color: AppTheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Respuesta del profesional',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const Spacer(),
+                        if (widget.isOwnerView)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  _replyController.text = review.ownerReply!;
+                                  setState(() => _showReplyField = true);
+                                },
+                                child: const Icon(
+                                  Icons.edit_outlined,
+                                  size: 16,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              GestureDetector(
+                                onTap: _deleteReply,
+                                child: const Icon(
+                                  Icons.delete_outline,
+                                  size: 16,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(review.ownerReply!),
+                  ],
+                ),
+              ),
+            ],
+
+            // ── Botón + campo de respuesta (solo owner) ─────────────────
+            if (widget.isOwnerView) ...[
+              const SizedBox(height: 10),
+              if (!_showReplyField && (review.ownerReply == null || review.ownerReply!.isEmpty))
+                TextButton.icon(
+                  onPressed: () => setState(() => _showReplyField = true),
+                  icon: const Icon(Icons.reply_outlined, size: 18),
+                  label: const Text('Responder'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.primary,
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              if (_showReplyField) ...[
+                TextField(
+                  controller: _replyController,
+                  decoration: InputDecoration(
+                    hintText: 'Escribe tu respuesta...',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.all(10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppTheme.divider),
+                    ),
+                  ),
+                  maxLines: 3,
+                  autofocus: true,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => setState(() {
+                        _showReplyField = false;
+                        _replyController.clear();
+                      }),
+                      child: const Text('Cancelar'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _isSavingReply ? null : _saveReply,
+                      child: _isSavingReply
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Publicar respuesta'),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// FAB para escribir reseña (solo en vista pública ajena).
+class ProfessionalWriteReviewFab extends ConsumerWidget {
+  const ProfessionalWriteReviewFab({super.key, required this.companyId});
+
+  final String companyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+
+    return PremiumFab(
+      label: 'Escribir reseña',
+      icon: Icons.rate_review,
+      onPressed: () {
+        if (user == null) {
+          context.push(
+            AppRoutes.loginWithRedirect(
+              AppRoutes.writeReviewPath(companyId),
+            ),
+          );
+          return;
+        }
+        context.push(AppRoutes.writeReviewPath(companyId));
+      },
+    );
+  }
+}
+
+// ── Botón enviar mensaje ──────────────────────────────────────────────────────
+
+class _SendMessageButton extends ConsumerWidget {
+  const _SendMessageButton({
+    required this.professionalId,
+    required this.professionalName,
+    this.professionalPhoto,
+  });
+
+  final String professionalId;
+  final String professionalName;
+  final String? professionalPhoto;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          if (user == null) {
+            context.push(AppRoutes.loginWithRedirect(
+              AppRoutes.companyDetailPath(professionalId),
+            ));
+            return;
+          }
+          context.push(
+            AppRoutes.chatPath(professionalId),
+            extra: {
+              'name': professionalName,
+              'photo': professionalPhoto,
+            },
+          );
+        },
+        icon: const Icon(Icons.chat_bubble_outline_rounded),
+        label: const Text('Enviar mensaje'),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          side: const BorderSide(color: AppTheme.primary),
+          foregroundColor: AppTheme.primary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Avatar del autor de la reseña ─────────────────────────────────────────────
+
+class _UserAvatar extends StatelessWidget {
+  const _UserAvatar({required this.name, this.avatarUrl});
+
+  final String name;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      return CircleAvatar(
+        backgroundImage: CachedNetworkImageProvider(avatarUrl!),
+        backgroundColor: AppTheme.surfaceElevated,
+        radius: 20,
+        onBackgroundImageError: (_, __) {},
+        child: null,
+      );
+    }
+    return CircleAvatar(
+      backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
+      radius: 20,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: const TextStyle(
+          color: AppTheme.primary,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}

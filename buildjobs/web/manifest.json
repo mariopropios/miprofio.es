@@ -1,0 +1,11 @@
+{
+  "name": "HomeCheck",
+  "short_name": "HomeCheck",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#12161A",
+  "theme_color": "#00B27A",
+  "description": "Reseñas y directorio de profesionales del hogar",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}
