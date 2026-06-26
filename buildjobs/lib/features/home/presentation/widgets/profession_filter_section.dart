@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/profession_catalog.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import 'profession_catalog_sheet.dart';
 import 'profession_chip.dart';

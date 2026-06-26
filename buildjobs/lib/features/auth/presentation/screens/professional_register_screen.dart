@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +16,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../home/presentation/widgets/profession_multi_select_section.dart';
+import '../../../../shared/widgets/city_autocomplete_field.dart';
 import '../widgets/international_phone_field.dart';
 import '../widgets/profile_avatar_picker.dart';
 import '../widgets/register_form_field.dart';
@@ -545,6 +545,7 @@ class _ProfessionalRegisterScreenState
           )
           .timeout(_networkTimeout);
 
+      ref.invalidate(currentUserProvider);
       ref.invalidate(featuredProfessionalsProvider);
       ref.invalidate(currentProfileProvider);
       ref.invalidate(currentProfessionalProfileProvider);
@@ -978,14 +979,11 @@ class _CityStepState extends State<_CityStep> {
             subtitle: 'La ciudad o zona donde ofreces tus servicios.',
           ),
 
-          // ── Campo ciudad ────────────────────────────────────────────────
-          RegisterFormField(
+          // ── Campo ciudad con autocompletado ─────────────────────────────
+          CityAutocompleteField(
             controller: widget.controller,
-            label: 'Localidad / Ciudad',
-            hint: 'Ej. Madrid, Barcelona, Valencia...',
-            icon: Icons.location_on_outlined,
-            textInputAction: TextInputAction.done,
             autofocus: true,
+            autovalidateMode: widget.autovalidateMode,
             validator: (v) =>
                 v == null || v.trim().length < 2 ? 'Ciudad obligatoria' : null,
           ),

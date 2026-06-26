@@ -158,12 +158,20 @@ final professionalsProvider =
 );
 
 final featuredProfessionalsProvider = FutureProvider<List<Professional>>(
-  (ref) => ref.watch(professionalRepositoryProvider).getProfessionals(limit: 6),
+  (ref) {
+    // Mantener en caché mientras la app esté en memoria: evita re-fetch al
+    // navegar de vuelta a Home.
+    ref.keepAlive();
+    return ref.watch(professionalRepositoryProvider).getProfessionals(limit: 6);
+  },
 );
 
 final professionalDetailProvider =
     FutureProvider.family<Professional?, String>(
-  (ref, id) => ref.watch(professionalRepositoryProvider).getProfessionalById(id),
+  (ref, id) {
+    ref.keepAlive();
+    return ref.watch(professionalRepositoryProvider).getProfessionalById(id);
+  },
 );
 
 final professionalReviewsProvider =

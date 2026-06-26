@@ -1,5 +1,5 @@
 name: buildjobs
-description: HomeCheck — reseñas y directorio de profesionales del hogar.
+description: Profio — reseñas y directorio de profesionales del hogar.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -23,7 +23,10 @@ dependencies:
   phone_numbers_parser: ^9.0.23
   image: ^4.5.4
   url_launcher: ^6.3.2
+  http: ^1.4.0
   geolocator: ^14.0.2
+  firebase_core: ^4.11.0
+  firebase_messaging: ^16.4.1
 
 dev_dependencies:
   flutter_test:

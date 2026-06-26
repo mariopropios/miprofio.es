@@ -207,7 +207,7 @@ class RegisterProfilePreview extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   if (professions.isEmpty)
-                    _PlaceholderChip(label: 'Tus especialidades')
+                    const _PlaceholderChip(label: 'Tus especialidades')
                   else
                     Wrap(
                       spacing: 6,

@@ -98,15 +98,15 @@ class _DesktopShell extends StatelessWidget {
             selectedIndex: selectedIndex,
             onDestinationSelected: (index) => _navigate(context, index),
             labelType: NavigationRailLabelType.all,
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
+            leading: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
               child: Column(
                 children: [
                   Icon(Icons.construction, color: AppTheme.primary, size: 32),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     AppConstants.appName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppTheme.primary,
                     ),

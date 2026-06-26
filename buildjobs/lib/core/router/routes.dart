@@ -3,7 +3,6 @@ class AppRoutes {
 
   static const home = '/';
   static const search = '/search';
-  static const companies = '/companies';
   static const companyDetail = '/companies/:id';
   static const writeReview = '/companies/:id/review';
   static const profile = '/profile';
@@ -19,8 +18,13 @@ class AppRoutes {
   static const professionalRegister = '/register/professional';
   static const professionalRegisterSuccess = '/register/professional/success';
 
-  /// Buscar con filtros opcionales: /search?profession=Albañil&q=Madrid&cat=reformas
-  static String searchWith({String? profession, String? q, String? categoryId}) {
+  /// Buscar con filtros opcionales: /search?profession=Albañil&q=Madrid&cat=reformas&city=Madrid
+  static String searchWith({
+    String? profession,
+    String? q,
+    String? categoryId,
+    String? city,
+  }) {
     final params = <String, String>{};
     if (profession != null && profession.isNotEmpty) {
       params['profession'] = profession;
@@ -29,6 +33,7 @@ class AppRoutes {
     if (categoryId != null && categoryId.isNotEmpty) {
       params['cat'] = categoryId;
     }
+    if (city != null && city.isNotEmpty) params['city'] = city;
     if (params.isEmpty) return search;
     return Uri(path: search, queryParameters: params).toString();
   }

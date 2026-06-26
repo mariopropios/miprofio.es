@@ -1,9 +1,9 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'HomeCheck';
+  static const String appName = 'Profio';
   static const String appTagline =
-      'Encuentra y valora empresas de construcción';
+      'Encuentra y valora profesionales del hogar';
 
   static const double mobileBreakpoint = 600;
   static const double tabletBreakpoint = 1024;

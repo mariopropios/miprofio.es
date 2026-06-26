@@ -9,9 +9,10 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/company.dart';
 import '../../../../shared/widgets/async_value_widget.dart';
 import '../../../../shared/widgets/company_card.dart';
+import '../../../../shared/widgets/city_autocomplete_field.dart';
+import '../../../../shared/widgets/company_card_deck.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../home/presentation/widgets/profession_filter_section.dart';
-import '../widgets/location_filter_sheet.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({
@@ -19,11 +20,13 @@ class SearchScreen extends ConsumerStatefulWidget {
     this.initialProfession,
     this.initialQuery,
     this.initialCategoryId,
+    this.initialCity,
   });
 
   final String? initialProfession;
   final String? initialQuery;
   final String? initialCategoryId;
+  final String? initialCity;
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -31,6 +34,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
+  final _cityController = TextEditingController();
   String? _selectedProfession;
   String? _selectedCategoryId;
   String? _selectedCity;
@@ -42,6 +46,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.initState();
     _selectedProfession = widget.initialProfession;
     _selectedCategoryId = widget.initialCategoryId;
+    _selectedCity = widget.initialCity;
+    if (widget.initialCity != null) {
+      _cityController.text = widget.initialCity!;
+    }
     if (widget.initialQuery != null) {
       _controller.text = widget.initialQuery!;
       _query = widget.initialQuery!;
@@ -53,6 +61,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _cityController.dispose();
     super.dispose();
   }
 
@@ -92,6 +101,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
+  void _applyCityFilter(String? city) {
+    final normalized = city?.trim();
+    final next = (normalized == null || normalized.isEmpty) ? null : normalized;
+    setState(() => _selectedCity = next);
+    context.go(
+      AppRoutes.searchWith(
+        profession: _selectedProfession,
+        q: _query.isEmpty ? null : _query,
+        categoryId: _selectedCategoryId,
+        city: next,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final params = ProfessionalSearchParams(
@@ -115,95 +138,44 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      decoration: InputDecoration(
-                        hintText: 'Nombre, oficio...',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: GestureDetector(
-                          onTap: _search,
-                          child: Container(
-                            margin: const EdgeInsets.all(8),
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: AppTheme.primary,
-                              borderRadius:
-                                  BorderRadius.circular(AppTheme.radiusSm),
-                            ),
-                            child: const Icon(
-                              Icons.arrow_forward_rounded,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
+              // ── Búsqueda por nombre u oficio ──────────────────────────────
+              TextField(
+                controller: _controller,
+                decoration: InputDecoration(
+                  hintText: 'Nombre, oficio...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: GestureDetector(
+                    onTap: _search,
+                    child: Container(
+                      margin: const EdgeInsets.all(8),
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSm),
                       ),
-                      onSubmitted: (_) => _search(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Botón de ubicación
-                  Tooltip(
-                    message: 'Filtrar por ciudad',
-                    child: GestureDetector(
-                      onTap: () async {
-                        final city = await LocationFilterSheet.show(
-                          context,
-                          current: _selectedCity,
-                        );
-                        if (city != null) {
-                          setState(() =>
-                              _selectedCity = city.isEmpty ? null : city);
-                        }
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        height: 52,
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: _selectedCity != null
-                              ? AppTheme.primary.withValues(alpha: 0.15)
-                              : AppTheme.surfaceElevated,
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusMd),
-                          border: Border.all(
-                            color: _selectedCity != null
-                                ? AppTheme.primary
-                                : AppTheme.divider,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.location_on_outlined,
-                              size: 18,
-                              color: _selectedCity != null
-                                  ? AppTheme.primary
-                                  : AppTheme.textSecondary,
-                            ),
-                            if (_selectedCity != null) ...[
-                              const SizedBox(width: 4),
-                              Text(
-                                _selectedCity!,
-                                style: const TextStyle(
-                                  color: AppTheme.primary,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
+                      child: const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Colors.white,
+                        size: 18,
                       ),
                     ),
                   ),
-                ],
+                ),
+                onSubmitted: (_) => _search(),
+              ),
+              const SizedBox(height: 10),
+              // ── Ciudad con autocompletado inline ──────────────────────────
+              CityAutocompleteField(
+                controller: _cityController,
+                label: 'Ciudad o localidad',
+                hint: 'Ej. Madrid, Sevilla, Valencia...',
+                textInputAction: TextInputAction.search,
+                onCitySelected: _applyCityFilter,
+                onSubmitted: () {
+                  _applyCityFilter(_cityController.text);
+                },
               ),
               const SizedBox(height: 16),
               ProfessionFilterSection(
@@ -281,6 +253,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         backgroundColor:
                             AppTheme.primary.withValues(alpha: 0.1),
                         onDeleted: () {
+                          _cityController.clear();
                           setState(() => _selectedCity = null);
                           if (_selectedProfession == null && _query.isEmpty) {
                             context.go(AppRoutes.home);
@@ -305,21 +278,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ),
                   data: (results) {
                     if (ResponsiveLayout.isMobile(context)) {
-                      return ListView.separated(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount: results.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 16),
-                        itemBuilder: (context, index) {
-                          final company = results[index];
-                          return CompanyCard(
-                            company: company,
-                            onTap: () => context.push(
-                              AppRoutes.companyDetailPath(company.id),
-                            ),
-                          );
-                        },
-                      );
+                      return CompanyCardDeck(companies: results);
                     }
                     return GridView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -335,10 +294,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       itemCount: results.length,
                       itemBuilder: (context, index) {
                         final company = results[index];
-                        return CompanyCard(
-                          company: company,
-                          onTap: () => context.push(
-                            AppRoutes.companyDetailPath(company.id),
+                        return RepaintBoundary(
+                          child: CompanyCard(
+                            company: company,
+                            onTap: () => context.push(
+                              AppRoutes.companyDetailPath(company.id),
+                            ),
                           ),
                         );
                       },

@@ -4,16 +4,231 @@
   <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="HomeCheck - Reseñas y directorio de profesionales del hogar">
+  <meta name="description" content="Profio - Reseñas y directorio de Profesionales del hogar">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HomeCheck</title>
+  <meta name="theme-color" content="#00B27A">
+  <title>Profio</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="favicon.png"/>
 
+  <!-- ── Preconnect: acelera las conexiones externas más usadas ──────────── -->
+  <link rel="preconnect" href="https://stwlyupcmkxdiccxdhvn.supabase.co" crossorigin>
+  <link rel="dns-prefetch" href="https://stwlyupcmkxdiccxdhvn.supabase.co">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
   <!-- Corbado Passkeys SDK requerido por supabase_flutter (flutter_passkeys 2.4.0) -->
   <script src="bundle.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #12161A;
+      overflow: hidden;
+    }
+
+    /* ── Pantalla de carga ───────────────────────────────────────────────── */
+    #hc-loader {
+      position: fixed;
+      inset: 0;
+      background: #12161A;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 36px;
+      z-index: 9999;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    #hc-loader.fade-out {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    /* ── Anillos hipnóticos ──────────────────────────────────────────────── */
+    .rings {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1.5px solid #00B27A;
+      animation: ripple 2.8s ease-out infinite;
+      opacity: 0;
+    }
+
+    .ring:nth-child(1) { width: 64px;  height: 64px;  animation-delay: 0s; }
+    .ring:nth-child(2) { width: 88px;  height: 88px;  animation-delay: 0.5s; }
+    .ring:nth-child(3) { width: 112px; height: 112px; animation-delay: 1.0s; }
+    .ring:nth-child(4) { width: 140px; height: 140px; animation-delay: 1.5s; }
+    .ring:nth-child(5) { width: 168px; height: 168px; animation-delay: 2.0s; }
+
+    @keyframes ripple {
+      0%   { opacity: 0.7; transform: scale(0.75); }
+      100% { opacity: 0;   transform: scale(1.15); }
+    }
+
+    /* ── Icono central ───────────────────────────────────────────────────── */
+    .icon-wrap {
+      position: relative;
+      z-index: 1;
+      width: 52px;
+      height: 52px;
+      background: rgba(0, 178, 122, 0.12);
+      border-radius: 16px;
+      border: 1px solid rgba(0, 178, 122, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: icon-breathe 3s ease-in-out infinite;
+    }
+
+    @keyframes icon-breathe {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(0,178,122,0.25); }
+      50%       { box-shadow: 0 0 0 10px rgba(0,178,122,0); }
+    }
+
+    .icon-wrap svg {
+      width: 28px;
+      height: 28px;
+      fill: none;
+      stroke: #00B27A;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* ── Texto shimmer ───────────────────────────────────────────────────── */
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-name {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(
+        90deg,
+        #9ba3af 0%,
+        #ffffff 40%,
+        #00B27A 60%,
+        #9ba3af 100%
+      );
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shimmer 2.8s linear infinite;
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+
+    .brand-sub {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 11.5px;
+      color: #4b5563;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+    }
+
+    /* ── Barra de progreso sutil ─────────────────────────────────────────── */
+    .progress-bar {
+      width: 140px;
+      height: 2px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 40%;
+      background: linear-gradient(90deg, transparent, #00B27A, transparent);
+      border-radius: 2px;
+      animation: progress-sweep 1.8s ease-in-out infinite;
+    }
+
+    @keyframes progress-sweep {
+      0%   { transform: translateX(-200%); }
+      100% { transform: translateX(400%); }
+    }
+  </style>
 </head>
 <body>
+
+  <!-- ── Pantalla de carga (visible hasta que Flutter renderiza) ─────────── -->
+  <div id="hc-loader">
+    <div class="rings">
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="ring"></div>
+
+      <div class="icon-wrap">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 10.5L12 3l9 7.5V21a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10.5Z"/>
+          <path d="M9 22V12h6v10"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="brand-text">
+      <span class="brand-name">Profio</span>
+      <span class="brand-sub">Profesionales del hogar</span>
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-fill"></div>
+    </div>
+  </div>
+
+  <script>
+    // ── Service Worker: cachea los archivos de Flutter para recargas rápidas
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('flutter_service_worker.js', { scope: '/' })
+          .then(function (reg) {
+            // Forzar activación inmediata si hay worker en espera
+            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            reg.addEventListener('updatefound', function () {
+              var nw = reg.installing;
+              if (nw) nw.addEventListener('statechange', function () {
+                if (nw.state === 'installed' && reg.active) {
+                  nw.postMessage({ type: 'SKIP_WAITING' });
+                }
+              });
+            });
+          })
+          .catch(function () { /* dev mode: sin service worker, sin problema */ });
+      });
+    }
+
+    // ── Ocultar loader cuando Flutter ha pintado su primer frame ───────────
+    window.addEventListener('flutter-first-frame', function () {
+      var loader = document.getElementById('hc-loader');
+      if (loader) {
+        loader.classList.add('fade-out');
+        setTimeout(function () { loader.remove(); }, 600);
+      }
+    });
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

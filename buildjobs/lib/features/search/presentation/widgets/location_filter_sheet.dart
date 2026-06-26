@@ -30,7 +30,7 @@ class _LocationFilterSheetState extends State<LocationFilterSheet> {
 
   static const _popular = [
     'Madrid', 'Barcelona', 'Valencia', 'Sevilla', 'Bilbao',
-    'Málaga', 'Zaragoza', 'Murcia', 'Alicante', 'Córdoba',
+    'Málaga', 'Zaragoza', 'Murcia', 'Alicante', 'Palma de Mallorca',
   ];
 
   @override
@@ -58,9 +58,12 @@ class _LocationFilterSheetState extends State<LocationFilterSheet> {
       }
     } on GeoServiceException catch (e) {
       if (mounted) setState(() => _geoError = e.message);
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        setState(() => _geoError = 'No se pudo detectar la ubicación.');
+        final msg = e.toString().contains('timeout') || e.toString().contains('TimeoutException')
+            ? 'Tiempo agotado. Comprueba que el navegador tiene permiso de ubicación o escribe la ciudad.'
+            : 'No se pudo detectar la ubicación. Escribe la ciudad manualmente.';
+        setState(() => _geoError = msg);
       }
     } finally {
       if (mounted) setState(() => _detecting = false);

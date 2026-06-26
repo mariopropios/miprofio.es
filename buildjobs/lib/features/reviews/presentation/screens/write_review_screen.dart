@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -335,7 +334,7 @@ class _PhotoPicker extends StatelessWidget {
             style: BorderStyle.solid,
           ),
         ),
-        child: Column(
+        child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
@@ -343,7 +342,7 @@ class _PhotoPicker extends StatelessWidget {
               color: AppTheme.primary,
               size: 28,
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               'Añadir',
               style: TextStyle(

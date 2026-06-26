@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../shared/models/professional.dart';
 
 class ProfessionalRepository {
@@ -14,7 +15,7 @@ class ProfessionalRepository {
     String? city,
     String? query,
     List<String> expandedProfessions = const [],
-    int limit = 20,
+    int limit = AppConstants.companiesPerPage,
   }) async {
     try {
       return await _fetchProfessionals(
@@ -26,7 +27,8 @@ class ProfessionalRepository {
         limit: limit,
       );
     } on PostgrestException catch (e) {
-      if (e.code == '42703') {
+      // Columna no existe → esquema legacy sin nuevas columnas
+      if (e.code == '42703' || e.code == 'PGRST204') {
         return _fetchLegacyProfessionals(
           profession: profession,
           city: city,
@@ -36,6 +38,16 @@ class ProfessionalRepository {
         );
       }
       rethrow;
+    } catch (_) {
+      // Cualquier otro error (red, URL malformada, CORS…) → fallback sin filtros
+      // avanzados para que la app siempre muestre algo.
+      return _fetchLegacyProfessionals(
+        profession: profession,
+        city: city,
+        query: query,
+        expandedProfessions: expandedProfessions,
+        limit: limit,
+      );
     }
   }
 
@@ -246,14 +258,9 @@ class ProfessionalRepository {
       builder = builder.ilike('city', '%$city%');
     }
 
-    // Filtrar por categoría si el profesional ha optado en ella.
-    // Se ignora si service_categories está vacío (profesionales antiguos sin migrar).
-    if (categoryId != null && categoryId.isNotEmpty) {
-      builder = builder.or(
-        'service_categories.cs.["$categoryId"],'
-        'service_categories.eq.[]',
-      );
-    }
+    // NOTA: El filtro de categoría (service_categories) se aplica en Dart
+    // después de recibir los datos, porque la sintaxis PostgREST para JSONB
+    // en .or() generaba URLs malformadas en ciertos clientes.
 
     if (query != null && query.trim().isNotEmpty) {
       final term = query.trim();
@@ -277,7 +284,19 @@ class ProfessionalRepository {
     }
 
     final raw = await builder.limit(limit * 3);
-    final list = (raw as List).map((e) => Professional.fromJson(e)).toList();
+    var list = (raw as List).map((e) => Professional.fromJson(e)).toList();
+
+    // Filtro de categoría en Dart: incluye al profesional si:
+    //   · Su lista de categorías contiene el categoryId solicitado, O
+    //   · Su lista de categorías está vacía (profesional legacy sin categorías asignadas).
+    if (categoryId != null && categoryId.isNotEmpty) {
+      list = list
+          .where((p) =>
+              p.serviceCategories.isEmpty ||
+              p.serviceCategories.contains(categoryId))
+          .toList();
+    }
+
     _sortByBayesian(list);
     return list.take(limit).toList();
   }

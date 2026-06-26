@@ -45,7 +45,7 @@ class ImageUploadOptimizerCore {
       if (input.length <= bucketMaxBytes) {
         return prepareSmall(input, originalName: originalName);
       }
-      throw FormatException(
+      throw const FormatException(
         'No se pudo procesar la imagen. Prueba con JPG, PNG o WebP.',
       );
     }

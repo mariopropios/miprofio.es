@@ -23,14 +23,18 @@ class ResponsiveLayout extends StatelessWidget {
     return ScreenSize.mobile;
   }
 
+  /// Devuelve true para teléfonos Y tablets pequeñas (< 1024 px).
+  /// Garantiza que iPads de menos de 1024 px usen el layout de móvil.
   static bool isMobile(BuildContext context) =>
-      screenSizeOf(context) == ScreenSize.mobile;
+      MediaQuery.sizeOf(context).width < AppConstants.tabletBreakpoint;
 
+  /// Devuelve true para tablets en la franja 600–1023 px.
   static bool isTablet(BuildContext context) =>
       screenSizeOf(context) == ScreenSize.tablet;
 
+  /// Devuelve true sólo para pantallas de escritorio (>= 1024 px).
   static bool isDesktop(BuildContext context) =>
-      screenSizeOf(context) == ScreenSize.desktop;
+      MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
 
   @override
   Widget build(BuildContext context) {

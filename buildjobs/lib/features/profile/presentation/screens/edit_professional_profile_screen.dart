@@ -9,6 +9,7 @@ import '../../../../core/services/profile_photo_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/x_file_preview_image.dart';
 import '../../../../shared/models/professional.dart';
+import '../../../../shared/widgets/city_autocomplete_field.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../../shared/widgets/spring_pressable.dart';
 import '../../../auth/presentation/widgets/register_form_field.dart';
@@ -280,11 +281,10 @@ class _EditProfessionalProfileScreenState
                             : null,
                       ),
                       const SizedBox(height: 14),
-                      RegisterFormField(
-                        label: 'Ciudad',
+                      CityAutocompleteField(
                         controller: _cityCtrl,
+                        label: 'Ciudad',
                         hint: 'Ciudad donde trabajas',
-                        icon: Icons.location_city_outlined,
                         validator: (v) => (v == null || v.trim().isEmpty)
                             ? 'Campo obligatorio'
                             : null,
@@ -768,8 +768,8 @@ class _Thumb extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(10),
           child: _file != null
-              ? XFilePreviewImage(file: _file!, width: 88, height: 88)
-              : Image.network(_url!,
+              ? XFilePreviewImage(file: _file, width: 88, height: 88)
+              : Image.network(_url ?? '',
                   width: 88,
                   height: 88,
                   fit: BoxFit.cover,

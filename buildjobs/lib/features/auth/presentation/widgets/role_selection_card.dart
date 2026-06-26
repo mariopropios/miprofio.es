@@ -12,6 +12,8 @@ class RoleSelectionCard extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.accentColor = AppTheme.primary,
+    this.estimatedTime,
+    this.highlights = const [],
   });
 
   final IconData icon;
@@ -19,6 +21,10 @@ class RoleSelectionCard extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final Color accentColor;
+  /// Ej. "~5 min" — se muestra como badge junto al icono.
+  final String? estimatedTime;
+  /// Lista de bullets cortos que se muestran antes de "Continuar".
+  final List<String> highlights;
 
   @override
   Widget build(BuildContext context) {
@@ -29,14 +35,49 @@ class RoleSelectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: accentColor, size: 28),
+          // Icono + badge de tiempo
+          Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: accentColor, size: 28),
+              ),
+              if (estimatedTime != null) ...[
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: accentColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.schedule_rounded,
+                          size: 13, color: accentColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        estimatedTime!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: accentColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 20),
           Text(
@@ -57,6 +98,32 @@ class RoleSelectionCard extends StatelessWidget {
               height: 1.45,
             ),
           ),
+          if (highlights.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            ...highlights.map(
+              (h) => Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.check_circle_rounded,
+                        size: 15, color: accentColor),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        h,
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Row(
             children: [

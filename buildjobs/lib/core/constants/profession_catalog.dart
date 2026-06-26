@@ -76,6 +76,18 @@ class ProfessionCatalog {
           description:
               'Limpieza de fosas sépticas, arquetas y desatascos generales.',
         ),
+        ProfessionItem(
+          categoryId: 'reparaciones',
+          name: 'Impermeabilizador',
+          description:
+              'Reparación de goteras, filtraciones y humedades en paredes, cubiertas y garajes.',
+        ),
+        ProfessionItem(
+          categoryId: 'reparaciones',
+          name: 'Instalador Solar',
+          description:
+              'Instalación de paneles solares fotovoltaicos, baterías y sistemas de autoconsumo.',
+        ),
       ],
     ),
 
@@ -170,6 +182,24 @@ class ProfessionCatalog {
           description:
               'Demoliciones seguras, retirada de escombros y limpieza de obra.',
         ),
+        ProfessionItem(
+          categoryId: 'reformas',
+          name: 'Impermeabilizador',
+          description:
+              'Impermeabilización de cubiertas planas, terrazas, sótanos y muros de fachada.',
+        ),
+        ProfessionItem(
+          categoryId: 'reformas',
+          name: 'Instalador Solar',
+          description:
+              'Integración de energía solar en reformas y obra nueva: fotovoltaica y térmica.',
+        ),
+        ProfessionItem(
+          categoryId: 'reformas',
+          name: 'Solador',
+          description:
+              'Colocación de suelos de hormigón pulido, microcemento y suelos industriales.',
+        ),
       ],
     ),
 
@@ -215,6 +245,30 @@ class ProfessionCatalog {
           description:
               'Limpieza profesional de cristales en altura y grandes cristaleras.',
         ),
+        ProfessionItem(
+          categoryId: 'mantenimiento',
+          name: 'Desbrozador',
+          description:
+              'Limpieza de parcelas y solares, desbrozado de maleza, tala menor y gestión de terrenos con maquinaria.',
+        ),
+        ProfessionItem(
+          categoryId: 'mantenimiento',
+          name: 'Control de Plagas',
+          description:
+              'Fumigación y desinfección contra cucarachas, ratas, termitas, avispas y otras plagas del hogar.',
+        ),
+        ProfessionItem(
+          categoryId: 'mantenimiento',
+          name: 'Técnico de Ascensores',
+          description:
+              'Mantenimiento, revisión legal y reparación de ascensores y montacargas.',
+        ),
+        ProfessionItem(
+          categoryId: 'mantenimiento',
+          name: 'Instalador de Riego',
+          description:
+              'Diseño e instalación de sistemas de riego por goteo, aspersión y automatizados.',
+        ),
       ],
     ),
   ];
@@ -259,7 +313,7 @@ class ProfessionCatalog {
         .toList();
     if (qWords.isEmpty) return [];
 
-    bool _matchesTerm(String term, String text) {
+    bool matchesTerm(String term, String text) {
       if (text.contains(term)) return true;
       // Coincidencia por prefijo: los primeros 5 caracteres comunes
       final prefix = term.length >= 5 ? term.substring(0, 5) : term;
@@ -268,7 +322,7 @@ class ProfessionCatalog {
 
     return allProfessions.where((p) {
       final combined = '${p.name} ${p.description}'.toLowerCase();
-      return qWords.any((word) => _matchesTerm(word, combined));
+      return qWords.any((word) => matchesTerm(word, combined));
     }).map((p) => p.name).toList();
   }
 
@@ -292,6 +346,19 @@ class ProfessionCatalog {
       'servicios': 'mantenimiento',
       'instalaciones': 'reparaciones',
       'acabados': 'reformas',
+      // nuevos alias de búsqueda
+      'impermeabilización': 'reformas',
+      'gotera': 'reparaciones',
+      'humedad': 'reparaciones',
+      'desbrozadora': 'mantenimiento',
+      'desbroce': 'mantenimiento',
+      'parcela': 'mantenimiento',
+      'solar fotovoltaico': 'reparaciones',
+      'placas solares': 'reparaciones',
+      'plagas': 'mantenimiento',
+      'fumigación': 'mantenimiento',
+      'ascensor': 'mantenimiento',
+      'riego': 'mantenimiento',
     };
     final mapped = legacyMap[lower];
     if (mapped != null) return categoryById(mapped);

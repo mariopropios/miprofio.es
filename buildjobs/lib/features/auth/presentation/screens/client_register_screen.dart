@@ -41,13 +41,16 @@ class _ClientRegisterScreenState extends ConsumerState<ClientRegisterScreen> {
   }
 
   void _navigateAfterAuth() {
+    ref.invalidate(currentUserProvider);
+    ref.invalidate(currentProfileProvider);
+    ref.invalidate(currentProfessionalProfileProvider);
+    ref.invalidate(currentUserProfessionalViewProvider);
+
     final redirect = widget.redirectTo;
     if (redirect != null && redirect.isNotEmpty) {
       context.go(redirect);
-    } else if (context.canPop()) {
-      context.pop();
     } else {
-      context.go(AppRoutes.home);
+      context.go(AppRoutes.profile);
     }
   }
 

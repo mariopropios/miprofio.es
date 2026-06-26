@@ -157,6 +157,25 @@ class _ProfessionalProfileContent extends StatelessWidget {
             ),
           ],
         ),
+        if (company.serviceRadiusKm > 0) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(
+                Icons.directions_car_outlined,
+                size: 16,
+                color: AppTheme.textSecondary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Se desplaza hasta ${company.serviceRadiusKm} km',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+              ),
+            ],
+          ),
+        ],
         if (company.description != null && _cleanDescription(company.description!).isNotEmpty) ...[
           const SizedBox(height: 16),
           Text(

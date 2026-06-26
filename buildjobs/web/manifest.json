@@ -1,6 +1,6 @@
 {
-  "name": "HomeCheck",
-  "short_name": "HomeCheck",
+  "name": "Profio",
+  "short_name": "Profio",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#12161A",

@@ -86,9 +86,9 @@ class _ProfessionalRegisterSuccessScreenState
                 ),
               ),
               const SizedBox(height: 6),
-              Text(
+              const Text(
                 'Vista previa · Tu perfil ya está publicado en ${AppConstants.appName}',
-                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
               ),
               const SizedBox(height: 20),
               FadeTransition(

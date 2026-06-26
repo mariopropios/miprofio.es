@@ -1,6 +1,9 @@
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../models/company.dart';
 import 'hover_lift_card.dart';
@@ -32,41 +35,60 @@ class CompanyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final photos = _photos;
 
-    // Usamos HoverLiftCard sin onTap para el wrapper visual (hover/sombra).
-    // El tap de navegación solo se pone en la sección de info para que los
-    // botones de flecha del carrusel no disparen navegación accidentalmente.
-    return HoverLiftCard(
+    // SelectionContainer.disabled evita que el navegador web active la
+    // selección de texto (pantalla azul) al pulsar el carrusel o sus flechas.
+    return SelectionContainer.disabled(
+      child: HoverLiftCard(
       onTap: null,
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final useFramedPhoto = _useFramedPhoto(
+            cardWidth: constraints.maxWidth,
+            viewportWidth: MediaQuery.sizeOf(context).width,
+          );
+
           if (constraints.maxHeight.isFinite) {
             return _BoundedCardLayout(
               company: company,
               photos: photos,
               onTap: onTap,
+              useFramedPhoto: useFramedPhoto,
             );
           }
           return _UnboundedCardLayout(
             company: company,
             photos: photos,
             onTap: onTap,
+            useFramedPhoto: useFramedPhoto,
           );
         },
+      ),
+    ));
+  }
+
+  static Widget _placeholder({Widget? child}) {
+    return Container(
+      color: AppTheme.surfaceElevated,
+      child: Center(
+        child: child ??
+            Icon(
+              Icons.construction,
+              size: 44,
+              color: AppTheme.textSecondary.withValues(alpha: 0.5),
+            ),
       ),
     );
   }
 
-  static Widget _placeholder() {
-    return Container(
-      color: AppTheme.surfaceElevated,
-      child: Center(
-        child: Icon(
-          Icons.construction,
-          size: 44,
-          color: AppTheme.textSecondary.withValues(alpha: 0.5),
-        ),
-      ),
-    );
+  /// Textura de papel arrugado sólo en ventanas ~mitad de pantalla de escritorio
+  /// (720–1023 px) y tarjetas anchas (deck), no móvil ni grid de escritorio.
+  static bool _useFramedPhoto({
+    required double cardWidth,
+    required double viewportWidth,
+  }) {
+    return cardWidth >= 500 &&
+        viewportWidth >= 720 &&
+        viewportWidth < AppConstants.tabletBreakpoint;
   }
 
   static Widget _infoSection(
@@ -135,9 +157,14 @@ class CompanyCard extends StatelessWidget {
 // ── Carrusel de fotos ──────────────────────────────────────────────────────────
 
 class _PhotoCarousel extends StatefulWidget {
-  const _PhotoCarousel({required this.photos, this.onTap});
+  const _PhotoCarousel({
+    required this.photos,
+    required this.useFramedPhoto,
+    this.onTap,
+  });
 
   final List<String> photos;
+  final bool useFramedPhoto;
   final VoidCallback? onTap;
 
   static const _imageCacheWidth = 480;
@@ -163,22 +190,51 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
   }
 
   Widget _buildImage(String url, int index) {
-    return CachedNetworkImage(
-      imageUrl: url,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      memCacheWidth: _PhotoCarousel._imageCacheWidth,
-      maxWidthDiskCache: _PhotoCarousel._imageCacheWidth,
-      fadeInDuration: const Duration(milliseconds: 200),
-      errorWidget: (_, __, ___) => CompanyCard._placeholder(),
-      placeholder: (_, __) => Container(
-        color: AppTheme.surfaceElevated,
-        alignment: Alignment.center,
-        child: const SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2),
+    if (!widget.useFramedPhoto) {
+      return CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        memCacheWidth: _PhotoCarousel._imageCacheWidth,
+        maxWidthDiskCache: _PhotoCarousel._imageCacheWidth,
+        fadeInDuration: const Duration(milliseconds: 200),
+        errorWidget: (_, __, ___) => CompanyCard._placeholder(),
+        placeholder: (_, __) => CompanyCard._placeholder(
+          child: const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    // Marco persistente: la textura aparece al instante, la foto encima sin fade.
+    return _FramedPhotoShell(
+      child: CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.contain,
+        width: double.infinity,
+        height: double.infinity,
+        memCacheWidth: _PhotoCarousel._imageCacheWidth,
+        maxWidthDiskCache: _PhotoCarousel._imageCacheWidth,
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
+        placeholderFadeInDuration: Duration.zero,
+        errorWidget: (_, __, ___) => const Center(
+          child: Icon(
+            Icons.construction,
+            size: 44,
+            color: Color(0xFF9A9A96),
+          ),
+        ),
+        placeholder: (_, __) => const Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
         ),
       ),
     );
@@ -196,7 +252,27 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
   Widget build(BuildContext context) {
     final photos = widget.photos;
 
-    if (photos.isEmpty) return CompanyCard._placeholder();
+    if (photos.isEmpty) {
+      return GestureDetector(
+        onTap: widget.onTap,
+        child: MouseRegion(
+          cursor: widget.onTap != null
+              ? SystemMouseCursors.click
+              : MouseCursor.defer,
+          child: widget.useFramedPhoto
+              ? _FramedPhotoShell(
+                  child: Center(
+                    child: Icon(
+                      Icons.construction,
+                      size: 44,
+                      color: Color(0xFF9A9A96),
+                    ),
+                  ),
+                )
+              : CompanyCard._placeholder(),
+        ),
+      );
+    }
 
     return Stack(
       fit: StackFit.expand,
@@ -273,6 +349,83 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
   }
 }
 
+// ── Marco con textura (siempre visible desde el primer frame) ─────────────────
+class _FramedPhotoShell extends StatelessWidget {
+  const _FramedPhotoShell({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        RepaintBoundary(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: const _SoftBlurredThemeBackground(),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(10),
+          child: child,
+        ),
+      ],
+    );
+  }
+}
+
+// ── Fondo difuminado con colores del tema (sin assets) ────────────────────────
+class _SoftBlurredThemeBackground extends StatelessWidget {
+  const _SoftBlurredThemeBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const ColoredBox(color: AppTheme.surface),
+        ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 56, sigmaY: 56),
+          child: Stack(
+            fit: StackFit.expand,
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                top: -40,
+                left: -30,
+                child: _blurOrb(220, AppTheme.primary.withValues(alpha: 0.22)),
+              ),
+              Positioned(
+                bottom: -50,
+                right: -20,
+                child: _blurOrb(260, AppTheme.surfaceElevated),
+              ),
+              Positioned(
+                top: 40,
+                right: -60,
+                child: _blurOrb(180, AppTheme.primaryDark.withValues(alpha: 0.16)),
+              ),
+              Center(
+                child: _blurOrb(140, AppTheme.scaffoldBackground.withValues(alpha: 0.5)),
+              ),
+            ],
+          ),
+        ),
+        ColoredBox(color: AppTheme.scaffoldBackground.withValues(alpha: 0.28)),
+      ],
+    );
+  }
+
+  Widget _blurOrb(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+    );
+  }
+}
+
 // ── Botón de flecha ────────────────────────────────────────────────────────────
 
 class _ArrowButton extends StatelessWidget {
@@ -284,6 +437,7 @@ class _ArrowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
         width: 28,
@@ -323,11 +477,13 @@ class _BoundedCardLayout extends StatelessWidget {
   const _BoundedCardLayout({
     required this.company,
     required this.photos,
+    required this.useFramedPhoto,
     this.onTap,
   });
 
   final Company company;
   final List<String> photos;
+  final bool useFramedPhoto;
   final VoidCallback? onTap;
 
   @override
@@ -338,7 +494,11 @@ class _BoundedCardLayout extends StatelessWidget {
         Expanded(
           flex: 11,
           child: ClipRect(
-            child: _PhotoCarousel(photos: photos, onTap: onTap),
+            child: _PhotoCarousel(
+              photos: photos,
+              useFramedPhoto: useFramedPhoto,
+              onTap: onTap,
+            ),
           ),
         ),
         Expanded(
@@ -363,11 +523,13 @@ class _UnboundedCardLayout extends StatelessWidget {
   const _UnboundedCardLayout({
     required this.company,
     required this.photos,
+    required this.useFramedPhoto,
     this.onTap,
   });
 
   final Company company;
   final List<String> photos;
+  final bool useFramedPhoto;
   final VoidCallback? onTap;
 
   @override
@@ -380,7 +542,11 @@ class _UnboundedCardLayout extends StatelessWidget {
           height: 160,
           width: double.infinity,
           child: ClipRect(
-            child: _PhotoCarousel(photos: photos, onTap: onTap),
+            child: _PhotoCarousel(
+              photos: photos,
+              useFramedPhoto: useFramedPhoto,
+              onTap: onTap,
+            ),
           ),
         ),
         Padding(

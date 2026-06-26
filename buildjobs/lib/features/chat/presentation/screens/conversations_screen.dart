@@ -88,8 +88,36 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
       appBar: AppBar(title: const Text('Mensajes')),
       body: convAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) =>
-            Center(child: Text('Error al cargar mensajes: $e')),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text(
+                  'No se pudieron cargar los mensajes',
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Comprueba tu conexión e inténtalo de nuevo.',
+                  style: TextStyle(color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reintentar'),
+                  onPressed: () => ref.invalidate(conversationsProvider),
+                ),
+              ],
+            ),
+          ),
+        ),
         data: (conversations) {
           if (conversations.isEmpty) {
             return const Center(

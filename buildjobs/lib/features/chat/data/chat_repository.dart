@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../shared/models/message.dart';
@@ -121,6 +122,42 @@ class ChatRepository {
       'sender_id': uid,
       'body': body.trim(),
     });
+
+    // ── Push notification al destinatario ─────────────────────────────────
+    // Se lanza en background; si falla no afecta al envío del mensaje.
+    _sendPushNotification(
+      conversationId: conversationId,
+      senderId: uid,
+      body: body.trim(),
+    );
+  }
+
+  Future<void> _sendPushNotification({
+    required String conversationId,
+    required String senderId,
+    required String body,
+  }) async {
+    try {
+      // Nombre del remitente para el título de la notificación
+      final profileRow = await _client
+          .from('profiles')
+          .select('full_name')
+          .eq('id', senderId)
+          .maybeSingle();
+      final senderName = profileRow?['full_name'] as String? ?? 'Nuevo mensaje';
+
+      await _client.functions.invoke(
+        'send-push-notification',
+        body: {
+          'conversation_id': conversationId,
+          'sender_id': senderId,
+          'sender_name': senderName,
+          'body': body,
+        },
+      );
+    } catch (e) {
+      debugPrint('[Push] Error enviando notificación: $e');
+    }
   }
 
   /// Marcar mensajes de la otra parte como leídos.

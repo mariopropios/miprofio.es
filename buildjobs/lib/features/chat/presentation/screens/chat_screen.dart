@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/message.dart';
 import '../../data/chat_repository.dart';
@@ -200,7 +201,7 @@ class ChatScreen extends ConsumerWidget {
           if (context.canPop()) {
             context.pop();
           } else {
-            context.go('/');
+            context.go(AppRoutes.home);
           }
         },
       ),
@@ -542,11 +543,15 @@ class _DateChip extends StatelessWidget {
     final local = dt.toLocal();
     if (local.year == now.year &&
         local.month == now.month &&
-        local.day == now.day) return 'Hoy';
+        local.day == now.day) {
+      return 'Hoy';
+    }
     final yesterday = now.subtract(const Duration(days: 1));
     if (local.year == yesterday.year &&
         local.month == yesterday.month &&
-        local.day == yesterday.day) return 'Ayer';
+        local.day == yesterday.day) {
+      return 'Ayer';
+    }
     return '${local.day}/${local.month}/${local.year}';
   }
 }

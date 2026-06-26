@@ -28,8 +28,8 @@ class _AppScrollBehavior extends MaterialScrollBehavior {
       child;
 }
 
-class HomeCheckApp extends ConsumerWidget {
-  const HomeCheckApp({super.key});
+class ProfioApp extends ConsumerWidget {
+  const ProfioApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
