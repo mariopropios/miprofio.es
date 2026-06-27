@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/services/profile_photo_storage.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -223,7 +224,7 @@ class _GalleryUploadSheetState extends State<_GalleryUploadSheet> {
           WorkGalleryUpload(
             images: _images,
             onImagesChanged: (next) => setState(() => _images = next),
-            maxImages: 6,
+            maxImages: AppConstants.maxGalleryPhotos,
           ),
           const SizedBox(height: 16),
           PremiumButton(

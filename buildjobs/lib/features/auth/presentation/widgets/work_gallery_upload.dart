@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/gallery_image_picker.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/x_file_preview_image.dart';
@@ -13,7 +14,7 @@ class WorkGalleryUpload extends StatefulWidget {
     super.key,
     required this.images,
     required this.onImagesChanged,
-    this.maxImages = 6,
+    this.maxImages = AppConstants.maxGalleryPhotos,
     this.compact = false,
   });
 

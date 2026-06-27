@@ -9,7 +9,7 @@ import '../../../../core/services/geo_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/company.dart';
 import '../../../../shared/widgets/async_value_widget.dart';
-import '../../../../shared/widgets/company_card.dart';
+import '../../../../shared/widgets/savable_company_card.dart';
 import '../../../../shared/widgets/company_card_deck.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../shared/widgets/spring_pressable.dart';
@@ -280,7 +280,7 @@ class _CompanyGrid extends StatelessWidget {
       itemBuilder: (context, index) {
         final company = companies[index];
         return RepaintBoundary(
-          child: CompanyCard(
+          child: SavableCompanyCard(
             company: company,
             onTap: () => context.push(AppRoutes.companyDetailPath(company.id)),
           ),

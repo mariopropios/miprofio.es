@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/services/geo_service.dart';
 import '../../../../core/services/gallery_image_picker.dart';
@@ -45,6 +46,7 @@ class _EditProfessionalProfileScreenState
   String? _geoError;
   String? _professionalId;
   bool _loaded = false;
+  final _cityFieldKey = GlobalKey<CityAutocompleteFieldState>();
 
   @override
   void initState() {
@@ -99,7 +101,9 @@ class _EditProfessionalProfileScreenState
     });
     try {
       final city = await GeoService.detectCity();
-      if (mounted) setState(() => _cityCtrl.text = city);
+      if (mounted) {
+        _cityFieldKey.currentState?.applyCity(city);
+      }
     } on GeoServiceException catch (e) {
       if (mounted) setState(() => _geoError = e.message);
     } catch (_) {
@@ -118,8 +122,10 @@ class _EditProfessionalProfileScreenState
   }
 
   Future<void> _pickGalleryPhotos() async {
-    final remaining =
-        (6 - _existingGallery.length - _newGallery.length).clamp(0, 6);
+    final remaining = (AppConstants.maxGalleryPhotos -
+            _existingGallery.length -
+            _newGallery.length)
+        .clamp(0, AppConstants.maxGalleryPhotos);
     if (remaining <= 0) return;
     final picked = await GalleryImagePicker.pickImages(
         context: context, maxCount: remaining);
@@ -282,6 +288,7 @@ class _EditProfessionalProfileScreenState
                       ),
                       const SizedBox(height: 14),
                       CityAutocompleteField(
+                        key: _cityFieldKey,
                         controller: _cityCtrl,
                         label: 'Ciudad',
                         hint: 'Ciudad donde trabajas',
@@ -465,7 +472,7 @@ class _EditProfessionalProfileScreenState
                             setState(() => _newGallery.removeAt(idx)),
                         onAddPhotos:
                             _saving ? null : _pickGalleryPhotos,
-                        totalMax: 6,
+                        totalMax: AppConstants.maxGalleryPhotos,
                       ),
                     ],
                   ),

@@ -6,6 +6,7 @@ class AppRoutes {
   static const companyDetail = '/companies/:id';
   static const writeReview = '/companies/:id/review';
   static const profile = '/profile';
+  static const savedProfessionals = '/profile/saved';
   static const editProfile = '/profile/edit';
   static const conversations = '/messages';
   static const chat = '/messages/:professionalId';

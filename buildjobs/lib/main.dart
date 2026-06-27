@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,7 +13,13 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: '.env');
-  await initializeDateFormatting('es', null);
+
+  // No bloquear el arranque si falla el locale (común en hot-restart web).
+  try {
+    await initializeDateFormatting('es', null);
+  } catch (e) {
+    debugPrint('Locale es no cargado, fechas en formato por defecto: $e');
+  }
 
   await Supabase.initialize(
     url: SupabaseConfig.url,
@@ -24,19 +31,22 @@ Future<void> main() async {
   );
 
   // ── Firebase (push notifications) ────────────────────────────────────────
-  // Solo inicializar si las variables de entorno están configuradas.
   final firebaseProjectId = dotenv.env['FIREBASE_PROJECT_ID'] ?? '';
   if (firebaseProjectId.isNotEmpty) {
-    await Firebase.initializeApp(
-      options: FirebaseOptions(
-        apiKey:            dotenv.env['FIREBASE_API_KEY']            ?? '',
-        authDomain:        dotenv.env['FIREBASE_AUTH_DOMAIN']        ?? '',
-        projectId:         firebaseProjectId,
-        storageBucket:     dotenv.env['FIREBASE_STORAGE_BUCKET']     ?? '',
-        messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID']?? '',
-        appId:             dotenv.env['FIREBASE_APP_ID']             ?? '',
-      ),
-    );
+    try {
+      await Firebase.initializeApp(
+        options: FirebaseOptions(
+          apiKey:            dotenv.env['FIREBASE_API_KEY']            ?? '',
+          authDomain:        dotenv.env['FIREBASE_AUTH_DOMAIN']        ?? '',
+          projectId:         firebaseProjectId,
+          storageBucket:     dotenv.env['FIREBASE_STORAGE_BUCKET']     ?? '',
+          messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID']?? '',
+          appId:             dotenv.env['FIREBASE_APP_ID']             ?? '',
+        ),
+      ).timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('Firebase no inicializado, push desactivado: $e');
+    }
   }
 
   runApp(

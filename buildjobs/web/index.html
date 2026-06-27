@@ -227,6 +227,23 @@
         setTimeout(function () { loader.remove(); }, 600);
       }
     });
+
+    // ── Fallback: si Flutter no arranca (p.ej. error en main), no dejar colgado ─
+    setTimeout(function () {
+      var loader = document.getElementById('hc-loader');
+      if (!loader || loader.classList.contains('fade-out')) return;
+
+      var hint = document.createElement('p');
+      hint.style.cssText =
+        'margin-top:20px;font-family:system-ui,sans-serif;font-size:13px;color:#9ba3af;text-align:center;max-width:260px;line-height:1.5';
+      hint.innerHTML =
+        'La app tarda más de lo normal.<br><a href="#" style="color:#00B27A">Recargar página</a>';
+      hint.querySelector('a').addEventListener('click', function (e) {
+        e.preventDefault();
+        location.reload();
+      });
+      loader.appendChild(hint);
+    }, 10000);
   </script>
 
   <script src="flutter_bootstrap.js" async></script>

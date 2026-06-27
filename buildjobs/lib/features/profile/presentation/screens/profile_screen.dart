@@ -9,6 +9,8 @@ import '../../../../shared/models/user_profile.dart';
 import '../../../../shared/widgets/async_value_widget.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../companies/presentation/widgets/professional_public_profile_body.dart';
+import '../../../saved/providers/saved_professional_providers.dart';
+import '../widgets/saved_professionals_section.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -121,7 +123,7 @@ class _LoggedOutProfile extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Guarda tus reseñas y valora profesionales.',
+                  'Guarda profesionales favoritos y valora reseñas.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.textSecondary,
                       ),
@@ -185,6 +187,8 @@ class _ProfileAppBar extends ConsumerWidget implements PreferredSizeWidget {
               ref.invalidate(currentProfileProvider);
               ref.invalidate(currentProfessionalProfileProvider);
               ref.invalidate(currentUserProfessionalViewProvider);
+              ref.invalidate(savedProfessionalIdsProvider);
+              ref.invalidate(savedProfessionalsProvider);
             },
           ),
         ],
@@ -314,12 +318,14 @@ class _ClientProfileView extends ConsumerWidget {
                             color: AppTheme.textSecondary,
                           ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                     _StatCard(
                       icon: Icons.rate_review,
                       label: 'Reseñas escritas',
                       value: '${profile?.reviewCount ?? 0}',
                     ),
+                    const SizedBox(height: 16),
+                    const SavedProfessionalsSection(),
                     const SizedBox(height: 28),
                     Container(
                       width: double.infinity,

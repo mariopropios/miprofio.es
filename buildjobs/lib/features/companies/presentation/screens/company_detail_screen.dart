@@ -9,6 +9,7 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/professional.dart';
 import '../../../../shared/widgets/rating_stars.dart';
+import '../../../../shared/widgets/save_professional_button.dart';
 import '../widgets/professional_public_profile_body.dart';
 
 class CompanyDetailScreen extends ConsumerWidget {
@@ -30,6 +31,14 @@ class CompanyDetailScreen extends ConsumerWidget {
     final companyAsync = ref.watch(professionalDetailProvider(companyId));
     final user = ref.watch(currentUserProvider);
     final isAuthenticated = user != null;
+    final viewAsync = ref.watch(currentUserProfessionalViewProvider);
+    final isOwnListing = viewAsync.maybeWhen(
+      data: (view) =>
+          view.isProfessional &&
+          view.hasListing &&
+          view.professionalId == companyId,
+      orElse: () => false,
+    );
 
     return companyAsync.when(
       loading: () => const Scaffold(
@@ -102,6 +111,10 @@ class CompanyDetailScreen extends ConsumerWidget {
               icon: const Icon(Icons.arrow_back),
               onPressed: () => _goBack(context),
             ),
+            actions: [
+              if (!isOwnListing)
+                SaveProfessionalButton(professionalId: companyId),
+            ],
           ),
           floatingActionButton: ProfessionalWriteReviewFab(companyId: companyId),
           body: ProfessionalPublicProfileBody(companyId: companyId),

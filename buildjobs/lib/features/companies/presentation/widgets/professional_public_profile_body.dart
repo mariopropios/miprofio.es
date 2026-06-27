@@ -13,6 +13,7 @@ import '../../../../shared/models/professional.dart';
 import '../../../../shared/models/review.dart';
 import '../../../../shared/widgets/async_value_widget.dart';
 import '../../../../shared/widgets/premium_button.dart';
+import '../../../../shared/widgets/save_professional_button.dart';
 import 'professional_owner_gallery_section.dart';
 import '../../../../shared/widgets/profession_tags_row.dart';
 import '../../../../shared/widgets/rating_stars.dart';
@@ -85,6 +86,7 @@ class ProfessionalPublicProfileBody extends ConsumerWidget {
                 reviewsAsync: reviewsAsync,
                 dateFormat: dateFormat,
                 isOwnerView: isOwnerView,
+                companyId: companyId,
               ),
             ),
           ),
@@ -99,12 +101,14 @@ class _ProfessionalProfileContent extends StatelessWidget {
     required this.company,
     required this.reviewsAsync,
     required this.dateFormat,
+    required this.companyId,
     this.isOwnerView = false,
   });
 
   final Professional company;
   final AsyncValue<List<Review>> reviewsAsync;
   final DateFormat dateFormat;
+  final String companyId;
   final bool isOwnerView;
 
   @override
@@ -140,6 +144,13 @@ class _ProfessionalProfileContent extends StatelessWidget {
               : [company.profession],
           maxVisible: 12,
         ),
+        if (!isOwnerView) ...[
+          const SizedBox(height: 12),
+          SaveProfessionalButton(
+            professionalId: companyId,
+            showLabel: true,
+          ),
+        ],
         const SizedBox(height: 6),
         Row(
           children: [
@@ -168,7 +179,7 @@ class _ProfessionalProfileContent extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Text(
-                'Se desplaza hasta ${company.serviceRadiusKm} km',
+                company.travelRadiusLabel,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppTheme.textSecondary,
                     ),

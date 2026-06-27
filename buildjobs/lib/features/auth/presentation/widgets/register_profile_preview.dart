@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../../core/constants/profession_catalog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/phone_validation_utils.dart';
 import '../../../../core/utils/x_file_preview_image.dart';
@@ -16,6 +17,7 @@ class RegisterProfilePreview extends StatelessWidget {
     required this.bio,
     required this.galleryImages,
     required this.activeSection,
+    this.serviceCategories = const {},
     this.profileAvatar,
     this.accountReady = false,
     this.expanded = true,
@@ -27,6 +29,8 @@ class RegisterProfilePreview extends StatelessWidget {
   final String phone;
   final Set<String> professions;
   final String bio;
+  /// IDs de categoría del catálogo (ej. `reparaciones`, `reformas`).
+  final Set<String> serviceCategories;
   final List<XFile> galleryImages;
   final XFile? profileAvatar;
   /// Sección activa del checklist: 0 contacto, 1 especialidades, 2 descripción, 3 fotos, 4 cuenta.
@@ -236,22 +240,12 @@ class RegisterProfilePreview extends StatelessWidget {
                         );
                       }).toList(),
                     ),
-                  if (bio.trim().isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      bio.trim(),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: _hasBio
-                            ? AppTheme.textSecondary
-                            : AppTheme.textSecondary.withValues(alpha: 0.7),
-                        fontSize: 13,
-                        height: 1.4,
-                        fontStyle: _hasBio ? FontStyle.normal : FontStyle.italic,
-                      ),
-                    ),
-                  ],
+                  const SizedBox(height: 12),
+                  _PresentationRow(
+                    bio: bio,
+                    hasBio: _hasBio,
+                    serviceCategories: serviceCategories,
+                  ),
                   const SizedBox(height: 14),
                   _ChecklistRow(
                     label: 'Contacto',
@@ -313,6 +307,85 @@ class _PreviewAvatar extends StatelessWidget {
               height: 56,
               borderRadius: 14,
             ),
+    );
+  }
+}
+
+class _PresentationRow extends StatelessWidget {
+  const _PresentationRow({
+    required this.bio,
+    required this.hasBio,
+    required this.serviceCategories,
+  });
+
+  final String bio;
+  final bool hasBio;
+  final Set<String> serviceCategories;
+
+  List<String> get _categoryLabels =>
+      ProfessionCatalog.serviceSectionLabels(serviceCategories);
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmedBio = bio.trim();
+    final categories = _categoryLabels;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: trimmedBio.isEmpty
+              ? const _PlaceholderChip(label: 'Tu carta de presentación')
+              : Text(
+                  trimmedBio,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: hasBio
+                        ? AppTheme.textSecondary
+                        : AppTheme.textSecondary.withValues(alpha: 0.7),
+                    fontSize: 13,
+                    height: 1.4,
+                    fontStyle: hasBio ? FontStyle.normal : FontStyle.italic,
+                  ),
+                ),
+        ),
+        if (categories.isNotEmpty) ...[
+          const SizedBox(width: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            alignment: WrapAlignment.end,
+            children: categories.map(_CategoryBadge.new).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _CategoryBadge extends StatelessWidget {
+  const _CategoryBadge(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceElevated,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.45)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppTheme.primary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

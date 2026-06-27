@@ -5,6 +5,7 @@ import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/data/profile_repository.dart';
 import '../../features/companies/data/repositories/professional_repository.dart';
 import '../../features/reviews/data/review_repository.dart';
+import '../../features/saved/data/saved_professional_repository.dart';
 import '../../shared/models/professional.dart';
 import '../../shared/models/review.dart';
 import '../../shared/models/user_profile.dart';
@@ -27,6 +28,11 @@ final professionalRepositoryProvider = Provider<ProfessionalRepository>(
 
 final reviewRepositoryProvider = Provider<ReviewRepository>(
   (ref) => ReviewRepository(client: ref.watch(supabaseClientProvider)),
+);
+
+final savedProfessionalRepositoryProvider = Provider<SavedProfessionalRepository>(
+  (ref) =>
+      SavedProfessionalRepository(client: ref.watch(supabaseClientProvider)),
 );
 
 final authStateProvider = StreamProvider<AuthState>(
@@ -180,3 +186,9 @@ final professionalReviewsProvider =
       .watch(reviewRepositoryProvider)
       .getReviewsByProfessional(professionalId),
 );
+
+final savedProfessionalsProvider = FutureProvider<List<Professional>>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return [];
+  return ref.watch(savedProfessionalRepositoryProvider).getSavedProfessionals();
+});

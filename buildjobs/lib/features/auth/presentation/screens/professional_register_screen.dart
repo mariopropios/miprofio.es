@@ -359,6 +359,7 @@ class _ProfessionalRegisterScreenState
               city: _cityController.text,
               phone: _phoneDisplay,
               professions: _selectedProfessions,
+              serviceCategories: _selectedCategories,
               bio: _bioController.text,
               galleryImages: _galleryImages,
               profileAvatar: _profileAvatar,
@@ -553,6 +554,7 @@ class _ProfessionalRegisterScreenState
       ref.invalidate(professionalDetailProvider(userId));
 
       if (mounted) {
+        TextInput.finishAutofillContext(shouldSave: true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('¡Perfil publicado correctamente!'),
@@ -602,6 +604,7 @@ class _ProfessionalRegisterScreenState
       city: _cityController.text,
       phone: _phoneDisplay,
       professions: _selectedProfessions,
+      serviceCategories: _selectedCategories,
       bio: _bioController.text,
       galleryImages: _galleryImages,
       profileAvatar: _profileAvatar,
@@ -677,14 +680,21 @@ class _ProfessionalRegisterScreenState
             children: [
               Expanded(
                 flex: 3,
-                child: _buildStepPanel(showStepIndicator: false),
+                child: SingleChildScrollView(
+                  controller: _stepScrollController,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: _buildStepPanel(showStepIndicator: false),
+                ),
               ),
               const SizedBox(width: 24),
               Expanded(
                 flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: _buildPreview(),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: _buildPreview(),
+                  ),
                 ),
               ),
             ],
@@ -940,6 +950,7 @@ class _CityStep extends StatefulWidget {
 class _CityStepState extends State<_CityStep> {
   bool _isDetecting = false;
   String? _geoError;
+  final _cityFieldKey = GlobalKey<CityAutocompleteFieldState>();
 
   Future<void> _detectLocation() async {
     setState(() {
@@ -949,7 +960,7 @@ class _CityStepState extends State<_CityStep> {
     try {
       final city = await GeoService.detectCity();
       if (mounted) {
-        widget.controller.text = city;
+        _cityFieldKey.currentState?.applyCity(city);
         widget.formKey.currentState?.validate();
       }
     } on GeoServiceException catch (e) {
@@ -981,11 +992,13 @@ class _CityStepState extends State<_CityStep> {
 
           // ── Campo ciudad con autocompletado ─────────────────────────────
           CityAutocompleteField(
+            key: _cityFieldKey,
             controller: widget.controller,
             autofocus: true,
             autovalidateMode: widget.autovalidateMode,
             validator: (v) =>
                 v == null || v.trim().length < 2 ? 'Ciudad obligatoria' : null,
+            onCitySelected: (_) => widget.formKey.currentState?.validate(),
           ),
           const SizedBox(height: 12),
 
@@ -1272,41 +1285,48 @@ class _AccountStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: formKey,
-      autovalidateMode: autovalidateMode,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _StepHeader(
-            compact: compact,
-            title: 'Crea tu cuenta',
-            subtitle:
-                'Email y contraseña para acceder a ${AppConstants.appName}.',
-          ),
-          RegisterFormField(
-            controller: emailController,
-            label: 'Email',
-            hint: 'tu@email.com',
-            icon: Icons.email_outlined,
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            autofocus: true,
-            validator: (v) =>
-                v == null || !v.contains('@') ? 'Email inválido' : null,
-          ),
-          const SizedBox(height: 16),
-          RegisterFormField(
-            controller: passwordController,
-            label: 'Contraseña',
-            hint: 'Mínimo 6 caracteres',
-            icon: Icons.lock_outline,
-            obscureText: true,
-            textInputAction: TextInputAction.done,
-            validator: (v) =>
-                v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
-          ),
-        ],
+    return AutofillGroup(
+      child: Form(
+        key: formKey,
+        autovalidateMode: autovalidateMode,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _StepHeader(
+              compact: compact,
+              title: 'Crea tu cuenta',
+              subtitle:
+                  'Email y contraseña para acceder a ${AppConstants.appName}.',
+            ),
+            RegisterFormField(
+              controller: emailController,
+              label: 'Email',
+              hint: 'tu@email.com',
+              icon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofocus: true,
+              autofillHints: const [
+                AutofillHints.username,
+                AutofillHints.email,
+              ],
+              validator: (v) =>
+                  v == null || !v.contains('@') ? 'Email inválido' : null,
+            ),
+            const SizedBox(height: 16),
+            RegisterFormField(
+              controller: passwordController,
+              label: 'Contraseña',
+              hint: 'Mínimo 6 caracteres',
+              icon: Icons.lock_outline,
+              obscureText: true,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.newPassword],
+              validator: (v) =>
+                  v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
+            ),
+          ],
+        ),
       ),
     );
   }

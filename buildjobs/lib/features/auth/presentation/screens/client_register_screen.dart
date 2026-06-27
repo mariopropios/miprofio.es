@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -75,67 +76,77 @@ class _ClientRegisterScreenState extends ConsumerState<ClientRegisterScreen> {
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 440),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Únete a la comunidad',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Regístrate para buscar profesionales y dejar reseñas.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.textSecondary,
-                        ),
-                  ),
-                  const SizedBox(height: 32),
-                  RegisterFormField(
-                    controller: _nameController,
-                    label: 'Nombre completo',
-                    hint: 'Tu nombre',
-                    icon: Icons.person_outline,
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Nombre obligatorio' : null,
-                  ),
-                  const SizedBox(height: 24),
-                  ProfileAvatarPicker(
-                    kind: ProfileAvatarKind.client,
-                    image: _profileAvatar,
-                    onImageChanged: (image) =>
-                        setState(() => _profileAvatar = image),
-                  ),
-                  const SizedBox(height: 24),
-                  RegisterFormField(
-                    controller: _emailController,
-                    label: 'Email',
-                    hint: 'tu@email.com',
-                    icon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (v) =>
-                        v == null || !v.contains('@') ? 'Email inválido' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  RegisterFormField(
-                    controller: _passwordController,
-                    label: 'Contraseña',
-                    hint: 'Mínimo 6 caracteres',
-                    icon: Icons.lock_outline,
-                    obscureText: true,
-                    validator: (v) =>
-                        v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
-                  ),
-                  const SizedBox(height: 24),
-                  PremiumButton(
-                    label: 'Crear cuenta',
-                    isLoading: _isLoading,
-                    onPressed: _isLoading ? null : _register,
-                  ),
-                ],
+            child: AutofillGroup(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Únete a la comunidad',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Regístrate para buscar profesionales y dejar reseñas.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                    ),
+                    const SizedBox(height: 32),
+                    RegisterFormField(
+                      controller: _nameController,
+                      label: 'Nombre completo',
+                      hint: 'Tu nombre',
+                      icon: Icons.person_outline,
+                      autofillHints: const [AutofillHints.name],
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Nombre obligatorio' : null,
+                    ),
+                    const SizedBox(height: 24),
+                    ProfileAvatarPicker(
+                      kind: ProfileAvatarKind.client,
+                      image: _profileAvatar,
+                      onImageChanged: (image) =>
+                          setState(() => _profileAvatar = image),
+                    ),
+                    const SizedBox(height: 24),
+                    RegisterFormField(
+                      controller: _emailController,
+                      label: 'Email',
+                      hint: 'tu@email.com',
+                      icon: Icons.email_outlined,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [
+                        AutofillHints.username,
+                        AutofillHints.email,
+                      ],
+                      validator: (v) =>
+                          v == null || !v.contains('@') ? 'Email inválido' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    RegisterFormField(
+                      controller: _passwordController,
+                      label: 'Contraseña',
+                      hint: 'Mínimo 6 caracteres',
+                      icon: Icons.lock_outline,
+                      obscureText: true,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.newPassword],
+                      validator: (v) =>
+                          v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
+                    ),
+                    const SizedBox(height: 24),
+                    PremiumButton(
+                      label: 'Crear cuenta',
+                      isLoading: _isLoading,
+                      onPressed: _isLoading ? null : _register,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -208,6 +219,7 @@ class _ClientRegisterScreenState extends ConsumerState<ClientRegisterScreen> {
         );
 
         if (!needsConfirmation) {
+          TextInput.finishAutofillContext(shouldSave: true);
           _navigateAfterAuth();
         } else if (context.canPop()) {
           context.pop();

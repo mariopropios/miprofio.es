@@ -11,4 +11,7 @@ class AppConstants {
 
   static const int reviewsPerPage = 10;
   static const int companiesPerPage = 20;
+
+  /// Máximo de fotos de trabajos en la galería del perfil profesional.
+  static const int maxGalleryPhotos = 10;
 }

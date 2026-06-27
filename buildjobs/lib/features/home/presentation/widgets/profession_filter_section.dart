@@ -25,35 +25,47 @@ class ProfessionFilterSection extends StatefulWidget {
 }
 
 class _ProfessionFilterSectionState extends State<ProfessionFilterSection> {
-  late String _selectedCategoryId;
+  late String _selectedBrowseGroupId;
 
   @override
   void initState() {
     super.initState();
-    _selectedCategoryId = _resolveInitialCategory();
+    _selectedBrowseGroupId = _resolveInitialBrowseGroup();
   }
 
   @override
   void didUpdateWidget(covariant ProfessionFilterSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selectedProfession != widget.selectedProfession) {
-      setState(() => _selectedCategoryId = _resolveInitialCategory());
+      setState(() => _selectedBrowseGroupId = _resolveInitialBrowseGroup());
     }
   }
 
-  String _resolveInitialCategory() {
+  String _resolveInitialBrowseGroup() {
     if (widget.selectedProfession != null) {
       final item = ProfessionCatalog.findByName(widget.selectedProfession!);
-      if (item != null) return item.categoryId;
+      if (item != null) {
+        for (final group in ProfessionCatalog.serviceSectionGroups) {
+          if (group.categoryIds.contains(item.categoryId)) {
+            return group.id;
+          }
+        }
+      }
     }
-    return ProfessionCatalog.categories.first.id;
+    return ProfessionCatalog.serviceSectionGroups.first.id;
   }
 
-  ProfessionCategory get _activeCategory =>
-      ProfessionCatalog.categoryById(_selectedCategoryId)!;
+  ServiceSectionGroup get _activeBrowseGroup =>
+      ProfessionCatalog.serviceGroupById(_selectedBrowseGroupId)!;
 
-  void _handleProfessionTap(String name) =>
-      widget.onProfessionTap?.call(name, _selectedCategoryId);
+  List<ProfessionItem> get _visibleProfessions =>
+      ProfessionCatalog.professionsForBrowseGroup(_selectedBrowseGroupId);
+
+  void _handleProfessionTap(String name) {
+    final item = ProfessionCatalog.findByName(name);
+    final categoryId = item?.categoryId ?? _activeBrowseGroup.categoryIds.first;
+    widget.onProfessionTap?.call(name, categoryId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,14 +97,14 @@ class _ProfessionFilterSectionState extends State<ProfessionFilterSection> {
           height: 36,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: ProfessionCatalog.categories.length,
+            itemCount: ProfessionCatalog.serviceSectionGroups.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
-              final cat = ProfessionCatalog.categories[index];
+              final group = ProfessionCatalog.serviceSectionGroups[index];
               return MotherCategoryChip(
-                label: cat.shortName,
-                selected: _selectedCategoryId == cat.id,
-                onTap: () => setState(() => _selectedCategoryId = cat.id),
+                label: group.label,
+                selected: _selectedBrowseGroupId == group.id,
+                onTap: () => setState(() => _selectedBrowseGroupId = group.id),
               );
             },
           ),
@@ -133,14 +145,14 @@ class _ProfessionFilterSectionState extends State<ProfessionFilterSection> {
             ),
             child: isMobile
                 ? _MobileChipsRow(
-                    key: ValueKey(_selectedCategoryId),
-                    professions: _activeCategory.professions,
+                    key: ValueKey(_selectedBrowseGroupId),
+                    professions: _visibleProfessions,
                     selectedProfession: widget.selectedProfession,
                     onTap: _handleProfessionTap,
                   )
                 : _DesktopChipsWrap(
-                    key: ValueKey(_selectedCategoryId),
-                    professions: _activeCategory.professions,
+                    key: ValueKey(_selectedBrowseGroupId),
+                    professions: _visibleProfessions,
                     selectedProfession: widget.selectedProfession,
                     onTap: _handleProfessionTap,
                   ),

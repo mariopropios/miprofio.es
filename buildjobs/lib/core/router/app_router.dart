@@ -15,6 +15,7 @@ import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/companies/presentation/screens/company_detail_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/profile/presentation/screens/saved_professionals_screen.dart';
 import '../../features/profile/presentation/screens/edit_client_profile_screen.dart';
 import '../../features/profile/presentation/screens/edit_professional_profile_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
@@ -48,6 +49,7 @@ class _AuthRouteNotifier extends ChangeNotifier {
 bool _requiresAuth(String path) {
   return path.startsWith(AppRoutes.conversations) ||
       path.startsWith(AppRoutes.editProfile) ||
+      path == AppRoutes.savedProfessionals ||
       path.startsWith(AppRoutes.writeReview) ||
       // Chat individual: /messages/:professionalId
       (path.startsWith('/messages/') && path.length > '/messages/'.length);
@@ -151,6 +153,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: AppRoutes.savedProfessionals,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const SavedProfessionalsScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.companyDetail,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
@@ -236,8 +243,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ref.invalidate(currentProfileProvider);
             ref.invalidate(currentProfessionalProfileProvider);
             ref.invalidate(currentUserProfessionalViewProvider);
-            // Inicializar notificaciones push si Firebase está disponible
-            _tryEnableNotifications();
+            // Sincronizar token si ya tenía permiso (sin mostrar diálogo)
+            _trySyncNotifications();
 
           default:
             break;
@@ -251,15 +258,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
 // ── Helpers para notificaciones push ─────────────────────────────────────────
 
-void _tryEnableNotifications() {
+void _trySyncNotifications() {
   try {
-    // Firebase.apps.isNotEmpty garantiza que Firebase está inicializado
     if (Firebase.apps.isNotEmpty) {
-      NotificationService.init();
+      NotificationService.syncIfAlreadyAuthorized();
     }
-  } catch (_) {
-    // Firebase no configurado → ignorar silenciosamente
-  }
+  } catch (_) {}
 }
 
 void _tryDisableNotifications() {

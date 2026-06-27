@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -65,52 +66,67 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
           child: SizedBox(
             width: cardWidth,
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(Icons.construction, size: 56, color: AppTheme.primary),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Bienvenido a ${AppConstants.appName}',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Inicia sesión con email y contraseña',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppTheme.textSecondary,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 36),
-                  TextFormField(
-                    controller: _emailController,
-                    style: const TextStyle(fontSize: 16),
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.email_outlined),
+            child: AutofillGroup(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Icon(Icons.construction, size: 56, color: AppTheme.primary),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Bienvenido a ${AppConstants.appName}',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                      textAlign: TextAlign.center,
                     ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (v) =>
-                        v == null || !v.contains('@') ? 'Email inválido' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordController,
-                    style: const TextStyle(fontSize: 16),
-                    decoration: const InputDecoration(
-                      labelText: 'Contraseña',
-                      prefixIcon: Icon(Icons.lock_outline),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Inicia sesión con email y contraseña',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                      textAlign: TextAlign.center,
                     ),
-                    obscureText: true,
-                    validator: (v) =>
-                        v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
-                  ),
+                    const SizedBox(height: 36),
+                    TextFormField(
+                      controller: _emailController,
+                      style: const TextStyle(fontSize: 16),
+                      autofillHints: const [
+                        AutofillHints.username,
+                        AutofillHints.email,
+                      ],
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                      validator: (v) =>
+                          v == null || !v.contains('@') ? 'Email inválido' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      style: const TextStyle(fontSize: 16),
+                      autofillHints: const [AutofillHints.password],
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(
+                        labelText: 'Contraseña',
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ),
+                      obscureText: true,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      onFieldSubmitted: (_) {
+                        if (!_isLoading) _login();
+                      },
+                      validator: (v) =>
+                          v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
+                    ),
                   const SizedBox(height: 28),
                   PremiumButton(
                     label: 'Iniciar sesión',
@@ -207,6 +223,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -227,7 +244,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ref.invalidate(currentProfessionalProfileProvider);
       ref.invalidate(currentUserProfessionalViewProvider);
 
-      if (mounted) _navigateAfterAuth();
+      if (mounted) {
+        TextInput.finishAutofillContext(shouldSave: true);
+        _navigateAfterAuth();
+      }
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

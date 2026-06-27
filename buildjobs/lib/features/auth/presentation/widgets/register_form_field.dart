@@ -19,6 +19,7 @@ class RegisterFormField extends StatelessWidget {
     this.validator,
     this.onChanged,
     this.autofocus = false,
+    this.autofillHints,
   });
 
   final TextEditingController controller;
@@ -33,6 +34,7 @@ class RegisterFormField extends StatelessWidget {
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
   final bool autofocus;
+  final Iterable<String>? autofillHints;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +60,9 @@ class RegisterFormField extends StatelessWidget {
           inputFormatters: inputFormatters,
           validator: validator,
           onChanged: onChanged,
+          autofillHints: autofillHints,
+          autocorrect: false,
+          enableSuggestions: !obscureText,
           style: const TextStyle(
             color: AppTheme.textPrimary,
             fontSize: 15,

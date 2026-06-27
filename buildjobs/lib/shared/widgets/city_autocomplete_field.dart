@@ -34,10 +34,10 @@ class CityAutocompleteField extends StatefulWidget {
   final ValueChanged<String>? onCitySelected;
 
   @override
-  State<CityAutocompleteField> createState() => _CityAutocompleteFieldState();
+  State<CityAutocompleteField> createState() => CityAutocompleteFieldState();
 }
 
-class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
+class CityAutocompleteFieldState extends State<CityAutocompleteField> {
   // Usamos un controller interno para no interferir con las sugerencias
   late final TextEditingController _innerCtrl;
   late final FocusNode _focusNode;
@@ -48,6 +48,8 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
   bool _showSuggestions = false;
   // Evita disparar búsquedas al seleccionar una sugerencia
   bool _selecting = false;
+  // El puntero está sobre el desplegable (evita cerrarlo antes del click).
+  bool _pointerOnSuggestions = false;
 
   @override
   void initState() {
@@ -58,9 +60,13 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
     // Cuando el campo pierde foco, ocultar sugerencias con pequeño delay
     // para que el tap en una sugerencia se registre antes
     _focusNode.addListener(() {
-      if (!_focusNode.hasFocus) {
-        Future.delayed(const Duration(milliseconds: 180), () {
-          if (mounted) setState(() => _showSuggestions = false);
+      if (!_focusNode.hasFocus &&
+          !_pointerOnSuggestions &&
+          !_selecting) {
+        Future.delayed(const Duration(milliseconds: 250), () {
+          if (mounted && !_pointerOnSuggestions && !_selecting) {
+            setState(() => _showSuggestions = false);
+          }
         });
       }
     });
@@ -84,12 +90,16 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
   // Cuando el exterior actualiza el controller (detección automática)
   void _syncFromExternal() {
     if (_selecting) return;
-    if (_innerCtrl.text != widget.controller.text) {
-      _innerCtrl.text = widget.controller.text;
-      _innerCtrl.selection = TextSelection.collapsed(
-        offset: _innerCtrl.text.length,
+    final external = widget.controller.text;
+    if (_innerCtrl.text != external) {
+      _innerCtrl.value = TextEditingValue(
+        text: external,
+        selection: TextSelection.collapsed(offset: external.length),
       );
-      setState(() => _showSuggestions = false);
+      setState(() {
+        _showSuggestions = false;
+        _loading = false;
+      });
     }
   }
 
@@ -127,16 +137,41 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
     });
   }
 
-  void _selectSuggestion(CitySuggestion s) {
+  /// Aplica una localidad detectada o elegida (sincroniza campo interno y externo).
+  void applyCity(String city) {
+    if (!mounted) return;
+
+    final trimmed = city.trim();
+    if (trimmed.isEmpty) return;
+
     _selecting = true;
-    _innerCtrl.text = s.shortName;
-    widget.controller.text = s.shortName;
-    setState(() => _showSuggestions = false);
+    _debounce?.cancel();
+
+    _innerCtrl.value = TextEditingValue(
+      text: trimmed,
+      selection: TextSelection.collapsed(offset: trimmed.length),
+    );
+    if (widget.controller.text != trimmed) {
+      widget.controller.text = trimmed;
+    }
+
+    setState(() {
+      _suggestions = [];
+      _showSuggestions = false;
+      _loading = false;
+      _detectingLocation = false;
+    });
+
+    widget.onCitySelected?.call(trimmed);
+
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) _selecting = false;
+    });
+  }
+
+  void _selectSuggestion(CitySuggestion s) {
+    applyCity(s.shortName);
     _focusNode.unfocus();
-    widget.onCitySelected?.call(s.shortName);
-    // Breve pausa para que el listener no reaccione a este cambio
-    Future.delayed(const Duration(milliseconds: 100),
-        () => _selecting = false);
   }
 
   Future<void> _detectLocation() async {
@@ -151,19 +186,8 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
     try {
       final city = await GeoService.detectCity();
       if (!mounted) return;
-
-      _selecting = true;
-      _innerCtrl.text = city;
-      widget.controller.text = city;
-      _innerCtrl.selection = TextSelection.collapsed(offset: city.length);
-      widget.onCitySelected?.call(city);
-
-      Future.delayed(
-        const Duration(milliseconds: 100),
-        () {
-          if (mounted) _selecting = false;
-        },
-      );
+      applyCity(city);
+      _focusNode.unfocus();
     } on GeoServiceException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -258,7 +282,10 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
 
         // ── Desplegable de sugerencias ───────────────────────────────────────
         if (_showSuggestions && _suggestions.isNotEmpty)
-          Container(
+          MouseRegion(
+            onEnter: (_) => _pointerOnSuggestions = true,
+            onExit: (_) => _pointerOnSuggestions = false,
+            child: Container(
             margin: const EdgeInsets.only(top: 2),
             decoration: BoxDecoration(
               color: AppTheme.surfaceElevated,
@@ -282,11 +309,12 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
                   return _SuggestionTile(
                     suggestion: s,
                     isLast: i == _suggestions.length - 1,
-                    onTap: () => _selectSuggestion(s),
+                    onSelect: () => _selectSuggestion(s),
                   );
                 }).toList(),
               ),
             ),
+          ),
           ),
       ],
     );
@@ -296,12 +324,12 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
 class _SuggestionTile extends StatefulWidget {
   const _SuggestionTile({
     required this.suggestion,
-    required this.onTap,
+    required this.onSelect,
     required this.isLast,
   });
 
   final CitySuggestion suggestion;
-  final VoidCallback onTap;
+  final VoidCallback onSelect;
   final bool isLast;
 
   @override
@@ -314,15 +342,16 @@ class _SuggestionTileState extends State<_SuggestionTile> {
   @override
   Widget build(BuildContext context) {
     // Separar ciudad y provincia para mostrarlos con estilos distintos
-    final parts = widget.suggestion.displayName.split(', ');
-    final city = parts.first;
-    final province = parts.length > 1 ? parts.sublist(1).join(', ') : null;
+    final city = widget.suggestion.shortName;
+    final province = widget.suggestion.province;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
+      cursor: SystemMouseCursors.click,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (_) => widget.onSelect(),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           color: _hovered

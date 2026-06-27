@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/message.dart';
 import '../../data/chat_repository.dart';
@@ -31,9 +32,17 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Recargar al entrar
-    WidgetsBinding.instance.addPostFrameCallback(
-        (_) => ref.invalidate(conversationsProvider));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(conversationsProvider);
+      _maybeRequestNotifications();
+    });
+  }
+
+  Future<void> _maybeRequestNotifications() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+    if (await NotificationService.isEnabled) return;
+    await NotificationService.requestIfNeeded();
   }
 
   @override

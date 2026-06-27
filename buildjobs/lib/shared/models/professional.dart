@@ -45,6 +45,13 @@ class Professional {
   String get primaryProfession =>
       professions.isNotEmpty ? professions.first : profession;
 
+  /// Etiqueta legible del radio de desplazamiento (vacía si no aplica).
+  String get travelRadiusLabel {
+    if (serviceRadiusKm <= 0) return '';
+    if (serviceRadiusKm >= 150) return 'Se desplaza ≥ 150 km';
+    return 'Se desplaza hasta $serviceRadiusKm km';
+  }
+
   /// Fotos para mostrar en galería (sin duplicar la de portada).
   List<String> get workGalleryPhotos {
     if (galleryPhotos.isNotEmpty) return galleryPhotos;

@@ -194,6 +194,10 @@ class ChatScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    void openProfessionalProfile() {
+      context.push(AppRoutes.companyDetailPath(professionalId));
+    }
+
     final appBar = AppBar(
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
@@ -205,22 +209,29 @@ class ChatScreen extends ConsumerWidget {
           }
         },
       ),
-      title: Row(
-        children: [
-          _Avatar(
-            name: professionalName,
-            photoUrl: professionalPhoto,
-            radius: 18,
+      title: InkWell(
+        onTap: openProfessionalProfile,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              _Avatar(
+                name: professionalName,
+                photoUrl: professionalPhoto,
+                radius: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  professionalName,
+                  style: const TextStyle(fontSize: 16),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              professionalName,
-              style: const TextStyle(fontSize: 16),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+        ),
       ),
     );
 

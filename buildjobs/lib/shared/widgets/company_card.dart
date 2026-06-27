@@ -15,10 +15,12 @@ class CompanyCard extends StatelessWidget {
     super.key,
     required this.company,
     this.onTap,
+    this.photoOverlay,
   });
 
   final Company company;
   final VoidCallback? onTap;
+  final Widget? photoOverlay;
 
   /// Fotos ordenadas: primero el logo/portada, luego la galería sin duplicados.
   List<String> get _photos {
@@ -53,6 +55,7 @@ class CompanyCard extends StatelessWidget {
               photos: photos,
               onTap: onTap,
               useFramedPhoto: useFramedPhoto,
+              photoOverlay: photoOverlay,
             );
           }
           return _UnboundedCardLayout(
@@ -60,6 +63,7 @@ class CompanyCard extends StatelessWidget {
             photos: photos,
             onTap: onTap,
             useFramedPhoto: useFramedPhoto,
+            photoOverlay: photoOverlay,
           );
         },
       ),
@@ -126,6 +130,30 @@ class CompanyCard extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        if (company.travelRadiusLabel.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Icon(
+                Icons.directions_car_outlined,
+                size: 12,
+                color: AppTheme.textSecondary.withValues(alpha: 0.85),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  company.travelRadiusLabel,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                        fontSize: 11,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 8),
         Row(
           children: [
@@ -161,11 +189,13 @@ class _PhotoCarousel extends StatefulWidget {
     required this.photos,
     required this.useFramedPhoto,
     this.onTap,
+    this.overlay,
   });
 
   final List<String> photos;
   final bool useFramedPhoto;
   final VoidCallback? onTap;
+  final Widget? overlay;
 
   static const _imageCacheWidth = 480;
 
@@ -253,24 +283,35 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
     final photos = widget.photos;
 
     if (photos.isEmpty) {
-      return GestureDetector(
-        onTap: widget.onTap,
-        child: MouseRegion(
-          cursor: widget.onTap != null
-              ? SystemMouseCursors.click
-              : MouseCursor.defer,
-          child: widget.useFramedPhoto
-              ? _FramedPhotoShell(
-                  child: Center(
-                    child: Icon(
-                      Icons.construction,
-                      size: 44,
-                      color: Color(0xFF9A9A96),
-                    ),
-                  ),
-                )
-              : CompanyCard._placeholder(),
-        ),
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          GestureDetector(
+            onTap: widget.onTap,
+            child: MouseRegion(
+              cursor: widget.onTap != null
+                  ? SystemMouseCursors.click
+                  : MouseCursor.defer,
+              child: widget.useFramedPhoto
+                  ? _FramedPhotoShell(
+                      child: Center(
+                        child: Icon(
+                          Icons.construction,
+                          size: 44,
+                          color: Color(0xFF9A9A96),
+                        ),
+                      ),
+                    )
+                  : CompanyCard._placeholder(),
+            ),
+          ),
+          if (widget.overlay != null)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: widget.overlay!,
+            ),
+        ],
       );
     }
 
@@ -343,6 +384,13 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
                 ),
               ),
             ),
+          ),
+
+        if (widget.overlay != null)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: widget.overlay!,
           ),
       ],
     );
@@ -479,12 +527,14 @@ class _BoundedCardLayout extends StatelessWidget {
     required this.photos,
     required this.useFramedPhoto,
     this.onTap,
+    this.photoOverlay,
   });
 
   final Company company;
   final List<String> photos;
   final bool useFramedPhoto;
   final VoidCallback? onTap;
+  final Widget? photoOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -498,6 +548,7 @@ class _BoundedCardLayout extends StatelessWidget {
               photos: photos,
               useFramedPhoto: useFramedPhoto,
               onTap: onTap,
+              overlay: photoOverlay,
             ),
           ),
         ),
@@ -525,12 +576,14 @@ class _UnboundedCardLayout extends StatelessWidget {
     required this.photos,
     required this.useFramedPhoto,
     this.onTap,
+    this.photoOverlay,
   });
 
   final Company company;
   final List<String> photos;
   final bool useFramedPhoto;
   final VoidCallback? onTap;
+  final Widget? photoOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -546,6 +599,7 @@ class _UnboundedCardLayout extends StatelessWidget {
               photos: photos,
               useFramedPhoto: useFramedPhoto,
               onTap: onTap,
+              overlay: photoOverlay,
             ),
           ),
         ),

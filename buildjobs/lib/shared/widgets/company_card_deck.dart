@@ -4,14 +4,20 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/routes.dart';
 import '../../core/theme/app_theme.dart';
 import '../models/company.dart';
-import 'company_card.dart';
+import 'savable_company_card.dart';
 
 /// Rueda de cartas estilo tragaperras para mostrar [companies] en móvil/tablet.
 /// Desplazamiento libre en el eje Y con efecto de tambor sutil.
 class CompanyCardDeck extends StatefulWidget {
-  const CompanyCardDeck({super.key, required this.companies});
+  const CompanyCardDeck({
+    super.key,
+    required this.companies,
+    this.height = 380,
+  });
 
   final List<Company> companies;
+  /// Altura del tambor de cartas (más alta en búsqueda móvil al desplazar filtros).
+  final double height;
 
   @override
   State<CompanyCardDeck> createState() => _CompanyCardDeckState();
@@ -51,7 +57,7 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
         // ── Tambor ──────────────────────────────────────────────────────────
         Expanded(
           child: SizedBox(
-            height: 380,
+            height: widget.height,
             child: Stack(
               children: [
                 ListWheelScrollView.useDelegate(
@@ -69,7 +75,7 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 4, vertical: 6),
                         child: RepaintBoundary(
-                          child: CompanyCard(
+                          child: SavableCompanyCard(
                             company: company,
                             onTap: () => context.push(
                               AppRoutes.companyDetailPath(company.id),

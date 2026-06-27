@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/profession_catalog.dart';
+import '../../../../core/models/search_suggestion.dart';
 import '../../../../shared/models/professional.dart';
 
 class ProfessionalRepository {
@@ -340,6 +342,127 @@ class ProfessionalRepository {
     final list = (raw as List).map((e) => Professional.fromJson(e)).toList();
     _sortByBayesian(list);
     return list.take(limit).toList();
+  }
+
+  /// Sugerencias de autocompletado: oficios del catálogo + empresas publicadas.
+  Future<List<SearchSuggestion>> searchSuggestions(
+    String query, {
+    int limit = 8,
+  }) async {
+    final term = query.trim();
+    if (term.length < 2) return [];
+
+    final results = <SearchSuggestion>[];
+    final seen = <String>{};
+
+    for (final prof in ProfessionCatalog.matchingProfessions(term, limit: 5)) {
+      final key = 'prof:${prof.name.toLowerCase()}';
+      if (seen.add(key)) {
+        results.add(SearchSuggestion(
+          label: prof.name,
+          kind: SearchSuggestionKind.profession,
+          subtitle: 'Oficio',
+          categoryId: prof.categoryId,
+        ));
+      }
+    }
+
+    for (final name in ProfessionCatalog.relatedProfessionNames(term)) {
+      if (results.length >= limit) break;
+      final key = 'prof:${name.toLowerCase()}';
+      if (!seen.add(key)) continue;
+      final item = ProfessionCatalog.findByName(name);
+      results.add(SearchSuggestion(
+        label: name,
+        kind: SearchSuggestionKind.profession,
+        subtitle: 'Oficio',
+        categoryId: item?.categoryId,
+      ));
+    }
+
+    final companyLimit = (limit - results.length).clamp(0, limit);
+    if (companyLimit > 0) {
+      final companies =
+          await _searchCompanyNameSuggestions(term, limit: companyLimit);
+      for (final company in companies) {
+        if (results.length >= limit) break;
+        final key = 'co:${company.name.toLowerCase()}';
+        if (!seen.add(key)) continue;
+        results.add(SearchSuggestion(
+          label: company.name,
+          kind: SearchSuggestionKind.company,
+          subtitle: company.profession,
+        ));
+      }
+    }
+
+    return results;
+  }
+
+  Future<List<({String name, String profession})>> _searchCompanyNameSuggestions(
+    String term, {
+    int limit = 5,
+  }) async {
+    final safe = term.replaceAll('%', '').replaceAll('_', '');
+    if (safe.isEmpty) return [];
+
+    try {
+      final raw = await _client
+          .from('professionals')
+          .select('name, profession')
+          .or('name.ilike.%$safe%,profession.ilike.%$safe%')
+          .limit(limit * 2);
+
+      final seen = <String>{};
+      final results = <({String name, String profession})>[];
+
+      for (final row in raw as List) {
+        final map = row as Map<String, dynamic>;
+        final name = (map['name'] as String?)?.trim() ?? '';
+        if (name.isEmpty || !seen.add(name.toLowerCase())) continue;
+        final profession = (map['profession'] as String?)?.trim() ?? '';
+        results.add((name: name, profession: profession));
+        if (results.length >= limit) break;
+      }
+
+      return results;
+    } on PostgrestException catch (e) {
+      if (e.code == '42703') {
+        return _searchLegacyCompanyNameSuggestions(safe, limit: limit);
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<({String name, String profession})>> _searchLegacyCompanyNameSuggestions(
+    String term, {
+    int limit = 5,
+  }) async {
+    try {
+      final raw = await _client
+          .from('professionals')
+          .select('name, category')
+          .or('name.ilike.%$term%,category.ilike.%$term%')
+          .limit(limit * 2);
+
+      final seen = <String>{};
+      final results = <({String name, String profession})>[];
+
+      for (final row in raw as List) {
+        final map = row as Map<String, dynamic>;
+        final name = (map['name'] as String?)?.trim() ?? '';
+        if (name.isEmpty || !seen.add(name.toLowerCase())) continue;
+        final profession = (map['category'] as String?)?.trim() ?? '';
+        results.add((name: name, profession: profession));
+        if (results.length >= limit) break;
+      }
+
+      return results;
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Media bayesiana: (C*m + n*avg) / (C+n)  —  C=5, m=4.0

@@ -24,6 +24,21 @@ class ProfessionCategory {
   final List<ProfessionItem> professions;
 }
 
+/// Agrupa categorías del catálogo para el registro (ej. Reparaciones + Reformas).
+class ServiceSectionGroup {
+  const ServiceSectionGroup({
+    required this.id,
+    required this.label,
+    required this.title,
+    required this.categoryIds,
+  });
+
+  final String id;
+  final String label;
+  final String title;
+  final List<String> categoryIds;
+}
+
 class ProfessionCatalog {
   ProfessionCatalog._();
 
@@ -87,6 +102,12 @@ class ProfessionCatalog {
           name: 'Instalador Solar',
           description:
               'Instalación de paneles solares fotovoltaicos, baterías y sistemas de autoconsumo.',
+        ),
+        ProfessionItem(
+          categoryId: 'reparaciones',
+          name: 'Herrero',
+          description:
+              'Rejas, puertas metálicas, soldadura, barandillas y reparación de estructuras de hierro.',
         ),
       ],
     ),
@@ -200,6 +221,18 @@ class ProfessionCatalog {
           description:
               'Colocación de suelos de hormigón pulido, microcemento y suelos industriales.',
         ),
+        ProfessionItem(
+          categoryId: 'reformas',
+          name: 'Herrero',
+          description:
+              'Estructuras metálicas, barandillas, puertas correderas y cerramientos de hierro en obra.',
+        ),
+        ProfessionItem(
+          categoryId: 'reformas',
+          name: 'Andamiero',
+          description:
+              'Montaje y desmontaje de andamios, vallados de obra y plataformas de trabajo en altura.',
+        ),
       ],
     ),
 
@@ -273,6 +306,73 @@ class ProfessionCatalog {
     ),
   ];
 
+  /// Secciones de servicio para registro y búsqueda (Reparaciones+Reformas unidas).
+  static const serviceSectionGroups = <ServiceSectionGroup>[
+    ServiceSectionGroup(
+      id: 'reparacion_reforma',
+      label: 'Reparaciones y Reformas',
+      title: 'Reparaciones y Reformas',
+      categoryIds: ['reparaciones', 'reformas'],
+    ),
+    ServiceSectionGroup(
+      id: 'mantenimiento',
+      label: 'Mantenimiento',
+      title: 'Mantenimiento General',
+      categoryIds: ['mantenimiento'],
+    ),
+  ];
+
+  static ServiceSectionGroup? serviceGroupById(String id) {
+    for (final g in serviceSectionGroups) {
+      if (g.id == id) return g;
+    }
+    return null;
+  }
+
+  /// Oficios visibles al navegar por sección (sin duplicados).
+  static List<ProfessionItem> professionsForBrowseGroup(String groupId) {
+    final group = serviceGroupById(groupId);
+    if (group == null) return const [];
+
+    final seen = <String>{};
+    final result = <ProfessionItem>[];
+    for (final categoryId in group.categoryIds) {
+      final cat = categoryById(categoryId);
+      if (cat == null) continue;
+      for (final prof in cat.professions) {
+        if (seen.add(prof.name)) result.add(prof);
+      }
+    }
+    return result;
+  }
+
+  static bool isServiceGroupSelected(
+    ServiceSectionGroup group,
+    Set<String> selectedCategoryIds,
+  ) =>
+      group.categoryIds.any(selectedCategoryIds.contains);
+
+  static Set<String> toggleServiceGroup(
+    ServiceSectionGroup group,
+    Set<String> selectedCategoryIds,
+  ) {
+    final next = Set<String>.from(selectedCategoryIds);
+    if (isServiceGroupSelected(group, selectedCategoryIds)) {
+      next.removeAll(group.categoryIds);
+    } else {
+      next.addAll(group.categoryIds);
+    }
+    return next;
+  }
+
+  /// Etiquetas agrupadas para la vista previa del perfil.
+  static List<String> serviceSectionLabels(Set<String> categoryIds) {
+    return serviceSectionGroups
+        .where((g) => isServiceGroupSelected(g, categoryIds))
+        .map((g) => g.label)
+        .toList();
+  }
+
   /// Lista sin duplicados (un oficio puede aparecer en varias categorías).
   static List<ProfessionItem> get allProfessions {
     final seen = <String>{};
@@ -298,10 +398,6 @@ class ProfessionCatalog {
     return null;
   }
 
-  /// Devuelve los nombres de profesiones del catálogo que guardan relación
-  /// semántica con [query]. Usa coincidencia de prefijo (≥5 chars) contra el
-  /// nombre y la descripción de cada oficio para cubrir variaciones morfológicas
-  /// del español (limpiar → limpieza, fontanería → fontanero, etc.).
   static List<String> relatedProfessionNames(String query) {
     final q = query.toLowerCase().trim();
     if (q.isEmpty) return [];
@@ -324,6 +420,38 @@ class ProfessionCatalog {
       final combined = '${p.name} ${p.description}'.toLowerCase();
       return qWords.any((word) => matchesTerm(word, combined));
     }).map((p) => p.name).toList();
+  }
+
+  /// Oficios del catálogo cuyo nombre o descripción contiene [query].
+  static List<ProfessionItem> matchingProfessions(
+    String query, {
+    int limit = 6,
+  }) {
+    final q = query.toLowerCase().trim();
+    if (q.length < 2) return [];
+
+    final scored = <({ProfessionItem item, int score})>[];
+    final seen = <String>{};
+
+    for (final p in allProfessions) {
+      final name = p.name.toLowerCase();
+      var score = 0;
+      if (name.startsWith(q)) {
+        score = 3;
+      } else if (name.contains(q)) {
+        score = 2;
+      } else if (p.description.toLowerCase().contains(q)) {
+        score = 1;
+      } else {
+        continue;
+      }
+      if (seen.add(p.name)) {
+        scored.add((item: p, score: score));
+      }
+    }
+
+    scored.sort((a, b) => b.score.compareTo(a.score));
+    return scored.take(limit).map((e) => e.item).toList();
   }
 
   /// Busca la categoría de un oficio guardado con nombre antiguo.
@@ -359,6 +487,15 @@ class ProfessionCatalog {
       'fumigación': 'mantenimiento',
       'ascensor': 'mantenimiento',
       'riego': 'mantenimiento',
+      'herrero': 'reparaciones',
+      'herrería': 'reparaciones',
+      'herreria': 'reparaciones',
+      'soldador': 'reparaciones',
+      'andamio': 'reformas',
+      'andamiaje': 'reformas',
+      'andamiero': 'reformas',
+      'vallado': 'reformas',
+      'vallamiento': 'reformas',
     };
     final mapped = legacyMap[lower];
     if (mapped != null) return categoryById(mapped);

@@ -30,16 +30,16 @@ class ProfessionMultiSelectSection extends StatefulWidget {
 
 class _ProfessionMultiSelectSectionState
     extends State<ProfessionMultiSelectSection> {
-  late String _selectedCategoryId;
+  late String _selectedBrowseGroupId;
 
   @override
   void initState() {
     super.initState();
-    _selectedCategoryId = ProfessionCatalog.categories.first.id;
+    _selectedBrowseGroupId = ProfessionCatalog.serviceSectionGroups.first.id;
   }
 
-  ProfessionCategory get _activeCategory =>
-      ProfessionCatalog.categoryById(_selectedCategoryId)!;
+  ServiceSectionGroup get _activeBrowseGroup =>
+      ProfessionCatalog.serviceGroupById(_selectedBrowseGroupId)!;
 
   void _toggleProfession(String name) {
     final next = Set<String>.from(widget.selectedProfessions);
@@ -71,27 +71,31 @@ class _ProfessionMultiSelectSectionState
   /// nuevas. Cuando quita todos los oficios de una categoría, la deselecciona.
   void _autoUpdateCategories(Set<String> professions) {
     if (widget.onCategoriesChanged == null) return;
+    if (professions.isEmpty) return;
+
     final available = _availableCategories(professions);
-    // Mantener las categorías ya elegidas que siguen siendo válidas,
-    // y añadir las nuevas (auto-opt-in).
-    final next = {
-      ...widget.selectedCategories.where(available.contains),
-      ...available,
-    };
+    final next = Set<String>.from(
+      widget.selectedCategories.where(available.contains),
+    );
+
+    if (available.contains('reparaciones') ||
+        available.contains('reformas')) {
+      next.addAll(['reparaciones', 'reformas']);
+    }
+    if (available.contains('mantenimiento')) {
+      next.add('mantenimiento');
+    }
+
     if (next != widget.selectedCategories) {
       widget.onCategoriesChanged!(next);
     }
   }
 
-  void _toggleCategory(String categoryId) {
+  void _toggleServiceGroup(ServiceSectionGroup group) {
     if (widget.onCategoriesChanged == null) return;
-    final next = Set<String>.from(widget.selectedCategories);
-    if (next.contains(categoryId)) {
-      next.remove(categoryId);
-    } else {
-      next.add(categoryId);
-    }
-    widget.onCategoriesChanged!(next);
+    widget.onCategoriesChanged!(
+      ProfessionCatalog.toggleServiceGroup(group, widget.selectedCategories),
+    );
   }
 
   @override
@@ -138,7 +142,7 @@ class _ProfessionMultiSelectSectionState
         ),
         const SizedBox(height: 6),
         Text(
-          _activeCategory.title,
+          _activeBrowseGroup.title,
           style: const TextStyle(
             color: AppTheme.textSecondary,
             fontSize: 13,
@@ -149,14 +153,14 @@ class _ProfessionMultiSelectSectionState
           height: 42,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: ProfessionCatalog.categories.length,
+            itemCount: ProfessionCatalog.serviceSectionGroups.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
-              final cat = ProfessionCatalog.categories[index];
+              final group = ProfessionCatalog.serviceSectionGroups[index];
               return MotherCategoryChip(
-                label: cat.shortName,
-                selected: _selectedCategoryId == cat.id,
-                onTap: () => setState(() => _selectedCategoryId = cat.id),
+                label: group.label,
+                selected: _selectedBrowseGroupId == group.id,
+                onTap: () => setState(() => _selectedBrowseGroupId = group.id),
               );
             },
           ),
@@ -167,10 +171,12 @@ class _ProfessionMultiSelectSectionState
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
           child: Wrap(
-            key: ValueKey(_selectedCategoryId),
+            key: ValueKey(_selectedBrowseGroupId),
             spacing: 8,
             runSpacing: 8,
-            children: _activeCategory.professions.map((prof) {
+            children: ProfessionCatalog.professionsForBrowseGroup(
+              _selectedBrowseGroupId,
+            ).map((prof) {
               final isSelected =
                   widget.selectedProfessions.contains(prof.name);
               return ProfessionChip(
@@ -181,12 +187,12 @@ class _ProfessionMultiSelectSectionState
             }).toList(),
           ),
         ),
-        // ── Selector de categorías (si hay categorías con solape) ────────────
+        // ── Selector de categorías (solo si hay solape entre secciones) ─────
         if (widget.onCategoriesChanged != null) ...[
           _CategorySelector(
             available: _availableCategories(widget.selectedProfessions),
             selected: widget.selectedCategories,
-            onToggle: _toggleCategory,
+            onToggleGroup: _toggleServiceGroup,
           ),
         ],
 
@@ -244,34 +250,59 @@ class _CategorySelector extends StatelessWidget {
   const _CategorySelector({
     required this.available,
     required this.selected,
-    required this.onToggle,
+    required this.onToggleGroup,
+    this.topPadding = 20,
   });
 
   final Set<String> available;
   final Set<String> selected;
-  final ValueChanged<String> onToggle;
+  final ValueChanged<ServiceSectionGroup> onToggleGroup;
+  final double topPadding;
+
+  bool _groupAvailable(ServiceSectionGroup group) =>
+      group.categoryIds.any(available.contains);
+
+  bool _groupFullySelected(ServiceSectionGroup group) =>
+      group.categoryIds.every(selected.contains);
 
   @override
   Widget build(BuildContext context) {
-    // Solo se muestra si hay al menos una categoría disponible
+    final groups = ProfessionCatalog.serviceSectionGroups;
+
     if (available.isEmpty) return const SizedBox.shrink();
 
-    final cats = ProfessionCatalog.categories
-        .where((c) => available.contains(c.id))
-        .toList();
+    final applicable =
+        groups.where((g) => _groupAvailable(g)).toList(growable: false);
 
-    // Si solo hay una categoría disponible y ya está seleccionada, no mostrar
-    if (cats.length == 1 && selected.contains(cats.first.id)) {
+    if (applicable.isEmpty) return const SizedBox.shrink();
+
+    if (applicable.length == 1 && _groupFullySelected(applicable.first)) {
       return const SizedBox.shrink();
     }
 
+    return _buildSelector(
+      context,
+      applicable,
+      enabledOnly: true,
+      topPadding: topPadding,
+    );
+  }
+
+  Widget _buildSelector(
+    BuildContext context,
+    List<ServiceSectionGroup> groups, {
+    required bool enabledOnly,
+    double topPadding = 20,
+  }) {
+    final canToggle = !enabledOnly || available.isNotEmpty;
+
     return Padding(
-      padding: const EdgeInsets.only(top: 20),
+      padding: EdgeInsets.only(top: topPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '¿En qué categorías quieres aparecer?',
+            '¿En qué secciones trabajas?',
             style: TextStyle(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.w600,
@@ -279,18 +310,22 @@ class _CategorySelector extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
-            'Los clientes te encontrarán al filtrar por estas secciones.',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+          Text(
+            canToggle
+                ? 'Marca Reparaciones y Reformas, Mantenimiento u otras secciones.'
+                : 'Selecciona tus oficios abajo para activar estas opciones.',
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: cats.map((cat) {
-              final isOn = selected.contains(cat.id);
+            children: groups.map((group) {
+              final isEnabled = !enabledOnly || _groupAvailable(group);
+              final isOn =
+                  ProfessionCatalog.isServiceGroupSelected(group, selected);
               return GestureDetector(
-                onTap: () => onToggle(cat.id),
+                onTap: isEnabled ? () => onToggleGroup(group) : null,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   padding: const EdgeInsets.symmetric(
@@ -298,12 +333,12 @@ class _CategorySelector extends StatelessWidget {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: isOn
+                    color: isOn && isEnabled
                         ? AppTheme.primary
                         : AppTheme.surfaceElevated,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isOn
+                      color: isOn && isEnabled
                           ? AppTheme.primary
                           : const Color(0xFF3A444D),
                     ),
@@ -312,19 +347,25 @@ class _CategorySelector extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        isOn
-                            ? Icons.check_circle_rounded
-                            : Icons.radio_button_unchecked_rounded,
+                        isOn && isEnabled
+                            ? Icons.check_box_rounded
+                            : Icons.check_box_outline_blank_rounded,
                         size: 16,
-                        color: isOn
-                            ? Colors.white
-                            : AppTheme.textSecondary,
+                        color: !isEnabled
+                            ? AppTheme.textSecondary.withValues(alpha: 0.35)
+                            : isOn
+                                ? Colors.white
+                                : AppTheme.textSecondary,
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        cat.title,
+                        group.label,
                         style: TextStyle(
-                          color: isOn ? Colors.white : AppTheme.textSecondary,
+                          color: !isEnabled
+                              ? AppTheme.textSecondary.withValues(alpha: 0.35)
+                              : isOn
+                                  ? Colors.white
+                                  : AppTheme.textSecondary,
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
                         ),

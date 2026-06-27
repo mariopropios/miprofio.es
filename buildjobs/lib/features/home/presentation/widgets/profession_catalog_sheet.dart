@@ -126,7 +126,7 @@ class _ProfessionCatalogSheetState extends State<ProfessionCatalogSheet> {
           child: Text(
             widget.multiSelect
                 ? 'Puedes marcar varios oficios a la vez.'
-                : 'Explora las 24 especialidades de hogar y mantenimiento, organizadas en 3 áreas.',
+                : 'Explora las especialidades de hogar y mantenimiento, organizadas en 2 áreas.',
             style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
           ),
         ),
@@ -134,12 +134,14 @@ class _ProfessionCatalogSheetState extends State<ProfessionCatalogSheet> {
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            itemCount: ProfessionCatalog.categories.length,
+            itemCount: ProfessionCatalog.serviceSectionGroups.length,
             separatorBuilder: (_, __) => const SizedBox(height: 20),
             itemBuilder: (context, index) {
-              final category = ProfessionCatalog.categories[index];
+              final group = ProfessionCatalog.serviceSectionGroups[index];
               return _CategoryBlock(
-                category: category,
+                title: group.title,
+                professions:
+                    ProfessionCatalog.professionsForBrowseGroup(group.id),
                 multiSelect: widget.multiSelect,
                 selectedProfessions: _selected,
                 onToggleProfession: _handleToggle,
@@ -154,13 +156,15 @@ class _ProfessionCatalogSheetState extends State<ProfessionCatalogSheet> {
 
 class _CategoryBlock extends StatelessWidget {
   const _CategoryBlock({
-    required this.category,
+    required this.title,
+    required this.professions,
     required this.multiSelect,
     required this.selectedProfessions,
     this.onToggleProfession,
   });
 
-  final ProfessionCategory category;
+  final String title;
+  final List<ProfessionItem> professions;
   final bool multiSelect;
   final Set<String> selectedProfessions;
   final ValueChanged<String>? onToggleProfession;
@@ -171,7 +175,7 @@ class _CategoryBlock extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          category.title,
+          title,
           style: const TextStyle(
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w700,
@@ -182,7 +186,7 @@ class _CategoryBlock extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: category.professions.map((prof) {
+          children: professions.map((prof) {
             return ProfessionChip(
               profession: prof,
               selected: selectedProfessions.contains(prof.name),

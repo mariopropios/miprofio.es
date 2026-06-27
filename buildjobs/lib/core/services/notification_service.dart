@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -10,17 +11,44 @@ class NotificationService {
 
   static FirebaseMessaging get _fcm => FirebaseMessaging.instance;
   static SupabaseClient get _db => Supabase.instance.client;
+  static bool _listenersAttached = false;
+
+  static bool get _firebaseReady => Firebase.apps.isNotEmpty;
 
   // ── VAPID key para web push ──────────────────────────────────────────────
-  // Cópiala desde Firebase Console → Project Settings → Cloud Messaging
-  // → Web Push certificates → Key pair y ponla en .env como FIREBASE_VAPID_KEY
   static String get _vapidKey => dotenv.env['FIREBASE_VAPID_KEY'] ?? '';
 
-  // ── Inicialización ───────────────────────────────────────────────────────
+  /// Estado actual del permiso (sin pedirlo al usuario).
+  static Future<AuthorizationStatus> permissionStatus() async {
+    if (!_firebaseReady) return AuthorizationStatus.notDetermined;
+    final settings = await _fcm.getNotificationSettings();
+    return settings.authorizationStatus;
+  }
 
-  /// Llama a este método una vez al arrancar la app (después de login).
-  static Future<void> init() async {
-    // Solicitar permiso (en web muestra el diálogo nativo del navegador)
+  static Future<bool> get isEnabled async {
+    final status = await permissionStatus();
+    return status == AuthorizationStatus.authorized ||
+        status == AuthorizationStatus.provisional;
+  }
+
+  /// Si el usuario ya concedió permiso antes, sincroniza token sin mostrar diálogo.
+  static Future<void> syncIfAlreadyAuthorized() async {
+    if (!_firebaseReady) return;
+    if (!await isEnabled) return;
+    await _ensureSetup();
+  }
+
+  /// Pide permiso solo al entrar en Mensajes si aún no está activo.
+  static Future<bool> requestIfNeeded() async {
+    if (!_firebaseReady) return false;
+
+    final current = await permissionStatus();
+    if (current == AuthorizationStatus.authorized ||
+        current == AuthorizationStatus.provisional) {
+      await _ensureSetup();
+      return true;
+    }
+
     final settings = await _fcm.requestPermission(
       alert: true,
       badge: true,
@@ -29,25 +57,24 @@ class NotificationService {
 
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
       debugPrint('[Push] Permiso denegado');
-      return;
+      return false;
     }
 
     debugPrint('[Push] Permiso: ${settings.authorizationStatus}');
+    await _ensureSetup();
+    return settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
+  }
 
-    // Obtener token FCM del dispositivo/navegador
+  static Future<void> _ensureSetup() async {
     await _refreshAndSaveToken();
+    if (_listenersAttached) return;
+    _listenersAttached = true;
 
-    // Escuchar renovaciones de token (FCM rota el token periódicamente)
     _fcm.onTokenRefresh.listen(_saveToken);
 
-    // ── Notificaciones en PRIMER PLANO ──────────────────────────────────
-    // (el service worker solo gestiona las de background)
     FirebaseMessaging.onMessage.listen((RemoteMessage msg) {
       debugPrint('[Push] Mensaje en foreground: ${msg.notification?.title}');
-      // En web, si la app está abierta, el Realtime ya actualiza el chat.
-      // No mostramos notificación para no duplicar.
-      // En móvil podríamos mostrar una local notification aquí si se añade
-      // el paquete flutter_local_notifications.
     });
   }
 
