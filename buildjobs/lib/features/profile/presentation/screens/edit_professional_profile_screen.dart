@@ -46,12 +46,23 @@ class _EditProfessionalProfileScreenState
   String? _geoError;
   String? _professionalId;
   bool _loaded = false;
+  double? _latitude;
+  double? _longitude;
+  bool _skipGeoClear = false;
   final _cityFieldKey = GlobalKey<CityAutocompleteFieldState>();
 
   @override
   void initState() {
     super.initState();
+    _cityCtrl.addListener(_onAddressOrCityChanged);
+    _addressCtrl.addListener(_onAddressOrCityChanged);
     _loadData();
+  }
+
+  void _onAddressOrCityChanged() {
+    if (_skipGeoClear) return;
+    _latitude = null;
+    _longitude = null;
   }
 
   Future<void> _loadData() async {
@@ -71,7 +82,9 @@ class _EditProfessionalProfileScreenState
       _cityCtrl.text = p.city;
       _phoneCtrl.text = p.phone ?? '';
       _websiteCtrl.text = p.website ?? '';
-      _addressCtrl.text = p.address ?? '';
+      _addressCtrl.text = p.address;
+      _latitude = p.latitude;
+      _longitude = p.longitude;
       _bioCtrl.text = p.description ?? '';
       // Parse comma-separated professions into a Set
       _selectedProfessions = p.professions.toSet();
@@ -100,9 +113,14 @@ class _EditProfessionalProfileScreenState
       _geoError = null;
     });
     try {
-      final city = await GeoService.detectCity();
+      final location = await GeoService.detectLocation();
       if (mounted) {
-        _cityFieldKey.currentState?.applyCity(city);
+        _skipGeoClear = true;
+        _cityFieldKey.currentState?.applyCity(location.city);
+        _addressCtrl.text = location.address;
+        _latitude = location.latitude;
+        _longitude = location.longitude;
+        _skipGeoClear = false;
       }
     } on GeoServiceException catch (e) {
       if (mounted) setState(() => _geoError = e.message);
@@ -136,10 +154,34 @@ class _EditProfessionalProfileScreenState
 
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_selectedProfessions.isEmpty) return;
     final user = ref.read(currentUserProvider);
     if (user == null || _professionalId == null) return;
     setState(() => _saving = true);
     try {
+      final city = _cityCtrl.text.trim();
+      final addressInput = _addressCtrl.text.trim();
+
+      double latitude;
+      double longitude;
+      String address = addressInput;
+
+      if (_latitude != null && _longitude != null) {
+        latitude = _latitude!;
+        longitude = _longitude!;
+      } else {
+        final geocoded = await GeoService.geocodeAddress(
+          address: addressInput,
+          city: city,
+        );
+        latitude = geocoded.latitude;
+        longitude = geocoded.longitude;
+        if (geocoded.formattedAddress != null &&
+            geocoded.formattedAddress!.isNotEmpty) {
+          address = geocoded.formattedAddress!;
+        }
+      }
+
       final storage = ProfilePhotoStorage(ref.read(supabaseClientProvider));
 
       String? newProfilePhotoUrl;
@@ -159,10 +201,12 @@ class _EditProfessionalProfileScreenState
             professionalId: _professionalId!,
             name: _nameCtrl.text.trim(),
             profession: _selectedProfessions.join(', '),
-            city: _cityCtrl.text.trim(),
+            city: city,
             phone: _phoneCtrl.text.trim(),
             website: _websiteCtrl.text.trim(),
-            address: _addressCtrl.text.trim(),
+            address: address,
+            latitude: latitude,
+            longitude: longitude,
             description: _bioCtrl.text.trim(),
             profilePhotoUrl: newProfilePhotoUrl,
             galleryPhotoUrls: finalGallery,
@@ -183,8 +227,11 @@ class _EditProfessionalProfileScreenState
       }
     } catch (e) {
       if (mounted) {
+        final message = e is GeoServiceException
+            ? e.message
+            : 'Error al guardar: $e';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar: $e')),
+          SnackBar(content: Text(message)),
         );
       }
     } finally {
@@ -351,10 +398,17 @@ class _EditProfessionalProfileScreenState
                       ),
                       const SizedBox(height: 14),
                       RegisterFormField(
-                        label: 'Dirección (opcional)',
+                        label: 'Dirección',
                         controller: _addressCtrl,
-                        hint: 'Calle, número...',
+                        hint: 'Calle, número, piso…',
                         icon: Icons.place_outlined,
+                        validator: (v) {
+                          final text = v?.trim() ?? '';
+                          if (text.length < 5) {
+                            return 'Indica una dirección completa (calle y número)';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 14),
                       RegisterFormField(

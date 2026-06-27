@@ -192,3 +192,15 @@ final savedProfessionalsProvider = FutureProvider<List<Professional>>((ref) asyn
   if (user == null) return [];
   return ref.watch(savedProfessionalRepositoryProvider).getSavedProfessionals();
 });
+
+final publicUserProfileProvider =
+    FutureProvider.family<UserProfile?, String>((ref, userId) {
+  return ref.watch(profileRepositoryProvider).getProfile(userId);
+});
+
+final publicUserSavedProfessionalsProvider =
+    FutureProvider.family<List<Professional>, String>((ref, userId) {
+  return ref
+      .watch(savedProfessionalRepositoryProvider)
+      .getSavedProfessionalsForUser(userId);
+});

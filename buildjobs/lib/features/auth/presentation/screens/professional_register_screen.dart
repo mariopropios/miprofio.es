@@ -79,6 +79,7 @@ class _ProfessionalRegisterScreenState
 
   final _businessNameController = TextEditingController();
   final _cityController = TextEditingController();
+  final _addressController = TextEditingController();
   final _bioController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -90,6 +91,25 @@ class _ProfessionalRegisterScreenState
   bool _isPhoneValid = false;
   String _phoneE164 = '';
   String _phoneDisplay = '';
+  double? _latitude;
+  double? _longitude;
+  bool _skipGeoClear = false;
+
+  void _onAddressOrCityChanged() {
+    if (_skipGeoClear) return;
+    _latitude = null;
+    _longitude = null;
+  }
+
+  void _applyGeoLocation(GeoLocationResult location) {
+    _skipGeoClear = true;
+    _cityController.text = location.city;
+    _addressController.text = location.address;
+    _latitude = location.latitude;
+    _longitude = location.longitude;
+    _skipGeoClear = false;
+    _refresh();
+  }
 
   @override
   void initState() {
@@ -97,12 +117,15 @@ class _ProfessionalRegisterScreenState
     for (final c in [
       _businessNameController,
       _cityController,
+      _addressController,
       _bioController,
       _emailController,
       _passwordController,
     ]) {
       c.addListener(_refresh);
     }
+    _cityController.addListener(_onAddressOrCityChanged);
+    _addressController.addListener(_onAddressOrCityChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _prefillIfLoggedIn());
   }
 
@@ -132,6 +155,7 @@ class _ProfessionalRegisterScreenState
     _stepScrollController.dispose();
     _businessNameController.dispose();
     _cityController.dispose();
+    _addressController.dispose();
     _bioController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -140,7 +164,9 @@ class _ProfessionalRegisterScreenState
 
   bool get _isNameValid => _businessNameController.text.trim().length >= 2;
 
-  bool get _isCityValid => _cityController.text.trim().length >= 2;
+  bool get _isCityValid =>
+      _cityController.text.trim().length >= 2 &&
+      _addressController.text.trim().length >= 5;
 
   bool get _isBioValid => _bioController.text.trim().length >= 20;
 
@@ -404,7 +430,28 @@ class _ProfessionalRegisterScreenState
       final password = _passwordController.text;
       final fullName = _businessNameController.text.trim();
       final city = _cityController.text.trim();
+      final addressInput = _addressController.text.trim();
       final loggedInUser = ref.read(currentUserProvider);
+
+      double latitude;
+      double longitude;
+      String address = addressInput;
+
+      if (_latitude != null && _longitude != null) {
+        latitude = _latitude!;
+        longitude = _longitude!;
+      } else {
+        final geocoded = await GeoService.geocodeAddress(
+          address: addressInput,
+          city: city,
+        );
+        latitude = geocoded.latitude;
+        longitude = geocoded.longitude;
+        if (geocoded.formattedAddress != null &&
+            geocoded.formattedAddress!.isNotEmpty) {
+          address = geocoded.formattedAddress!;
+        }
+      }
 
       late final String userId;
 
@@ -536,6 +583,9 @@ class _ProfessionalRegisterScreenState
             professions: _selectedProfessions.toList(),
             description: description,
             city: city,
+            address: address,
+            latitude: latitude,
+            longitude: longitude,
             phone: _phoneE164,
             email: accountEmail,
             profilePhotoUrl: profilePhotoUrl,
@@ -585,6 +635,12 @@ class _ProfessionalRegisterScreenState
               'La operación tardó demasiado. Comprueba tu conexión e inténtalo de nuevo.',
             ),
           ),
+        );
+      }
+    } on GeoServiceException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
         );
       }
     } catch (e) {
@@ -780,6 +836,8 @@ class _ProfessionalRegisterScreenState
           formKey: _cityFormKey,
           autovalidateMode: _cityValidateMode,
           controller: _cityController,
+          addressController: _addressController,
+          onLocationDetected: _applyGeoLocation,
           serviceRadius: _serviceRadius,
           onRadiusChanged: (v) => setState(() => _serviceRadius = v),
         );
@@ -932,6 +990,8 @@ class _CityStep extends StatefulWidget {
     required this.formKey,
     required this.autovalidateMode,
     required this.controller,
+    required this.addressController,
+    required this.onLocationDetected,
     required this.serviceRadius,
     required this.onRadiusChanged,
   });
@@ -940,6 +1000,8 @@ class _CityStep extends StatefulWidget {
   final GlobalKey<FormState> formKey;
   final AutovalidateMode autovalidateMode;
   final TextEditingController controller;
+  final TextEditingController addressController;
+  final ValueChanged<GeoLocationResult> onLocationDetected;
   final int serviceRadius;
   final ValueChanged<int> onRadiusChanged;
 
@@ -958,9 +1020,10 @@ class _CityStepState extends State<_CityStep> {
       _geoError = null;
     });
     try {
-      final city = await GeoService.detectCity();
+      final location = await GeoService.detectLocation();
       if (mounted) {
-        _cityFieldKey.currentState?.applyCity(city);
+        widget.onLocationDetected(location);
+        _cityFieldKey.currentState?.applyCity(location.city);
         widget.formKey.currentState?.validate();
       }
     } on GeoServiceException catch (e) {
@@ -987,7 +1050,8 @@ class _CityStepState extends State<_CityStep> {
           _StepHeader(
             compact: widget.compact,
             title: '¿Dónde trabajas?',
-            subtitle: 'La ciudad o zona donde ofreces tus servicios.',
+            subtitle:
+                'Ciudad y dirección donde te encuentras. Necesaria para filtrar por cercanía.',
           ),
 
           // ── Campo ciudad con autocompletado ─────────────────────────────
@@ -999,6 +1063,20 @@ class _CityStepState extends State<_CityStep> {
             validator: (v) =>
                 v == null || v.trim().length < 2 ? 'Ciudad obligatoria' : null,
             onCitySelected: (_) => widget.formKey.currentState?.validate(),
+          ),
+          const SizedBox(height: 14),
+          RegisterFormField(
+            label: 'Dirección',
+            controller: widget.addressController,
+            hint: 'Calle, número, piso…',
+            icon: Icons.place_outlined,
+            validator: (v) {
+              final text = v?.trim() ?? '';
+              if (text.length < 5) {
+                return 'Indica una dirección completa (calle y número)';
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 12),
 

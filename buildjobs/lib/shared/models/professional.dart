@@ -11,8 +11,11 @@ class Professional {
     this.description,
     this.profilePhoto,
     this.galleryPhotos = const [],
-    this.address,
+    required this.address,
+    this.latitude,
+    this.longitude,
     this.phone,
+    this.email,
     this.website,
     this.serviceRadiusKm = 25,
     this.serviceCategories = const [],
@@ -27,8 +30,11 @@ class Professional {
   final String? description;
   final String? profilePhoto;
   final List<String> galleryPhotos;
-  final String? address;
+  final String address;
+  final double? latitude;
+  final double? longitude;
   final String? phone;
+  final String? email;
   final String? website;
   /// Radio máximo de desplazamiento (km). Por defecto 25 km.
   final int serviceRadiusKm;
@@ -73,8 +79,11 @@ class Professional {
       description: json['description'] as String?,
       profilePhoto: (json['profile_photo'] ?? json['image_url']) as String?,
       galleryPhotos: _parseGalleryPhotos(json['gallery_photos']),
-      address: json['address'] as String?,
+      address: (json['address'] as String?)?.trim() ?? '',
+      latitude: _toNullableDouble(json['latitude']),
+      longitude: _toNullableDouble(json['longitude']),
       phone: json['phone'] as String?,
+      email: json['email'] as String?,
       website: json['website'] as String?,
       serviceRadiusKm: _toInt(json['service_radius_km']) > 0
           ? _toInt(json['service_radius_km'])
@@ -105,6 +114,12 @@ class Professional {
     return int.tryParse(value.toString()) ?? 0;
   }
 
+  static double? _toNullableDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
@@ -116,7 +131,10 @@ class Professional {
         'profile_photo': profilePhoto,
         'gallery_photos': galleryPhotos,
         'address': address,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
         'phone': phone,
+        'email': email,
         'website': website,
         'service_radius_km': serviceRadiusKm,
         'service_categories': serviceCategories,

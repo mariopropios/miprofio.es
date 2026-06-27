@@ -15,6 +15,7 @@ import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/companies/presentation/screens/company_detail_screen.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/profile/presentation/screens/public_client_profile_screen.dart';
 import '../../features/profile/presentation/screens/saved_professionals_screen.dart';
 import '../../features/profile/presentation/screens/edit_client_profile_screen.dart';
 import '../../features/profile/presentation/screens/edit_professional_profile_screen.dart';
@@ -150,6 +151,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             professionalPhoto: extra?['photo'] as String?,
             conversationId: extra?['conversationId'] as String?,
           );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.userProfile,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final userId = state.pathParameters['userId']!;
+          return PublicClientProfileScreen(userId: userId);
         },
       ),
       GoRoute(

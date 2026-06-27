@@ -325,7 +325,9 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
               ? _buildImage(photos[0], 0)
               : PageView.builder(
                   controller: _ctrl,
-                  physics: const _SnapPagePhysics(),
+                  physics: const PageScrollPhysics(
+                    parent: ClampingScrollPhysics(),
+                  ),
                   onPageChanged: (i) => setState(() => _current = i),
                   itemCount: photos.length,
                   itemBuilder: (_, i) => _buildImage(photos[i], i),
@@ -498,25 +500,6 @@ class _ArrowButton extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── Physics rápidas para el PageView del carrusel ─────────────────────────────
-// Hereda de PageScrollPhysics (snap) pero reduce el umbral de velocidad para
-// que con un gesto corto ya se pase a la siguiente foto.
-
-class _SnapPagePhysics extends PageScrollPhysics {
-  const _SnapPagePhysics() : super(parent: const ClampingScrollPhysics());
-
-  @override
-  _SnapPagePhysics applyTo(ScrollPhysics? ancestor) =>
-      const _SnapPagePhysics();
-
-  @override
-  SpringDescription get spring => const SpringDescription(
-        mass: 80,
-        stiffness: 100,
-        damping: 1,
-      );
 }
 
 // ── Layouts ────────────────────────────────────────────────────────────────────

@@ -202,6 +202,7 @@ class _ProfessionalProfileContent extends StatelessWidget {
         _ContactCard(
           city: company.city,
           address: company.address,
+          email: company.email,
           phone: company.phone,
           website: company.website,
         ),
@@ -379,13 +380,15 @@ class _HeaderImage extends StatelessWidget {
 class _ContactCard extends StatelessWidget {
   const _ContactCard({
     required this.city,
-    this.address,
+    required this.address,
+    this.email,
     this.phone,
     this.website,
   });
 
   final String city;
-  final String? address;
+  final String address;
+  final String? email;
   final String? phone;
   final String? website;
 
@@ -405,11 +408,25 @@ class _ContactCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _ContactRow(icon: Icons.location_city, label: 'Ciudad', value: city),
-            if (address != null && address!.isNotEmpty)
+            _ContactRow(
+              icon: Icons.location_on,
+              label: 'Dirección',
+              value: address.isNotEmpty ? address : 'No especificada',
+            ),
+            if (email != null && email!.isNotEmpty)
               _ContactRow(
-                icon: Icons.location_on,
-                label: 'Dirección',
-                value: address!,
+                icon: Icons.email_outlined,
+                label: 'Correo',
+                value: email!,
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: email!.trim()));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Correo copiado al portapapeles'),
+                    ),
+                  );
+                },
+                trailing: const Icon(Icons.copy, size: 18),
               ),
             if (phone != null && phone!.isNotEmpty)
               _ContactRow(
@@ -758,28 +775,45 @@ class _ReviewTileState extends ConsumerState<_ReviewTile> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _UserAvatar(
-                  name: review.userName,
-                  avatarUrl: review.userAvatarUrl,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        review.userName,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        widget.dateFormat.format(review.createdAt),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.textSecondary,
+                InkWell(
+                  onTap: () =>
+                      context.push(AppRoutes.userProfilePath(review.userId)),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Row(
+                      children: [
+                        _UserAvatar(
+                          name: review.userName,
+                          avatarUrl: review.userAvatarUrl,
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              review.userName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.primary,
+                              ),
                             ),
-                      ),
-                    ],
+                            Text(
+                              widget.dateFormat.format(review.createdAt),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: AppTheme.textSecondary,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
+                const Spacer(),
                 RatingStars(rating: review.rating.toDouble(), showValue: false),
               ],
             ),

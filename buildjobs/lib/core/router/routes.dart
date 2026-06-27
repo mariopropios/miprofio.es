@@ -8,6 +8,7 @@ class AppRoutes {
   static const profile = '/profile';
   static const savedProfessionals = '/profile/saved';
   static const editProfile = '/profile/edit';
+  static const userProfile = '/users/:userId';
   static const conversations = '/messages';
   static const chat = '/messages/:professionalId';
   static const login = '/login';
@@ -40,6 +41,8 @@ class AppRoutes {
   }
 
   static String companyDetailPath(String id) => '/companies/$id';
+
+  static String userProfilePath(String userId) => '/users/$userId';
 
   static String writeReviewPath(String id) => '/companies/$id/review';
 

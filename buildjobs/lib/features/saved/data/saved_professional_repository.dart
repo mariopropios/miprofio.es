@@ -73,7 +73,10 @@ class SavedProfessionalRepository {
   Future<List<Professional>> getSavedProfessionals() async {
     final userId = _userId;
     if (userId == null) return [];
+    return getSavedProfessionalsForUser(userId);
+  }
 
+  Future<List<Professional>> getSavedProfessionalsForUser(String userId) async {
     try {
       final rows = await _client
           .from('saved_professionals')

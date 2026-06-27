@@ -314,7 +314,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           );
         }
         return GridView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: ResponsiveLayout.isDesktop(context) ? 3 : 2,
             crossAxisSpacing: 16,
@@ -373,15 +374,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     BuildContext context,
     AsyncValue<List<Company>> resultsAsync,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildFiltersPanel(),
-        const SizedBox(height: 8),
-        Expanded(
-          child: _buildResultsPanel(context, resultsAsync, compact: false),
-        ),
-      ],
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildFiltersPanel(),
+          _buildResultsPanel(context, resultsAsync, compact: false),
+        ],
+      ),
     );
   }
 

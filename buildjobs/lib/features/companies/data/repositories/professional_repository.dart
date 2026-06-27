@@ -58,21 +58,40 @@ class ProfessionalRepository {
       final data =
           await _client.from('professionals').select().eq('id', id).maybeSingle();
       if (data == null) return null;
-      return Professional.fromJson(data);
+      return _parseProfessional(Map<String, dynamic>.from(data));
     } on PostgrestException catch (e) {
       if (e.code == '42703') {
         final data = await _client
             .from('professionals')
             .select(
-              'id, name, category, description, image_url, city, rating, review_count, address, phone, website',
+              'id, name, category, description, image_url, city, rating, review_count, address, phone, email, website',
             )
             .eq('id', id)
             .maybeSingle();
         if (data == null) return null;
-        return Professional.fromJson(data);
+        return _parseProfessional(Map<String, dynamic>.from(data));
       }
       rethrow;
     }
+  }
+
+  Future<Professional> _parseProfessional(Map<String, dynamic> data) async {
+    final email = data['email'] as String?;
+    if (email == null || email.trim().isEmpty) {
+      final ownerId = (data['owner_id'] ?? data['id'])?.toString();
+      if (ownerId != null && ownerId.isNotEmpty) {
+        final profile = await _client
+            .from('profiles')
+            .select('email')
+            .eq('id', ownerId)
+            .maybeSingle();
+        final profileEmail = profile?['email'] as String?;
+        if (profileEmail != null && profileEmail.trim().isNotEmpty) {
+          data['email'] = profileEmail.trim();
+        }
+      }
+    }
+    return Professional.fromJson(data);
   }
 
   /// Busca la ficha del usuario: por id (= userId) o por owner_id (esquema legacy).
@@ -87,7 +106,7 @@ class ProfessionalRepository {
           .eq('owner_id', userId)
           .maybeSingle();
       if (data == null) return null;
-      return Professional.fromJson(data);
+      return _parseProfessional(Map<String, dynamic>.from(data));
     } on PostgrestException catch (e) {
       if (e.code == '42703') return null;
       rethrow;
@@ -127,6 +146,9 @@ class ProfessionalRepository {
     required List<String> professions,
     required String description,
     required String city,
+    required String address,
+    required double latitude,
+    required double longitude,
     String? phone,
     String? email,
     String? profilePhotoUrl,
@@ -143,6 +165,9 @@ class ProfessionalRepository {
       'profession': professionLabel,
       'description': description,
       'city': city,
+      'address': address,
+      'latitude': latitude,
+      'longitude': longitude,
       'type': 'individual',
       'service_radius_km': serviceRadiusKm,
       if (serviceCategories.isNotEmpty)
@@ -184,6 +209,8 @@ class ProfessionalRepository {
     String? phone,
     String? website,
     String? address,
+    double? latitude,
+    double? longitude,
     String? description,
     String? profilePhotoUrl,
     List<String>? galleryPhotoUrls,
@@ -197,6 +224,8 @@ class ProfessionalRepository {
     if (phone != null) payload['phone'] = phone;
     if (website != null) payload['website'] = website;
     if (address != null) payload['address'] = address;
+    if (latitude != null) payload['latitude'] = latitude;
+    if (longitude != null) payload['longitude'] = longitude;
     if (description != null) payload['description'] = description;
     if (profilePhotoUrl != null) payload['profile_photo'] = profilePhotoUrl;
     if (galleryPhotoUrls != null) payload['gallery_photos'] = galleryPhotoUrls;
@@ -215,7 +244,9 @@ class ProfessionalRepository {
         // Reintento sin las columnas más nuevas
         final fallback = Map<String, dynamic>.from(payload)
           ..remove('service_categories')
-          ..remove('service_radius_km');
+          ..remove('service_radius_km')
+          ..remove('latitude')
+          ..remove('longitude');
         if (fallback.isEmpty) return;
         try {
           await _client
