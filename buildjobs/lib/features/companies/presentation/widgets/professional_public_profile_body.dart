@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/storage_image_url.dart';
 import '../../../../shared/models/professional.dart';
 import '../../../../shared/models/review.dart';
 import '../../../../shared/widgets/async_value_widget.dart';
@@ -18,6 +19,7 @@ import 'professional_owner_gallery_section.dart';
 import '../../../../shared/widgets/profession_tags_row.dart';
 import '../../../../shared/widgets/rating_stars.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
+import '../../../../shared/widgets/resilient_network_image.dart';
 import '../../../../shared/widgets/spring_pressable.dart';
 import '../../../../shared/widgets/work_gallery_strip.dart';
 
@@ -364,20 +366,45 @@ class _HeaderImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cacheWidth =
+        (MediaQuery.sizeOf(context).width * MediaQuery.devicePixelRatioOf(context))
+            .ceil()
+            .clamp(400, 960);
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
         height: 220,
         width: double.infinity,
         child: imageUrl != null && imageUrl!.isNotEmpty
-            ? Image.network(
-                imageUrl!,
+            ? CachedNetworkImage(
+                imageUrl: StorageImageUrl.display(
+                  imageUrl!,
+                  maxWidth: cacheWidth,
+                ),
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _placeholder(),
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return const Center(child: CircularProgressIndicator());
-                },
+                width: double.infinity,
+                height: 220,
+                memCacheWidth: cacheWidth,
+                maxWidthDiskCache: cacheWidth,
+                fadeInDuration: const Duration(milliseconds: 150),
+                placeholder: (_, __) => Container(
+                  color: AppTheme.surfaceElevated,
+                  alignment: Alignment.center,
+                  child: const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+                errorWidget: (_, __, ___) => CachedNetworkImage(
+                  imageUrl: imageUrl!,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: 220,
+                  memCacheWidth: cacheWidth,
+                  errorWidget: (_, __, ___) => _placeholder(),
+                ),
               )
             : _placeholder(),
       ),
@@ -575,6 +602,36 @@ class _ReviewsSection extends StatefulWidget {
 
 class _ReviewsSectionState extends State<_ReviewsSection> {
   _ReviewSort _sort = _ReviewSort.recent;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _prefetchReviewPhotos();
+  }
+
+  void _prefetchReviewPhotos() {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    const thumbSize = _ReviewPhotoThumb.size;
+    final cacheSize = (thumbSize * dpr).ceil().clamp(80, 240);
+
+    for (final review in widget.reviews) {
+      for (final url in review.photoUrls.take(3)) {
+        final optimized = StorageImageUrl.thumbnail(
+          url,
+          width: cacheSize,
+          height: cacheSize,
+        );
+        precacheImage(
+          CachedNetworkImageProvider(
+            optimized,
+            maxWidth: cacheSize,
+            maxHeight: cacheSize,
+          ),
+          context,
+        );
+      }
+    }
+  }
 
   List<Review> get _sorted {
     final list = [...widget.reviews];
@@ -867,37 +924,7 @@ class _ReviewTileState extends ConsumerState<_ReviewTile> {
             // ── Fotos de la reseña ─────────────────────────────────────
             if (review.photoUrls.isNotEmpty) ...[
               const SizedBox(height: 12),
-              SizedBox(
-                height: 80,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: review.photoUrls.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, i) => GestureDetector(
-                    onTap: () => PhotoGalleryLightbox.show(
-                      context,
-                      photoUrls: review.photoUrls,
-                      initialIndex: i,
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: CachedNetworkImage(
-                        imageUrl: review.photoUrls[i],
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => Container(
-                          width: 80,
-                          height: 80,
-                          color: AppTheme.surfaceElevated,
-                          child: const Icon(Icons.broken_image_outlined,
-                              color: AppTheme.textSecondary),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              _ReviewPhotoRow(photoUrls: review.photoUrls),
             ],
 
             // ── Respuesta del profesional ──────────────────────────────
@@ -1107,6 +1134,84 @@ class _SendMessageButton extends ConsumerWidget {
   }
 }
 
+// ── Miniaturas de fotos en reseñas ────────────────────────────────────────────
+
+class _ReviewPhotoThumb {
+  _ReviewPhotoThumb._();
+
+  static const size = 80.0;
+}
+
+class _ReviewPhotoRow extends StatelessWidget {
+  const _ReviewPhotoRow({required this.photoUrls});
+
+  final List<String> photoUrls;
+
+  @override
+  Widget build(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheSize =
+        (_ReviewPhotoThumb.size * dpr).ceil().clamp(80, 240);
+
+    return SizedBox(
+      height: _ReviewPhotoThumb.size,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: photoUrls.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final url = photoUrls[i];
+          final optimized = StorageImageUrl.thumbnail(
+            url,
+            width: cacheSize,
+            height: cacheSize,
+          );
+
+          return GestureDetector(
+            onTap: () => PhotoGalleryLightbox.show(
+              context,
+              photoUrls: photoUrls,
+              initialIndex: i,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: ResilientNetworkImage(
+                originalUrl: url,
+                optimizedUrl: optimized,
+                width: _ReviewPhotoThumb.size,
+                height: _ReviewPhotoThumb.size,
+                fit: BoxFit.cover,
+                memCacheWidth: cacheSize,
+                fadeInDuration: Duration.zero,
+                placeholder: Container(
+                  width: _ReviewPhotoThumb.size,
+                  height: _ReviewPhotoThumb.size,
+                  color: AppTheme.surfaceElevated,
+                  alignment: Alignment.center,
+                  child: const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+                error: Container(
+                  width: _ReviewPhotoThumb.size,
+                  height: _ReviewPhotoThumb.size,
+                  color: AppTheme.surfaceElevated,
+                  child: const Icon(
+                    Icons.broken_image_outlined,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 // ── Avatar del autor de la reseña ─────────────────────────────────────────────
 
 class _UserAvatar extends StatelessWidget {
@@ -1118,12 +1223,55 @@ class _UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      final dpr = MediaQuery.devicePixelRatioOf(context);
+      const diameter = 40.0;
+      final cacheSize = (diameter * dpr).ceil().clamp(40, 120);
+      final optimized = StorageImageUrl.thumbnail(
+        avatarUrl!,
+        width: cacheSize,
+        height: cacheSize,
+      );
+
       return CircleAvatar(
-        backgroundImage: CachedNetworkImageProvider(avatarUrl!),
         backgroundColor: AppTheme.surfaceElevated,
         radius: 20,
-        onBackgroundImageError: (_, __) {},
-        child: null,
+        child: ClipOval(
+          child: ResilientNetworkImage(
+            originalUrl: avatarUrl!,
+            optimizedUrl: optimized,
+            width: diameter,
+            height: diameter,
+            fit: BoxFit.cover,
+            memCacheWidth: cacheSize,
+            fadeInDuration: Duration.zero,
+            placeholder: SizedBox(
+              width: diameter,
+              height: diameter,
+              child: Center(
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    color: AppTheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            error: SizedBox(
+              width: diameter,
+              height: diameter,
+              child: Center(
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    color: AppTheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       );
     }
     return CircleAvatar(

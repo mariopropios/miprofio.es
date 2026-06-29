@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/gallery_photo_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/storage_image_url.dart';
+import 'resilient_network_image.dart';
 
 /// Visor flotante (dialog) con deslizamiento horizontal entre fotos.
 class PhotoGalleryLightbox extends StatefulWidget {
@@ -79,6 +81,11 @@ class _PhotoGalleryLightboxState extends State<PhotoGalleryLightbox> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final hasMany = widget.photoUrls.length > 1;
+    final displayMaxWidth =
+        (size.width * MediaQuery.devicePixelRatioOf(context)).ceil().clamp(
+              720,
+              1280,
+            );
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -97,27 +104,32 @@ class _PhotoGalleryLightboxState extends State<PhotoGalleryLightbox> {
             color: const Color(0xFF111111),
             child: Stack(
               children: [
-                // Visor de imagen con paginación
                 PageView.builder(
                   controller: _pageController,
                   itemCount: widget.photoUrls.length,
                   onPageChanged: (i) => setState(() => _currentIndex = i),
                   itemBuilder: (context, index) {
+                    final original = widget.photoUrls[index];
                     return InteractiveViewer(
                       minScale: 1,
                       maxScale: 4,
                       child: Center(
-                        child: CachedNetworkImage(
-                          imageUrl: widget.photoUrls[index],
-                          fit: BoxFit.cover,
+                        child: ResilientNetworkImage(
+                          originalUrl: original,
+                          optimizedUrl: StorageImageUrl.display(
+                            original,
+                            maxWidth: displayMaxWidth,
+                          ),
+                          fit: BoxFit.contain,
                           width: double.infinity,
                           height: double.infinity,
-                          placeholder: (_, __) => const Center(
+                          memCacheWidth: displayMaxWidth,
+                          placeholder: const Center(
                             child: CircularProgressIndicator(
                               color: Colors.white70,
                             ),
                           ),
-                          errorWidget: (_, __, ___) => const Icon(
+                          error: const Icon(
                             Icons.broken_image_outlined,
                             color: Colors.white54,
                             size: 64,
@@ -128,7 +140,6 @@ class _PhotoGalleryLightboxState extends State<PhotoGalleryLightbox> {
                   },
                 ),
 
-                // Flecha izquierda
                 if (hasMany && _currentIndex > 0)
                   Positioned(
                     left: 8,
@@ -142,7 +153,6 @@ class _PhotoGalleryLightboxState extends State<PhotoGalleryLightbox> {
                     ),
                   ),
 
-                // Flecha derecha
                 if (hasMany && _currentIndex < widget.photoUrls.length - 1)
                   Positioned(
                     right: 8,
@@ -156,7 +166,6 @@ class _PhotoGalleryLightboxState extends State<PhotoGalleryLightbox> {
                     ),
                   ),
 
-                // Barra superior: cerrar + contador
                 Positioned(
                   top: 10,
                   left: 10,
@@ -192,7 +201,6 @@ class _PhotoGalleryLightboxState extends State<PhotoGalleryLightbox> {
                   ),
                 ),
 
-                // Título en la parte inferior
                 if (widget.title != null)
                   Positioned(
                     left: 16,
@@ -271,7 +279,7 @@ class _CircleButton extends StatelessWidget {
 }
 
 /// Miniaturas horizontales de la galería; al pulsar abre el visor.
-class WorkGalleryStrip extends StatelessWidget {
+class WorkGalleryStrip extends StatefulWidget {
   const WorkGalleryStrip({
     super.key,
     required this.photoUrls,
@@ -283,12 +291,45 @@ class WorkGalleryStrip extends StatelessWidget {
   final String emptyLabel;
   final String? lightboxTitle;
 
+  @override
+  State<WorkGalleryStrip> createState() => _WorkGalleryStripState();
+}
+
+class _WorkGalleryStripState extends State<WorkGalleryStrip> {
   static const _thumbWidth = GalleryPhotoConstants.thumbWidth;
   static const _thumbHeight = GalleryPhotoConstants.thumbHeight;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _prefetchThumbnails();
+  }
+
+  void _prefetchThumbnails() {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = (_thumbWidth * dpr).ceil().clamp(140, 420);
+    final cacheHeight = (_thumbHeight * dpr).ceil().clamp(120, 360);
+
+    for (final url in widget.photoUrls.take(6)) {
+      final optimized = StorageImageUrl.thumbnail(
+        url,
+        width: cacheWidth,
+        height: cacheHeight,
+      );
+      precacheImage(
+        CachedNetworkImageProvider(
+          optimized,
+          maxWidth: cacheWidth,
+          maxHeight: cacheHeight,
+        ),
+        context,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (photoUrls.isEmpty) {
+    if (widget.photoUrls.isEmpty) {
       return Container(
         width: double.infinity,
         height: 100,
@@ -307,7 +348,7 @@ class WorkGalleryStrip extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                emptyLabel,
+                widget.emptyLabel,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppTheme.textSecondary,
                     ),
@@ -318,38 +359,49 @@ class WorkGalleryStrip extends StatelessWidget {
       );
     }
 
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = (_thumbWidth * dpr).ceil().clamp(140, 420);
+    final cacheHeight = (_thumbHeight * dpr).ceil().clamp(120, 360);
+
     return SizedBox(
       height: _thumbHeight,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: photoUrls.length,
+        itemCount: widget.photoUrls.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
-          final url = photoUrls[index];
+          final url = widget.photoUrls[index];
+          final optimized = StorageImageUrl.thumbnail(
+            url,
+            width: cacheWidth,
+            height: cacheHeight,
+          );
+
           return Material(
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(10),
               onTap: () => PhotoGalleryLightbox.show(
                 context,
-                photoUrls: photoUrls,
+                photoUrls: widget.photoUrls,
                 initialIndex: index,
-                title: lightboxTitle,
+                title: widget.lightboxTitle,
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: Stack(
                   children: [
-                    CachedNetworkImage(
-                      imageUrl: url,
+                    ResilientNetworkImage(
+                      originalUrl: url,
+                      optimizedUrl: optimized,
                       width: _thumbWidth,
                       height: _thumbHeight,
                       fit: BoxFit.cover,
-                      memCacheWidth: 280,
-                      errorWidget: (_, __, ___) => _errorThumb(),
-                      placeholder: (_, __) => _loadingThumb(),
+                      memCacheWidth: cacheWidth,
+                      placeholder: _loadingThumb(),
+                      error: _errorThumb(),
                     ),
-                    if (photoUrls.length > 1)
+                    if (widget.photoUrls.length > 1)
                       Positioned(
                         right: 6,
                         bottom: 6,
