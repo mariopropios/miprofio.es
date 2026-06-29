@@ -1,4 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../core/services/auth_callback_service.dart';
+import 'auth_register_result.dart';
 
 class AuthRepository {
   AuthRepository({SupabaseClient? client})
@@ -26,21 +30,31 @@ class AuthRepository {
       email: email,
       password: password,
       data: {'full_name': fullName, 'role': role},
+      emailRedirectTo: kIsWeb ? AuthCallbackService.webEmailRedirectTo() : null,
     );
   }
 
-  /// Registro con fallback a login si el email ya existe (común en pruebas).
-  Future<({String userId, bool needsEmailConfirmation})> registerOrSignIn({
+  /// Registro con detección de email ya existente.
+  Future<AuthRegisterResult> registerOrSignIn({
     required String email,
     required String password,
     required String fullName,
     String role = 'professional',
   }) async {
-    final signUpResponse = await _client.auth.signUp(
-      email: email,
-      password: password,
-      data: {'full_name': fullName, 'role': role},
-    );
+    AuthResponse signUpResponse;
+    try {
+      signUpResponse = await _client.auth.signUp(
+        email: email,
+        password: password,
+        data: {'full_name': fullName, 'role': role},
+        emailRedirectTo: kIsWeb ? AuthCallbackService.webEmailRedirectTo() : null,
+      );
+    } on AuthException catch (e) {
+      if (_isAlreadyRegisteredError(e)) {
+        return _resolveExistingAccount(email: email, password: password);
+      }
+      rethrow;
+    }
 
     final user = signUpResponse.user;
     if (user == null) {
@@ -48,32 +62,100 @@ class AuthRepository {
     }
 
     if (signUpResponse.session != null) {
-      return (userId: user.id, needsEmailConfirmation: false);
+      return (
+        userId: user.id,
+        needsEmailConfirmation: false,
+        accountAlreadyExists: false,
+      );
     }
 
+    if (_isDuplicateSignup(user)) {
+      return _resolveExistingAccount(email: email, password: password);
+    }
+
+    return (
+      userId: user.id,
+      needsEmailConfirmation: true,
+      accountAlreadyExists: false,
+    );
+  }
+
+  Future<AuthRegisterResult> _resolveExistingAccount({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      await signIn(email: email, password: password);
+    } on AuthException catch (e) {
+      if (_isEmailNotConfirmedError(e)) {
+        return (
+          userId: null,
+          needsEmailConfirmation: true,
+          accountAlreadyExists: false,
+        );
+      }
+      return (
+        userId: null,
+        needsEmailConfirmation: false,
+        accountAlreadyExists: true,
+      );
+    }
+
+    final signedIn = currentUser;
+    if (signedIn == null) {
+      return (
+        userId: null,
+        needsEmailConfirmation: false,
+        accountAlreadyExists: true,
+      );
+    }
+
+    if (currentSession == null) {
+      return (
+        userId: signedIn.id,
+        needsEmailConfirmation: true,
+        accountAlreadyExists: false,
+      );
+    }
+
+    return (
+      userId: signedIn.id,
+      needsEmailConfirmation: false,
+      accountAlreadyExists: false,
+    );
+  }
+
+  bool _isDuplicateSignup(User user) {
     final identities = user.identities;
-    if (identities != null && identities.isEmpty) {
-      try {
-        await signIn(email: email, password: password);
-      } on AuthException catch (e) {
-        throw AuthException(
-          'Este email ya está registrado. Usa la contraseña correcta o inicia sesión.',
-          statusCode: e.statusCode,
-          code: e.code,
-        );
-      }
+    return identities == null || identities.isEmpty;
+  }
 
-      final signedIn = currentUser;
-      if (signedIn == null) {
-        throw const AuthException(
-          'No se pudo iniciar sesión con ese email.',
-        );
-      }
-      return (userId: signedIn.id, needsEmailConfirmation: false);
-    }
+  bool _isAlreadyRegisteredError(AuthException e) {
+    final code = e.code?.toLowerCase() ?? '';
+    final message = e.message.toLowerCase();
+    return code.contains('already') ||
+        code == 'user_already_exists' ||
+        message.contains('already registered') ||
+        message.contains('already exists') ||
+        message.contains('user already registered');
+  }
 
-    return (userId: user.id, needsEmailConfirmation: true);
+  bool _isEmailNotConfirmedError(AuthException e) {
+    final code = e.code?.toLowerCase() ?? '';
+    final message = e.message.toLowerCase();
+    return code.contains('email_not_confirmed') ||
+        message.contains('email not confirmed') ||
+        message.contains('confirm your email');
   }
 
   Future<void> signOut() => _client.auth.signOut();
+
+  /// Reenvía el email de confirmación al usuario actual o al email indicado.
+  Future<void> resendVerificationEmail(String email) async {
+    await _client.auth.resend(
+      type: OtpType.signup,
+      email: email,
+      emailRedirectTo: kIsWeb ? AuthCallbackService.webEmailRedirectTo() : null,
+    );
+  }
 }

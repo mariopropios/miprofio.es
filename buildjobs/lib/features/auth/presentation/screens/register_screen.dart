@@ -122,7 +122,7 @@ class RegisterScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isWide = !ResponsiveLayout.isMobile(context);
+    final isWide = ResponsiveLayout.isDesktop(context);
 
     return Scaffold(
       appBar: AppBar(

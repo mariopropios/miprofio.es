@@ -8,12 +8,20 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../shared/widgets/premium_button.dart';
+import '../../../../core/utils/device_form_factor.dart';
 import '../../../../core/theme/app_theme.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key, this.redirectTo});
+  const LoginScreen({
+    super.key,
+    this.redirectTo,
+    this.initialEmail,
+    this.existingAccountNotice = false,
+  });
 
   final String? redirectTo;
+  final String? initialEmail;
+  final bool existingAccountNotice;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -24,6 +32,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final email = widget.initialEmail?.trim();
+    if (email != null && email.isNotEmpty) {
+      _emailController.text = email;
+    }
+  }
 
   @override
   void dispose() {
@@ -46,8 +63,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final screenW = MediaQuery.sizeOf(context).width;
-    // < 1024 px (móvil y tablet): ocupa todo el ancho. Desktop: limitado a 480.
-    final isCompact = screenW < AppConstants.tabletBreakpoint;
+    // iPhone e iPad: formulario ancho completo del marco. PC: columna estrecha.
+    final isCompact = !DeviceFormFactor.isDesktopWeb(context);
     final cardWidth = isCompact ? screenW : 480.0;
 
     return Scaffold(
@@ -90,6 +107,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 36),
+                    if (widget.existingAccountNotice) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppTheme.primary.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.info_outline_rounded,
+                              color: AppTheme.primary,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Ya tienes una cuenta con este email. '
+                                'Inicia sesión con tu contraseña.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: AppTheme.textPrimary,
+                                      height: 1.35,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
                     TextFormField(
                       controller: _emailController,
                       style: const TextStyle(fontSize: 16),

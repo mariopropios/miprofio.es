@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/gallery_photo_constants.dart';
 import '../../core/theme/app_theme.dart';
 
 /// Visor flotante (dialog) con deslizamiento horizontal entre fotos.
@@ -282,8 +283,8 @@ class WorkGalleryStrip extends StatelessWidget {
   final String emptyLabel;
   final String? lightboxTitle;
 
-  static const _thumbWidth = 140.0;
-  static const _thumbHeight = 120.0;
+  static const _thumbWidth = GalleryPhotoConstants.thumbWidth;
+  static const _thumbHeight = GalleryPhotoConstants.thumbHeight;
 
   @override
   Widget build(BuildContext context) {

@@ -163,6 +163,19 @@ class _ProfessionFilterSectionState extends State<ProfessionFilterSection> {
   }
 }
 
+/// Mueve el oficio seleccionado al principio de la lista, sin modificar el original.
+List<ProfessionItem> _sortedWithSelectedFirst(
+  List<ProfessionItem> professions,
+  String? selectedProfession,
+) {
+  if (selectedProfession == null) return professions;
+  final idx = professions.indexWhere((p) => p.name == selectedProfession);
+  if (idx <= 0) return professions;
+  final sorted = List<ProfessionItem>.from(professions);
+  sorted.insert(0, sorted.removeAt(idx));
+  return sorted;
+}
+
 /// Scroll horizontal de una fila (móvil) — compacto y sin saltos de línea.
 class _MobileChipsRow extends StatelessWidget {
   const _MobileChipsRow({
@@ -178,14 +191,15 @@ class _MobileChipsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sorted = _sortedWithSelectedFirst(professions, selectedProfession);
     return SizedBox(
       height: 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: professions.length,
+        itemCount: sorted.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final prof = professions[index];
+          final prof = sorted[index];
           return ProfessionChip(
             profession: prof,
             selected: selectedProfession == prof.name,
@@ -212,10 +226,11 @@ class _DesktopChipsWrap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sorted = _sortedWithSelectedFirst(professions, selectedProfession);
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: professions.map((prof) {
+      children: sorted.map((prof) {
         return ProfessionChip(
           profession: prof,
           selected: selectedProfession == prof.name,

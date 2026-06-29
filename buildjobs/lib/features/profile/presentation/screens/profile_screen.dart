@@ -10,6 +10,7 @@ import '../../../../shared/widgets/async_value_widget.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../companies/presentation/widgets/professional_public_profile_body.dart';
 import '../../../saved/providers/saved_professional_providers.dart';
+import '../widgets/email_verified_welcome_listener.dart';
 import '../widgets/saved_professionals_section.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -19,10 +20,25 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
 
+    final Widget content;
     if (user == null) {
-      return const _LoggedOutProfile();
+      content = const _LoggedOutProfile();
+    } else {
+      content = _LoggedInProfile(userId: user.id, email: user.email);
     }
 
+    return EmailVerifiedWelcomeListener(child: content);
+  }
+}
+
+class _LoggedInProfile extends ConsumerWidget {
+  const _LoggedInProfile({required this.userId, this.email});
+
+  final String userId;
+  final String? email;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final viewAsync = ref.watch(currentUserProfessionalViewProvider);
 
     return viewAsync.when(
@@ -31,7 +47,7 @@ class ProfileScreen extends ConsumerWidget {
         body: Center(child: CircularProgressIndicator()),
       ),
       error: (e, _) => Scaffold(
-        appBar: _ProfileAppBar(userId: user.id),
+        appBar: _ProfileAppBar(userId: userId),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -66,14 +82,14 @@ class ProfileScreen extends ConsumerWidget {
       ),
       data: (view) {
         if (view.isProfessional && !view.hasListing) {
-          return _IncompleteProfessionalProfile(userId: user.id);
+          return _IncompleteProfessionalProfile(userId: userId);
         }
 
         if (view.isProfessional) {
           final bottomInset =
               MediaQuery.paddingOf(context).bottom + kBottomNavigationBarHeight;
           return Scaffold(
-            appBar: _ProfileAppBar(userId: user.id, isProfessional: true),
+            appBar: _ProfileAppBar(userId: userId, isProfessional: true),
             body: ProfessionalPublicProfileBody(
               companyId: view.professionalId,
               bottomPadding: 16 + bottomInset,
@@ -82,7 +98,7 @@ class ProfileScreen extends ConsumerWidget {
           );
         }
 
-        return _ClientProfileView(userId: user.id, email: user.email);
+        return _ClientProfileView(userId: userId, email: email);
       },
     );
   }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_theme.dart';
 
 /// Muestra uno o varios oficios de forma compacta (tarjetas, detalle).
+/// El tag "+N" es tappable y abre un panel con todos los oficios ocultos.
 class ProfessionTagsRow extends StatelessWidget {
   const ProfessionTagsRow({
     super.key,
@@ -16,6 +18,39 @@ class ProfessionTagsRow extends StatelessWidget {
   final int maxVisible;
   final String? highlight;
   final bool compact;
+
+  void _showAll(BuildContext context) {
+    // Capturamos el router y el navigator antes de mostrar el sheet.
+    // El listener cierra el sheet si el usuario cambia de tab o pantalla.
+    final router = GoRouter.of(context);
+    final navigatorState = Navigator.of(context);
+    bool isOpen = true;
+
+    void closeOnNavigate() {
+      if (!isOpen) return;
+      isOpen = false;
+      try {
+        navigatorState.pop();
+      } catch (_) {}
+    }
+
+    router.routerDelegate.addListener(closeOnNavigate);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _AllProfessionsSheet(
+        professions: professions,
+        highlight: highlight,
+      ),
+    ).whenComplete(() {
+      isOpen = false;
+      router.routerDelegate.removeListener(closeOnNavigate);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,11 +71,75 @@ class ProfessionTagsRow extends StatelessWidget {
               compact: compact,
             )),
         if (hidden > 0)
-          _Tag(label: '+$hidden', compact: compact, muted: true),
+          _Tag(
+            label: '+$hidden',
+            compact: compact,
+            muted: true,
+            onTap: () => _showAll(context),
+          ),
       ],
     );
   }
 }
+
+// ── Hoja con todos los oficios ────────────────────────────────────────────────
+
+class _AllProfessionsSheet extends StatelessWidget {
+  const _AllProfessionsSheet({
+    required this.professions,
+    this.highlight,
+  });
+
+  final List<String> professions;
+  final String? highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppTheme.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text(
+              'Oficios',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: professions
+                  .map((name) => _Tag(
+                        label: name,
+                        highlighted: highlight != null &&
+                            name.toLowerCase() == highlight!.toLowerCase(),
+                      ))
+                  .toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Tag ───────────────────────────────────────────────────────────────────────
 
 class _Tag extends StatelessWidget {
   const _Tag({
@@ -48,12 +147,14 @@ class _Tag extends StatelessWidget {
     this.highlighted = false,
     this.compact = false,
     this.muted = false,
+    this.onTap,
   });
 
   final String label;
   final bool highlighted;
   final bool compact;
   final bool muted;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +176,7 @@ class _Tag extends StatelessWidget {
             ? Colors.white
             : AppTheme.primary;
 
-    return Container(
+    final container = Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 8 : 10,
         vertical: compact ? 3 : 5,
@@ -93,6 +194,13 @@ class _Tag extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+
+    if (onTap == null) return container;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: container,
     );
   }
 }

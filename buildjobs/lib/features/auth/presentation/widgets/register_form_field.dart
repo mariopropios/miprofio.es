@@ -11,6 +11,7 @@ class RegisterFormField extends StatelessWidget {
     required this.label,
     this.hint,
     this.icon,
+    this.suffixIcon,
     this.keyboardType,
     this.textInputAction,
     this.obscureText = false,
@@ -26,6 +27,7 @@ class RegisterFormField extends StatelessWidget {
   final String label;
   final String? hint;
   final IconData? icon;
+  final Widget? suffixIcon;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final bool obscureText;
@@ -72,6 +74,7 @@ class RegisterFormField extends StatelessWidget {
             prefixIcon: icon != null
                 ? Icon(icon, color: AppTheme.textSecondary, size: 20)
                 : null,
+            suffixIcon: suffixIcon,
             filled: true,
             fillColor: const Color(0xFF1E252B),
             contentPadding: const EdgeInsets.symmetric(

@@ -7,5 +7,13 @@
   "theme_color": "#00B27A",
   "description": "Reseñas y directorio de profesionales del hogar",
   "orientation": "portrait-primary",
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

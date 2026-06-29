@@ -19,6 +19,7 @@ class Professional {
     this.website,
     this.serviceRadiusKm = 25,
     this.serviceCategories = const [],
+    this.savedCount = 0,
   });
 
   final String id;
@@ -40,6 +41,8 @@ class Professional {
   final int serviceRadiusKm;
   /// Categorías del catálogo en las que el profesional quiere aparecer.
   final List<String> serviceCategories;
+  /// Número de usuarios que han guardado este profesional.
+  final int savedCount;
 
   /// Compatibilidad con código que usaba `category` e `imageUrl`.
   String get category => profession;
@@ -89,6 +92,7 @@ class Professional {
           ? _toInt(json['service_radius_km'])
           : 25,
       serviceCategories: _parseStringList(json['service_categories']),
+      savedCount: _toInt(json['saved_count']),
     );
   }
 
@@ -138,5 +142,6 @@ class Professional {
         'website': website,
         'service_radius_km': serviceRadiusKm,
         'service_categories': serviceCategories,
+        'saved_count': savedCount,
       };
 }

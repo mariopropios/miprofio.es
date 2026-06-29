@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl_phone_field/countries.dart';
 import 'package:intl_phone_field/phone_number.dart';
 
+import '../../../../core/constants/phone_countries.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/phone_validation_utils.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
@@ -77,6 +79,17 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
       maxDigits: _selectedCountry.maxLength,
     );
     _inputFormatters = [_asYouTypeFormatter];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _precacheFlag(_selectedCountry.code);
+    });
+  }
+
+  void _precacheFlag(String countryCode) {
+    if (!kIsWeb) return;
+    precacheImage(
+      NetworkImage(_CountryFlag.imageUrl(countryCode)),
+      context,
+    );
   }
 
   @override
@@ -116,6 +129,7 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
   }
 
   void _onCountrySelected(Country country) {
+    _precacheFlag(country.code);
     setState(() {
       _selectedCountry = country;
       _asYouTypeFormatter.updateCountry(
@@ -187,12 +201,9 @@ class _InternationalPhoneFieldState extends State<InternationalPhoneField> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 180),
-                        child: _FlagEmoji(
-                          key: ValueKey(_selectedCountry.code),
-                          flag: _selectedCountry.flag,
-                        ),
+                      _CountryFlag(
+                        countryCode: _selectedCountry.code,
+                        size: 22,
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -416,7 +427,7 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
   Widget _buildTile(Country country) {
     final selected = country.code == widget.selectedCode;
     return ListTile(
-      leading: _FlagEmoji(flag: country.flag, size: 24),
+      leading: _CountryFlag(countryCode: country.code, size: 24),
       title: Text(
         country.localizedName('es'),
         style: TextStyle(
@@ -439,47 +450,80 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
   }
 }
 
-// Bandera con fade-in para evitar el parpadeo de emojis en web ────────────────
+// Bandera estable: imagen en web (sin parpadeo de emoji) y emoji en móvil.
+class _CountryFlag extends StatelessWidget {
+  const _CountryFlag({required this.countryCode, this.size = 22});
 
-class _FlagEmoji extends StatefulWidget {
-  const _FlagEmoji({super.key, required this.flag, this.size = 22});
-
-  final String flag;
+  final String countryCode;
   final double size;
 
-  @override
-  State<_FlagEmoji> createState() => _FlagEmojiState();
-}
-
-class _FlagEmojiState extends State<_FlagEmoji>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _opacity;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 220),
-    );
-    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ctrl.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  static String imageUrl(String countryCode) =>
+      'https://flagcdn.com/w40/${countryCode.toLowerCase()}.png';
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _opacity,
-      child: Text(widget.flag, style: TextStyle(fontSize: widget.size)),
+    final width = size * 1.45;
+    final height = size * 0.95;
+
+    if (kIsWeb) {
+      return SizedBox(
+        width: width,
+        height: height,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: Image.network(
+            imageUrl(countryCode),
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (_, __, ___) =>
+                _EmojiFlag(countryCode: countryCode, size: size),
+            loadingBuilder: (_, child, progress) {
+              if (progress == null) return child;
+              return ColoredBox(
+                color: AppTheme.divider.withValues(alpha: 0.35),
+                child: const SizedBox.expand(),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    return _EmojiFlag(countryCode: countryCode, size: size);
+  }
+}
+
+class _EmojiFlag extends StatelessWidget {
+  const _EmojiFlag({required this.countryCode, this.size = 22});
+
+  final String countryCode;
+  final double size;
+
+  static const _emojiFontFallback = [
+    'Segoe UI Emoji',
+    'Apple Color Emoji',
+    'Noto Color Emoji',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final emoji = PhoneCountries.flagEmoji(countryCode);
+    return SizedBox(
+      width: size * 1.45,
+      height: size * 0.95,
+      child: Center(
+        child: Text(
+          emoji,
+          style: TextStyle(
+            fontSize: size,
+            height: 1,
+            fontFamilyFallback: _emojiFontFallback,
+          ),
+        ),
+      ),
     );
   }
 }

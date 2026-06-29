@@ -63,6 +63,14 @@ class _SaveProfessionalButtonState extends ConsumerState<SaveProfessionalButton>
 
   @override
   Widget build(BuildContext context) {
+    // Los profesionales no pueden dar likes a otros profesionales
+    final viewAsync = ref.watch(currentUserProfessionalViewProvider);
+    final isProfessional = viewAsync.maybeWhen(
+      data: (v) => v.isProfessional,
+      orElse: () => false,
+    );
+    if (isProfessional) return const SizedBox.shrink();
+
     final idsAsync = ref.watch(savedProfessionalIdsProvider);
     final isSaved = idsAsync.maybeWhen(
       data: (ids) => ids.contains(widget.professionalId),

@@ -170,7 +170,8 @@ class CityAutocompleteFieldState extends State<CityAutocompleteField> {
   }
 
   void _selectSuggestion(CitySuggestion s) {
-    applyCity(s.shortName);
+    // Guardamos "Ciudad, Provincia" completo para mostrar la provincia al usuario
+    applyCity(s.displayName);
     _focusNode.unfocus();
   }
 

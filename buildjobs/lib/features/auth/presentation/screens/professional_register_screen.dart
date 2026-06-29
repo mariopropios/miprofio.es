@@ -16,6 +16,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../home/presentation/widgets/profession_multi_select_section.dart';
+import '../../../../shared/widgets/address_autocomplete_field.dart';
 import '../../../../shared/widgets/city_autocomplete_field.dart';
 import '../widgets/international_phone_field.dart';
 import '../widgets/profile_avatar_picker.dart';
@@ -108,7 +109,24 @@ class _ProfessionalRegisterScreenState
     _latitude = location.latitude;
     _longitude = location.longitude;
     _skipGeoClear = false;
-    _refresh();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refresh();
+    });
+  }
+
+  void _applyAddressSelection(AddressSuggestion suggestion) {
+    _skipGeoClear = true;
+    if (suggestion.latitude != null && suggestion.longitude != null) {
+      _latitude = suggestion.latitude;
+      _longitude = suggestion.longitude;
+    } else {
+      _latitude = null;
+      _longitude = null;
+    }
+    _skipGeoClear = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refresh();
+    });
   }
 
   @override
@@ -148,7 +166,19 @@ class _ProfessionalRegisterScreenState
     });
   }
 
-  void _refresh() => setState(() {});
+  bool _refreshScheduled = false;
+
+  void _refresh() {
+    if (_skipGeoClear) return;
+    if (!mounted || _refreshScheduled) return;
+    // Diferir setState para evitar mutarlo durante una fase de layout/build
+    // (por ejemplo cuando AnimatedSwitcher mide sus hijos con LayoutBuilder).
+    _refreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshScheduled = false;
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void dispose() {
@@ -164,16 +194,18 @@ class _ProfessionalRegisterScreenState
 
   bool get _isNameValid => _businessNameController.text.trim().length >= 2;
 
-  bool get _isCityValid =>
-      _cityController.text.trim().length >= 2 &&
-      _addressController.text.trim().length >= 5;
+  bool get _isCityValid => _cityController.text.trim().length >= 2;
 
   bool get _isBioValid => _bioController.text.trim().length >= 20;
+
+  static bool _isValidEmail(String email) {
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+  }
 
   bool get _isAccountValid {
     if (_isLoggedIn) return true;
     final email = _emailController.text.trim();
-    return email.contains('@') && _passwordController.text.length >= 6;
+    return _isValidEmail(email) && _passwordController.text.length >= 6;
   }
 
   int get _previewActiveSection {
@@ -221,7 +253,7 @@ class _ProfessionalRegisterScreenState
         return 'Indica tu nombre comercial o el tuyo (mín. 2 caracteres).';
       case 1:
         if (_isCityValid) return null;
-        return 'Indica la ciudad o localidad donde trabajas.';
+        return 'Indica la localidad donde trabajas.';
       case 2:
         if (_isPhoneValid) return null;
         return 'Introduce un teléfono válido para tu país.';
@@ -236,12 +268,15 @@ class _ProfessionalRegisterScreenState
         return null;
       case 6:
         final missing = <String>[];
-        if (!_emailController.text.contains('@')) missing.add('email válido');
+        if (!_isValidEmail(_emailController.text.trim())) {
+          missing.add('email válido');
+        }
         if (_passwordController.text.length < 6) {
           missing.add('contraseña (mín. 6 caracteres)');
         }
         if (missing.isEmpty) return null;
         return 'Para publicar, completa: ${missing.join(', ')}.';
+
       default:
         return null;
     }
@@ -256,7 +291,10 @@ class _ProfessionalRegisterScreenState
 
   void _goBack() {
     if (_step > 0) {
-      setState(() => _step--);
+      setState(() {
+        _step--;
+        _cityValidateMode = AutovalidateMode.disabled;
+      });
     } else if (context.canPop()) {
       context.pop();
     } else {
@@ -282,15 +320,18 @@ class _ProfessionalRegisterScreenState
         return;
       case 1:
         setState(() => _cityValidateMode = AutovalidateMode.always);
-        if (!_cityFormKey.currentState!.validate()) {
-          _showFeedback(_validationHint);
-          return;
-        }
-        setState(() {
-          _step++;
-          _cityValidateMode = AutovalidateMode.disabled;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _step != 1) return;
+          if (!(_cityFormKey.currentState?.validate() ?? false)) {
+            _showFeedback(_validationHint);
+            return;
+          }
+          setState(() {
+            _step++;
+            _cityValidateMode = AutovalidateMode.disabled;
+          });
+          _scrollToTop();
         });
-        _scrollToTop();
         return;
       case 2:
         setState(() => _phoneValidateMode = AutovalidateMode.always);
@@ -437,20 +478,21 @@ class _ProfessionalRegisterScreenState
       double longitude;
       String address = addressInput;
 
-      if (_latitude != null && _longitude != null) {
-        latitude = _latitude!;
-        longitude = _longitude!;
-      } else {
-        final geocoded = await GeoService.geocodeAddress(
-          address: addressInput,
-          city: city,
-        );
-        latitude = geocoded.latitude;
-        longitude = geocoded.longitude;
+      final geocoded = await GeoService.resolveCoordinates(
+        city: city,
+        address: addressInput,
+        latitude: _latitude,
+        longitude: _longitude,
+      );
+      latitude = geocoded.latitude;
+      longitude = geocoded.longitude;
+      if (addressInput.isNotEmpty) {
         if (geocoded.formattedAddress != null &&
             geocoded.formattedAddress!.isNotEmpty) {
           address = geocoded.formattedAddress!;
         }
+      } else {
+        address = city;
       }
 
       late final String userId;
@@ -468,21 +510,27 @@ class _ProfessionalRegisterScreenState
             )
             .timeout(_networkTimeout);
 
-        userId = authResult.userId;
-
-        if (authResult.needsEmailConfirmation) {
+        if (authResult.accountAlreadyExists) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Revisa tu email para confirmar la cuenta. Luego inicia sesión y completa tu perfil.',
-                ),
+            context.go(
+              AppRoutes.loginWithEmail(
+                email,
+                existingAccount: true,
+                redirect: AppRoutes.professionalRegister,
               ),
             );
-            context.go(AppRoutes.login);
           }
           return;
         }
+
+        if (authResult.needsEmailConfirmation) {
+          if (mounted) {
+            context.go(AppRoutes.emailVerificationPath(email));
+          }
+          return;
+        }
+
+        userId = authResult.userId!;
       }
 
       final accountEmail = loggedInUser?.email ?? email;
@@ -672,7 +720,7 @@ class _ProfessionalRegisterScreenState
 
   @override
   Widget build(BuildContext context) {
-    final isWide = !ResponsiveLayout.isMobile(context);
+    final isWide = ResponsiveLayout.isDesktop(context);
     final hint = _canContinue ? null : _validationHint;
 
     return Scaffold(
@@ -777,21 +825,24 @@ class _ProfessionalRegisterScreenState
       },
       child: KeyedSubtree(
         key: ValueKey(_step),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              controller: _stepScrollController,
+        // CustomScrollView + SliverFillRemaining evita LayoutBuilder,
+        // que causaba _RenderDeferredLayoutBox mutation cuando
+        // AutovalidateMode.always disparaba setState dentro de performLayout.
+        child: CustomScrollView(
+          controller: _stepScrollController,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          slivers: [
+            SliverPadding(
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              sliver: SliverFillRemaining(
+                hasScrollBody: false,
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: _buildStepPanel(compact: true, showStepIndicator: false),
                 ),
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
@@ -838,8 +889,11 @@ class _ProfessionalRegisterScreenState
           controller: _cityController,
           addressController: _addressController,
           onLocationDetected: _applyGeoLocation,
+          onAddressSelected: _applyAddressSelection,
           serviceRadius: _serviceRadius,
-          onRadiusChanged: (v) => setState(() => _serviceRadius = v),
+          onRadiusChanged: (v) {
+            if (mounted) setState(() => _serviceRadius = v);
+          },
         );
       case 2:
         return _PhoneStep(
@@ -992,6 +1046,7 @@ class _CityStep extends StatefulWidget {
     required this.controller,
     required this.addressController,
     required this.onLocationDetected,
+    required this.onAddressSelected,
     required this.serviceRadius,
     required this.onRadiusChanged,
   });
@@ -1002,6 +1057,7 @@ class _CityStep extends StatefulWidget {
   final TextEditingController controller;
   final TextEditingController addressController;
   final ValueChanged<GeoLocationResult> onLocationDetected;
+  final ValueChanged<AddressSuggestion> onAddressSelected;
   final int serviceRadius;
   final ValueChanged<int> onRadiusChanged;
 
@@ -1012,7 +1068,13 @@ class _CityStep extends StatefulWidget {
 class _CityStepState extends State<_CityStep> {
   bool _isDetecting = false;
   String? _geoError;
-  final _cityFieldKey = GlobalKey<CityAutocompleteFieldState>();
+
+  void _validateFormLater() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.formKey.currentState?.validate();
+    });
+  }
 
   Future<void> _detectLocation() async {
     setState(() {
@@ -1023,8 +1085,7 @@ class _CityStepState extends State<_CityStep> {
       final location = await GeoService.detectLocation();
       if (mounted) {
         widget.onLocationDetected(location);
-        _cityFieldKey.currentState?.applyCity(location.city);
-        widget.formKey.currentState?.validate();
+        _validateFormLater();
       }
     } on GeoServiceException catch (e) {
       if (mounted) setState(() => _geoError = e.message);
@@ -1051,31 +1112,28 @@ class _CityStepState extends State<_CityStep> {
             compact: widget.compact,
             title: '¿Dónde trabajas?',
             subtitle:
-                'Ciudad y dirección donde te encuentras. Necesaria para filtrar por cercanía.',
+                'Localidad donde trabajas. Necesaria para filtrar por cercanía.',
           ),
 
           // ── Campo ciudad con autocompletado ─────────────────────────────
           CityAutocompleteField(
-            key: _cityFieldKey,
             controller: widget.controller,
-            autofocus: true,
             autovalidateMode: widget.autovalidateMode,
             validator: (v) =>
                 v == null || v.trim().length < 2 ? 'Ciudad obligatoria' : null,
-            onCitySelected: (_) => widget.formKey.currentState?.validate(),
+            onCitySelected: (_) => _validateFormLater(),
           ),
           const SizedBox(height: 14),
-          RegisterFormField(
-            label: 'Dirección',
+          AddressAutocompleteField(
             controller: widget.addressController,
-            hint: 'Calle, número, piso…',
-            icon: Icons.place_outlined,
-            validator: (v) {
-              final text = v?.trim() ?? '';
-              if (text.length < 5) {
-                return 'Indica una dirección completa (calle y número)';
-              }
-              return null;
+            cityController: widget.controller,
+            autovalidateMode: widget.autovalidateMode,
+            label: 'Dirección (opcional)',
+            hint: 'Solo si quieres afinar tu ubicación en el mapa',
+            validator: GeoService.optionalStreetInputError,
+            onAddressSelected: (s) {
+              widget.onAddressSelected(s);
+              _validateFormLater();
             },
           ),
           const SizedBox(height: 12),
@@ -1094,7 +1152,7 @@ class _CityStepState extends State<_CityStep> {
                     : const Icon(Icons.my_location_rounded, size: 18),
                 label: Text(
                   _isDetecting
-                      ? 'Detectando ubicación…'
+                      ? 'Obteniendo ubicación precisa…'
                       : 'Usar mi ubicación actual',
                 ),
                 style: OutlinedButton.styleFrom(
@@ -1346,7 +1404,7 @@ class _GalleryStep extends StatelessWidget {
   }
 }
 
-class _AccountStep extends StatelessWidget {
+class _AccountStep extends StatefulWidget {
   const _AccountStep({
     required this.compact,
     required this.formKey,
@@ -1362,44 +1420,70 @@ class _AccountStep extends StatelessWidget {
   final TextEditingController passwordController;
 
   @override
+  State<_AccountStep> createState() => _AccountStepState();
+}
+
+class _AccountStepState extends State<_AccountStep> {
+  bool _obscurePassword = true;
+
+  static bool _isValidEmail(String email) =>
+      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim());
+
+  @override
   Widget build(BuildContext context) {
     return AutofillGroup(
       child: Form(
-        key: formKey,
-        autovalidateMode: autovalidateMode,
+        key: widget.formKey,
+        autovalidateMode: widget.autovalidateMode,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _StepHeader(
-              compact: compact,
+              compact: widget.compact,
               title: 'Crea tu cuenta',
               subtitle:
-                  'Email y contraseña para acceder a ${AppConstants.appName}.',
+                  'Email y contraseña para acceder a ${AppConstants.appName}. '
+                  'Te enviaremos un enlace para verificar tu email.',
             ),
+
             RegisterFormField(
-              controller: emailController,
+              controller: widget.emailController,
               label: 'Email',
               hint: 'tu@email.com',
               icon: Icons.email_outlined,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               autofocus: true,
-              autofillHints: const [
-                AutofillHints.username,
-                AutofillHints.email,
-              ],
-              validator: (v) =>
-                  v == null || !v.contains('@') ? 'Email inválido' : null,
+              autofillHints: const [AutofillHints.email],
+              validator: (v) {
+                if (v == null || !_isValidEmail(v)) return 'Email inválido';
+                return null;
+              },
             ),
             const SizedBox(height: 16),
+
             RegisterFormField(
-              controller: passwordController,
+              controller: widget.passwordController,
               label: 'Contraseña',
               hint: 'Mínimo 6 caracteres',
               icon: Icons.lock_outline,
-              obscureText: true,
+              obscureText: _obscurePassword,
               textInputAction: TextInputAction.done,
               autofillHints: const [AutofillHints.newPassword],
+              suffixIcon: IconButton(
+                onPressed: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
+                icon: Icon(
+                  _obscurePassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  color: AppTheme.textSecondary,
+                  size: 20,
+                ),
+                tooltip: _obscurePassword
+                    ? 'Mostrar contraseña'
+                    : 'Ocultar contraseña',
+              ),
               validator: (v) =>
                   v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
             ),

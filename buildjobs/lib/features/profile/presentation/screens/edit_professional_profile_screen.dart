@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -5,11 +6,13 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/services/geo_service.dart';
+import '../../../../core/services/gallery_image_cropper.dart';
 import '../../../../core/services/gallery_image_picker.dart';
 import '../../../../core/services/profile_photo_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/x_file_preview_image.dart';
 import '../../../../shared/models/professional.dart';
+import '../../../../shared/widgets/address_autocomplete_field.dart';
 import '../../../../shared/widgets/city_autocomplete_field.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../../shared/widgets/spring_pressable.dart';
@@ -63,6 +66,18 @@ class _EditProfessionalProfileScreenState
     if (_skipGeoClear) return;
     _latitude = null;
     _longitude = null;
+  }
+
+  void _applyAddressSelection(AddressSuggestion suggestion) {
+    _skipGeoClear = true;
+    if (suggestion.latitude != null && suggestion.longitude != null) {
+      _latitude = suggestion.latitude;
+      _longitude = suggestion.longitude;
+    } else {
+      _latitude = null;
+      _longitude = null;
+    }
+    _skipGeoClear = false;
   }
 
   Future<void> _loadData() async {
@@ -147,8 +162,14 @@ class _EditProfessionalProfileScreenState
     if (remaining <= 0) return;
     final picked = await GalleryImagePicker.pickImages(
         context: context, maxCount: remaining);
-    if (picked.isNotEmpty) {
-      setState(() => _newGallery = [..._newGallery, ...picked]);
+    if (picked.isEmpty || !mounted) return;
+
+    final cropped = await GalleryImageCropper.cropForGallery(
+      context: context,
+      files: picked,
+    );
+    if (cropped.isNotEmpty && mounted) {
+      setState(() => _newGallery = [..._newGallery, ...cropped]);
     }
   }
 
@@ -162,23 +183,35 @@ class _EditProfessionalProfileScreenState
       final city = _cityCtrl.text.trim();
       final addressInput = _addressCtrl.text.trim();
 
-      double latitude;
-      double longitude;
+      double? latitude = _latitude;
+      double? longitude = _longitude;
       String address = addressInput;
 
-      if (_latitude != null && _longitude != null) {
-        latitude = _latitude!;
-        longitude = _longitude!;
-      } else {
-        final geocoded = await GeoService.geocodeAddress(
-          address: addressInput,
-          city: city,
-        );
-        latitude = geocoded.latitude;
-        longitude = geocoded.longitude;
-        if (geocoded.formattedAddress != null &&
-            geocoded.formattedAddress!.isNotEmpty) {
-          address = geocoded.formattedAddress!;
+      // Geocodificamos solo si no tenemos coordenadas previas.
+      // Si falla (red, límite de API, dirección no encontrada) continuamos igual:
+      // el guardado no debe bloquearse por un error de geocodificación.
+      if (latitude == null || longitude == null) {
+        try {
+          final geocoded = await GeoService.resolveCoordinates(
+            city: city,
+            address: addressInput,
+            latitude: latitude,
+            longitude: longitude,
+          );
+          latitude = geocoded.latitude;
+          longitude = geocoded.longitude;
+          if (addressInput.isNotEmpty &&
+              geocoded.formattedAddress != null &&
+              geocoded.formattedAddress!.isNotEmpty) {
+            address = geocoded.formattedAddress!;
+          } else if (addressInput.isEmpty) {
+            address = city;
+          }
+        } catch (geoErr) {
+          // No bloqueamos el guardado por fallo en geocodificación.
+          // Las coordenadas quedarán nulas en BD hasta que el usuario
+          // detecte su ubicación manualmente.
+          debugPrint('[GeoService] Geocodificación fallida (no bloqueante): $geoErr');
         }
       }
 
@@ -397,18 +430,13 @@ class _EditProfessionalProfileScreenState
                         keyboardType: TextInputType.phone,
                       ),
                       const SizedBox(height: 14),
-                      RegisterFormField(
-                        label: 'Dirección',
+                      AddressAutocompleteField(
                         controller: _addressCtrl,
-                        hint: 'Calle, número, piso…',
-                        icon: Icons.place_outlined,
-                        validator: (v) {
-                          final text = v?.trim() ?? '';
-                          if (text.length < 5) {
-                            return 'Indica una dirección completa (calle y número)';
-                          }
-                          return null;
-                        },
+                        cityController: _cityCtrl,
+                        label: 'Dirección (opcional)',
+                        hint: 'Solo si quieres afinar tu ubicación en el mapa',
+                        validator: GeoService.optionalStreetInputError,
+                        onAddressSelected: _applyAddressSelection,
                       ),
                       const SizedBox(height: 14),
                       RegisterFormField(

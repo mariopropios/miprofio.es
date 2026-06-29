@@ -135,6 +135,18 @@ class _ProfessionalProfileContent extends StatelessWidget {
                     color: AppTheme.textSecondary,
                   ),
             ),
+            if (company.savedCount > 0) ...[
+              const SizedBox(width: 14),
+              const Icon(Icons.favorite_rounded,
+                  size: 14, color: Colors.redAccent),
+              const SizedBox(width: 4),
+              Text(
+                '${company.savedCount} ${company.savedCount == 1 ? 'guardado' : 'guardados'}',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 12),
@@ -408,11 +420,6 @@ class _ContactCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _ContactRow(icon: Icons.location_city, label: 'Ciudad', value: city),
-            _ContactRow(
-              icon: Icons.location_on,
-              label: 'Dirección',
-              value: address.isNotEmpty ? address : 'No especificada',
-            ),
             if (email != null && email!.isNotEmpty)
               _ContactRow(
                 icon: Icons.email_outlined,
@@ -776,8 +783,19 @@ class _ReviewTileState extends ConsumerState<_ReviewTile> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 InkWell(
-                  onTap: () =>
-                      context.push(AppRoutes.userProfilePath(review.userId)),
+                  onTap: () {
+                    if (review.reviewerIsProfessional) {
+                      // El reviewer tiene perfil profesional → ir a su ficha
+                      context.push(
+                        AppRoutes.companyDetailPath(
+                          review.reviewerProfessionalId!,
+                        ),
+                      );
+                    } else {
+                      // Cliente normal → perfil de usuario
+                      context.push(AppRoutes.userProfilePath(review.userId));
+                    }
+                  },
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
                     padding: const EdgeInsets.only(right: 4),
@@ -791,12 +809,24 @@ class _ReviewTileState extends ConsumerState<_ReviewTile> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              review.userName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.primary,
-                              ),
+                            Row(
+                              children: [
+                                Text(
+                                  review.userName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.primary,
+                                  ),
+                                ),
+                                if (review.reviewerIsProfessional) ...[
+                                  const SizedBox(width: 5),
+                                  const Icon(
+                                    Icons.storefront_outlined,
+                                    size: 13,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                ],
+                              ],
                             ),
                             Text(
                               widget.dateFormat.format(review.createdAt),

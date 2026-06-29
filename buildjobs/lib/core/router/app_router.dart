@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/auth_callback_service.dart';
 import '../services/notification_service.dart';
 
+import '../../features/auth/presentation/screens/email_verification_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/client_register_screen.dart';
 import '../../features/auth/presentation/screens/professional_register_screen.dart';
@@ -74,19 +76,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
     // ── Gatekeeper ──────────────────────────────────────────────────────────
     redirect: (context, state) {
-      // Comprobación síncrona: el SDK de Supabase restaura la sesión desde
-      // localStorage antes de que Flutter pinte el primer frame.
       final session = Supabase.instance.client.auth.currentSession;
       final isAuthenticated = session != null;
-
       final path = state.matchedLocation;
+      final isAuthCallback = AuthCallbackService.isAuthCallback(state.uri);
 
-      // Si la ruta requiere auth y no hay sesión → Login con redirect de vuelta
+      // Tras verificar email u OAuth: ir al perfil con sesión activa.
+      if (isAuthenticated && isAuthCallback) {
+        return AppRoutes.profileAfterEmailVerification();
+      }
+
       if (!isAuthenticated && _requiresAuth(path)) {
         return AppRoutes.loginWithRedirect(path);
       }
 
-      return null; // Sin redirección: renderizar la ruta solicitada
+      return null;
     },
 
     routes: [
@@ -187,7 +191,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => LoginScreen(
           redirectTo: state.uri.queryParameters['redirect'],
+          initialEmail: state.uri.queryParameters['email'],
+          existingAccountNotice:
+              state.uri.queryParameters['existing'] == '1',
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.emailVerification,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          return EmailVerificationScreen(email: email);
+        },
       ),
       GoRoute(
         path: AppRoutes.register,
@@ -248,12 +263,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           case AuthChangeEvent.signedIn:
           case AuthChangeEvent.tokenRefreshed:
           case AuthChangeEvent.userUpdated:
-            // Refrescar datos del usuario con la nueva sesión
             ref.invalidate(currentProfileProvider);
             ref.invalidate(currentProfessionalProfileProvider);
             ref.invalidate(currentUserProfessionalViewProvider);
-            // Sincronizar token si ya tenía permiso (sin mostrar diálogo)
             _trySyncNotifications();
+            if (authState.session != null &&
+                AuthCallbackService.isAuthCallback(Uri.base)) {
+              router.go(AppRoutes.profileAfterEmailVerification());
+            }
 
           default:
             break;

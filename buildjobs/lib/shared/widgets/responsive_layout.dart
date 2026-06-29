@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants/app_constants.dart';
+import '../../core/utils/device_form_factor.dart';
 
 enum ScreenSize { mobile, tablet, desktop }
 
@@ -17,38 +17,28 @@ class ResponsiveLayout extends StatelessWidget {
   final Widget? desktop;
 
   static ScreenSize screenSizeOf(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    if (width >= AppConstants.desktopBreakpoint) return ScreenSize.desktop;
-    if (width >= AppConstants.tabletBreakpoint) return ScreenSize.tablet;
+    if (isDesktop(context)) return ScreenSize.desktop;
+    if (isTablet(context)) return ScreenSize.tablet;
     return ScreenSize.mobile;
   }
 
-  /// Devuelve true para teléfonos Y tablets pequeñas (< 1024 px).
-  /// Garantiza que iPads de menos de 1024 px usen el layout de móvil.
+  /// Layout móvil (iPhone + iPad): bottom nav, deck de tarjetas, etc.
   static bool isMobile(BuildContext context) =>
-      MediaQuery.sizeOf(context).width < AppConstants.tabletBreakpoint;
+      DeviceFormFactor.useMobileShell(context);
 
-  /// Devuelve true para tablets en la franja 600–1023 px.
   static bool isTablet(BuildContext context) =>
-      screenSizeOf(context) == ScreenSize.tablet;
+      DeviceFormFactor.isTablet(context);
 
-  /// Devuelve true sólo para pantallas de escritorio (>= 1024 px).
+  /// Solo escritorio web (PC): NavigationRail lateral.
   static bool isDesktop(BuildContext context) =>
-      MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
+      DeviceFormFactor.isDesktopWeb(context);
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= AppConstants.desktopBreakpoint) {
-          return desktop ?? tablet ?? mobile;
-        }
-        if (constraints.maxWidth >= AppConstants.tabletBreakpoint) {
-          return tablet ?? mobile;
-        }
-        return mobile;
-      },
-    );
+    if (isDesktop(context)) {
+      return desktop ?? tablet ?? mobile;
+    }
+    return mobile;
   }
 }
 
@@ -66,9 +56,14 @@ class ResponsiveContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final adaptiveMax = DeviceFormFactor.contentMaxWidth(context);
+    final effectiveMax = adaptiveMax.isFinite
+        ? adaptiveMax.clamp(0, maxWidth).toDouble()
+        : maxWidth;
+
     return Center(
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
+        constraints: BoxConstraints(maxWidth: effectiveMax),
         child: Padding(
           padding: padding,
           child: child,

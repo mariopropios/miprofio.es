@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/gallery_photo_constants.dart';
+import '../../../../core/services/gallery_image_cropper.dart';
 import '../../../../core/services/gallery_image_picker.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/x_file_preview_image.dart';
@@ -61,7 +63,13 @@ class _WorkGalleryUploadState extends State<WorkGalleryUpload> {
       if (!mounted) return;
       if (picked.isEmpty) return;
 
-      final merged = [...widget.images, ...picked]
+      final cropped = await GalleryImageCropper.cropForGallery(
+        context: context,
+        files: picked,
+      );
+      if (!mounted || cropped.isEmpty) return;
+
+      final merged = [...widget.images, ...cropped]
           .take(widget.maxImages)
           .toList(growable: false);
       widget.onImagesChanged(merged);
@@ -79,6 +87,26 @@ class _WorkGalleryUploadState extends State<WorkGalleryUpload> {
   void _removeAt(int index) {
     final next = [...widget.images]..removeAt(index);
     widget.onImagesChanged(next);
+  }
+
+  Future<void> _recropAt(int index) async {
+    if (_isPicking) return;
+
+    setState(() => _isPicking = true);
+    try {
+      final cropped = await GalleryImageCropper.cropForGallery(
+        context: context,
+        files: [widget.images[index]],
+        forceCrop: true,
+      );
+      if (!mounted || cropped.isEmpty) return;
+
+      final next = [...widget.images];
+      next[index] = cropped.first;
+      widget.onImagesChanged(next);
+    } finally {
+      if (mounted) setState(() => _isPicking = false);
+    }
   }
 
   @override
@@ -103,7 +131,9 @@ class _WorkGalleryUploadState extends State<WorkGalleryUpload> {
         SizedBox(height: widget.compact ? 8 : 12),
         if (widget.images.isNotEmpty) ...[
           SizedBox(
-            height: widget.compact ? 72 : 88,
+            height: widget.compact
+                ? 72
+                : GalleryPhotoConstants.previewHeight,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: widget.images.length,
@@ -111,6 +141,7 @@ class _WorkGalleryUploadState extends State<WorkGalleryUpload> {
               itemBuilder: (context, index) {
                 return _ThumbnailPreview(
                   file: widget.images[index],
+                  onTap: () => _recropAt(index),
                   onRemove: () => _removeAt(index),
                 );
               },
@@ -182,9 +213,14 @@ class _WorkGalleryUploadState extends State<WorkGalleryUpload> {
 }
 
 class _ThumbnailPreview extends StatelessWidget {
-  const _ThumbnailPreview({required this.file, required this.onRemove});
+  const _ThumbnailPreview({
+    required this.file,
+    required this.onTap,
+    required this.onRemove,
+  });
 
   final XFile file;
+  final VoidCallback onTap;
   final VoidCallback onRemove;
 
   @override
@@ -192,12 +228,16 @@ class _ThumbnailPreview extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: XFilePreviewImage(
-            file: file,
-            width: 88,
-            height: 88,
+        SpringPressable(
+          onTap: onTap,
+          pressedScale: 0.97,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: XFilePreviewImage(
+              file: file,
+              width: GalleryPhotoConstants.previewWidth,
+              height: GalleryPhotoConstants.previewHeight,
+            ),
           ),
         ),
         Positioned(

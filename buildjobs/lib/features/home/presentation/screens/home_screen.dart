@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/gallery_photo_constants.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/services/geo_service.dart';
@@ -21,9 +22,11 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final featuredAsync = ref.watch(featuredProfessionalsProvider);
-    // isDesktop = true sólo para pantallas >= 1024 px (escritorio con NavigationRail).
-    // Teléfonos y tablets pequeñas (iPad Mini, etc.) usan el layout de móvil.
-    final isDesktop = !ResponsiveLayout.isMobile(context);
+    // Escritorio web: sin logo en AppBar (NavigationRail). iPhone/iPad: con logo.
+    final isDesktop = ResponsiveLayout.isDesktop(context);
+    final deckHeight = GalleryPhotoConstants.deckViewportHeight(
+      MediaQuery.sizeOf(context).height,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -106,9 +109,15 @@ class HomeScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  data: (companies) => ResponsiveLayout.isMobile(context)
-                      ? CompanyCardDeck(companies: companies)
-                      : _CompanyGrid(companies: companies),
+                  data: (companies) => ResponsiveLayout.isDesktop(context)
+                      ? _CompanyGrid(companies: companies)
+                      : SizedBox(
+                          height: deckHeight,
+                          child: CompanyCardDeck(
+                            companies: companies,
+                            height: deckHeight,
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -273,7 +282,7 @@ class _CompanyGrid extends StatelessWidget {
         crossAxisCount: ResponsiveLayout.isDesktop(context) ? 3 : 2,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: ResponsiveLayout.isDesktop(context) ? 0.78 : 0.82,
+        childAspectRatio: ResponsiveLayout.isDesktop(context) ? 0.78 : 0.74,
       ),
       addAutomaticKeepAlives: false,
       itemCount: companies.length,

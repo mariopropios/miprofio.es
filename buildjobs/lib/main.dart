@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/config/supabase_config.dart';
+import 'core/services/auth_callback_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,9 +27,20 @@ Future<void> main() async {
     publishableKey: SupabaseConfig.publishableKey,
     authOptions: const FlutterAuthClientOptions(
       authFlowType: AuthFlowType.pkce,
-      detectSessionInUri: false,
+      detectSessionInUri: true,
     ),
   );
+
+  // Por si el callback llega antes de que GoRouter evalúe redirects.
+  final callbackUri = Uri.base;
+  if (AuthCallbackService.isAuthCallback(callbackUri) &&
+      Supabase.instance.client.auth.currentSession == null) {
+    try {
+      await Supabase.instance.client.auth.getSessionFromUrl(callbackUri);
+    } catch (e) {
+      debugPrint('No se pudo completar el inicio de sesión desde el enlace: $e');
+    }
+  }
 
   // ── Firebase (push notifications) ────────────────────────────────────────
   final firebaseProjectId = dotenv.env['FIREBASE_PROJECT_ID'] ?? '';

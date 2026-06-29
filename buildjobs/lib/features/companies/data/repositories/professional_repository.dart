@@ -3,6 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/profession_catalog.dart';
 import '../../../../core/models/search_suggestion.dart';
+import '../../../../core/services/geo_service.dart';
+import '../../../../core/utils/geo_distance.dart';
+import '../../../../core/utils/proximity_filter.dart';
 import '../../../../shared/models/professional.dart';
 
 class ProfessionalRepository {
@@ -281,19 +284,17 @@ class ProfessionalRepository {
     List<String> expandedProfessions = const [],
     required int limit,
   }) async {
+    final hasCityFilter = city != null && city.trim().isNotEmpty;
+    final fetchLimit = hasCityFilter ? limit * 10 : limit * 3;
+
     var builder = _client.from('professionals').select();
 
     if (profession != null && profession.isNotEmpty) {
       builder = builder.ilike('profession', '%$profession%');
     }
 
-    if (city != null && city.isNotEmpty) {
-      builder = builder.ilike('city', '%$city%');
-    }
-
-    // NOTA: El filtro de categoría (service_categories) se aplica en Dart
-    // después de recibir los datos, porque la sintaxis PostgREST para JSONB
-    // en .or() generaba URLs malformadas en ciertos clientes.
+    // La cercanía se resuelve por distancia (lat/lng + service_radius_km),
+    // no por coincidencia de texto en el campo city.
 
     if (query != null && query.trim().isNotEmpty) {
       final term = query.trim();
@@ -316,7 +317,7 @@ class ProfessionalRepository {
       builder = builder.or(parts.join(','));
     }
 
-    final raw = await builder.limit(limit * 3);
+    final raw = await builder.limit(fetchLimit);
     var list = (raw as List).map((e) => Professional.fromJson(e)).toList();
 
     // Filtro de categoría en Dart: incluye al profesional si:
@@ -330,8 +331,57 @@ class ProfessionalRepository {
           .toList();
     }
 
-    _sortByBayesian(list);
-    return list.take(limit).toList();
+    if (hasCityFilter) {
+      list = await _filterByProximity(list, city.trim(), limit);
+    } else {
+      _sortByBayesian(list);
+      list = list.take(limit).toList();
+    }
+
+    return list;
+  }
+
+  /// Filtra por distancia real y ordena: más cercanos primero, luego ranking.
+  Future<List<Professional>> _filterByProximity(
+    List<Professional> list,
+    String searchCity,
+    int limit,
+  ) async {
+    try {
+      final geocoded = await GeoService.geocodeCity(searchCity);
+      final searchLat = geocoded.latitude;
+      final searchLng = geocoded.longitude;
+
+      final filtered = list
+          .where(
+            (p) => ProximityFilter.matches(
+              professional: p,
+              searchLat: searchLat,
+              searchLng: searchLng,
+              searchCityLabel: searchCity,
+            ),
+          )
+          .toList();
+
+      filtered.sort(
+        (a, b) => ProximityFilter.compareByDistanceThenRanking(
+          a: a,
+          b: b,
+          searchLat: searchLat,
+          searchLng: searchLng,
+          rankingScore: _rankingScore,
+        ),
+      );
+
+      return filtered.take(limit).toList();
+    } catch (_) {
+      // Si falla la geocodificación, fallback al filtro por nombre de localidad.
+      final fallback = list
+          .where((p) => citiesMatch(p.city, searchCity))
+          .toList();
+      _sortByBayesian(fallback);
+      return fallback.take(limit).toList();
+    }
   }
 
   Future<List<Professional>> _fetchLegacyProfessionals({
@@ -348,7 +398,10 @@ class ProfessionalRepository {
     }
 
     if (city != null && city.isNotEmpty) {
-      builder = builder.ilike('city', '%$city%');
+      final cityFilter = city.contains(', ')
+          ? city.split(', ').first.trim()
+          : city.trim();
+      builder = builder.ilike('city', '%$cityFilter%');
     }
 
     if (query != null && query.trim().isNotEmpty) {
@@ -496,17 +549,33 @@ class ProfessionalRepository {
     }
   }
 
-  /// Media bayesiana: (C*m + n*avg) / (C+n)  —  C=5, m=4.0
-  /// Penaliza a quien tiene pocas reseñas respecto a quien tiene muchas.
-  static double _bayesian(Professional p) {
+  /// Puntuación de ranking combinada (0–1):
+  ///
+  /// 70 % — Media bayesiana del rating (C=5, m=4.0):
+  ///          premia calidad y penaliza perfiles con muy pocas reseñas.
+  /// 15 % — Actividad de reseñas: más reseñas = más confianza (cap 100).
+  /// 15 % — Popularidad por guardados (cap 500 saves).
+  ///
+  /// Con esto, un profesional con 4.8★ / 20 reseñas / 50 guardados
+  /// supera a uno con 5.0★ / 1 reseña / 0 guardados.
+  static double _rankingScore(Professional p) {
+    // 1. Bayesian rating normalizado a 0-1
     const c = 5.0;
     const m = 4.0;
     final n = p.reviewCount.toDouble();
     final avg = p.rating;
-    return (c * m + n * avg) / (c + n);
+    final bayesian = (c * m + n * avg) / (c + n) / 5.0;
+
+    // 2. Volumen de reseñas (cap en 100 para no penalizar infinitamente a nuevos)
+    final reviewBonus = (p.reviewCount.clamp(0, 100)) / 100.0;
+
+    // 3. Popularidad por guardados (cap en 500)
+    final saveBonus = (p.savedCount.clamp(0, 500)) / 500.0;
+
+    return bayesian * 0.70 + reviewBonus * 0.15 + saveBonus * 0.15;
   }
 
   static void _sortByBayesian(List<Professional> list) {
-    list.sort((a, b) => _bayesian(b).compareTo(_bayesian(a)));
+    list.sort((a, b) => _rankingScore(b).compareTo(_rankingScore(a)));
   }
 }

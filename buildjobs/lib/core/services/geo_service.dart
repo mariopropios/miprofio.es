@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 
 /// Servicio de geolocalización multiplataforma (web, Android, iOS).
 class GeoService {
-  static const _detectTimeout = Duration(seconds: 18);
+  static const _detectTimeout = Duration(seconds: 25);
 
   /// Obtiene el nombre de la ciudad actual del dispositivo.
   /// Lanza [GeoServiceException] si no se puede obtener.
@@ -21,10 +21,126 @@ class GeoService {
   }
 
   /// Ciudad, dirección y coordenadas a partir del GPS del dispositivo.
-  static Future<GeoLocationResult> detectLocation() async {
+  static Future<GeoLocationResult> detectLocation() {
+    return _detectLocationImpl().timeout(
+      _detectTimeout,
+      onTimeout: () => throw const GeoServiceException(
+        'La detección tardó demasiado. Escribe la dirección manualmente '
+        'o comprueba que el navegador tenga permiso de ubicación.',
+      ),
+    );
+  }
+
+  static Future<GeoLocationResult> _detectLocationImpl() async {
     await _ensureLocationPermission();
-    final pos = await _resolvePosition();
+    final pos = await _resolveHighAccuracyPosition();
     return _reverseGeocodeFull(pos.latitude, pos.longitude);
+  }
+
+  /// Valida una calle/dirección escrita a mano (número opcional).
+  static bool isValidStreetInput(String? value) {
+    return (value?.trim().length ?? 0) >= 3;
+  }
+
+  static String? streetInputError(String? value) {
+    if (isValidStreetInput(value)) return null;
+    return 'Indica la calle donde trabajas';
+  }
+
+  /// Validador para calle opcional: solo exige formato si el usuario escribe algo.
+  static String? optionalStreetInputError(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) return null;
+    if (isValidStreetInput(trimmed)) return null;
+    return 'Si indicas calle, escribe al menos 3 caracteres';
+  }
+
+  /// Geocodifica el centro de una localidad (sin calle).
+  static Future<GeocodeResult> geocodeCity(String city) async {
+    final locality = _cityNameOnly(city.trim());
+    if (locality.length < 2) {
+      throw const GeoServiceException('Indica la localidad.');
+    }
+
+    final uri = Uri.parse(
+      'https://nominatim.openstreetmap.org/search'
+      '?q=${Uri.encodeComponent('$locality, España')}'
+      '&format=json'
+      '&addressdetails=1'
+      '&countrycodes=es'
+      '&limit=1'
+      '&accept-language=es',
+    );
+
+    http.Response resp;
+    try {
+      resp = await http
+          .get(
+            uri,
+            headers: const {
+              'User-Agent': 'ProfioApp/1.0 (profio; contact@profio.app)',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      throw const GeoServiceException(
+        'No se pudo contactar con el servicio de mapas.',
+      );
+    }
+
+    if (resp.statusCode != 200) {
+      throw GeoServiceException(
+        'Error al geocodificar la localidad (código ${resp.statusCode}).',
+      );
+    }
+
+    final data = jsonDecode(resp.body) as List<dynamic>;
+    if (data.isEmpty) {
+      throw GeoServiceException(
+        'No se encontró "$locality". Revisa el nombre de la localidad.',
+      );
+    }
+
+    final item = data.first as Map<String, dynamic>;
+    final lat = double.tryParse(item['lat']?.toString() ?? '');
+    final lon = double.tryParse(item['lon']?.toString() ?? '');
+    if (lat == null || lon == null) {
+      throw const GeoServiceException(
+        'No se pudieron obtener las coordenadas de la localidad.',
+      );
+    }
+
+    return GeocodeResult(
+      latitude: lat,
+      longitude: lon,
+      formattedAddress: locality,
+    );
+  }
+
+  /// Resuelve coordenadas: GPS previo, calle o solo localidad.
+  static Future<GeocodeResult> resolveCoordinates({
+    required String city,
+    String? address,
+    double? latitude,
+    double? longitude,
+  }) async {
+    if (latitude != null && longitude != null) {
+      return GeocodeResult(
+        latitude: latitude,
+        longitude: longitude,
+        formattedAddress: address?.trim().isNotEmpty == true
+            ? address!.trim()
+            : _cityNameOnly(city),
+      );
+    }
+
+    final street = address?.trim() ?? '';
+    if (street.length >= 3) {
+      return geocodeAddress(address: street, city: city);
+    }
+
+    return geocodeCity(city);
   }
 
   /// Geocodifica una dirección postal dentro de una ciudad (España).
@@ -36,7 +152,7 @@ class GeoService {
     final locality = city.trim();
     if (street.length < 3 || locality.length < 2) {
       throw const GeoServiceException(
-        'Indica una dirección completa con calle y ciudad.',
+        'Indica la calle y la ciudad.',
       );
     }
 
@@ -76,7 +192,7 @@ class GeoService {
     final data = jsonDecode(resp.body) as List<dynamic>;
     if (data.isEmpty) {
       throw const GeoServiceException(
-        'No se encontró esa dirección. Revisa calle, número y ciudad.',
+        'No se encontró esa dirección. Revisa calle y ciudad.',
       );
     }
 
@@ -141,20 +257,14 @@ class GeoService {
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     final addr = data['address'] as Map<String, dynamic>? ?? {};
-    final city = GeoCityParser.readCityName(addr, data);
+    final city = GeoCityParser.readCityDisplayName(addr, data);
     if (city.isEmpty) {
       throw const GeoServiceException(
         'No se pudo identificar la ciudad. Escríbela manualmente.',
       );
     }
 
-    var street = GeoCityParser.readStreetAddress(addr);
-    if (street.isEmpty) {
-      final display = data['display_name'] as String?;
-      if (display != null && display.isNotEmpty) {
-        street = display.split(',').first.trim();
-      }
-    }
+    var street = GeoCityParser.readStreetAddress(addr, item: data);
 
     return GeoLocationResult(
       city: city,
@@ -201,6 +311,40 @@ class GeoService {
       throw const GeoServiceException(
         'Permiso de ubicación bloqueado. Actívalo en los ajustes '
         'del navegador o del dispositivo.',
+      );
+    }
+  }
+
+  static LocationSettings get _highAccuracySettings {
+    if (kIsWeb) {
+      return WebSettings(
+        accuracy: LocationAccuracy.high,
+        maximumAge: const Duration(seconds: 30),
+        timeLimit: const Duration(seconds: 18),
+      );
+    }
+    return const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      timeLimit: Duration(seconds: 18),
+    );
+  }
+
+  static Future<Position> _resolveHighAccuracyPosition() async {
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: _highAccuracySettings,
+      ).timeout(
+        const Duration(seconds: 20),
+        onTimeout: () => throw const GeoServiceException(
+          'No se pudo obtener la ubicación a tiempo. '
+          'Comprueba el GPS o escribe la dirección manualmente.',
+        ),
+      );
+    } on GeoServiceException {
+      rethrow;
+    } catch (e) {
+      throw GeoServiceException(
+        'Error al obtener coordenadas: ${e.toString()}',
       );
     }
   }
@@ -290,7 +434,9 @@ class GeoService {
         if (item is! Map<String, dynamic>) continue;
         final suggestion = CitySuggestion.fromNominatimSearch(item);
         if (suggestion == null) continue;
-        if (seen.add(suggestion.shortName.toLowerCase())) {
+        // Deduplicar por displayName para que "Candeleda, Ávila" y
+        // "Candeleda, Cáceres" puedan aparecer como entradas distintas.
+        if (seen.add(suggestion.displayName.toLowerCase())) {
           results.add(suggestion);
         }
         if (results.length >= limit) break;
@@ -300,6 +446,69 @@ class GeoService {
     } catch (_) {
       return [];
     }
+  }
+
+  /// Busca calles/direcciones dentro de [city] (mín. 2 caracteres en [query]).
+  static Future<List<AddressSuggestion>> searchAddresses({
+    required String city,
+    required String query,
+    int limit = 6,
+    String countryCode = 'es',
+  }) async {
+    final streetQuery = query.trim();
+    final cityName = _cityNameOnly(city);
+    if (streetQuery.length < 2 || cityName.length < 2) return [];
+
+    final uri = Uri.parse(
+      'https://nominatim.openstreetmap.org/search'
+      '?q=${Uri.encodeComponent('$streetQuery, $cityName, España')}'
+      '&format=json'
+      '&addressdetails=1'
+      '&countrycodes=$countryCode'
+      '&limit=${limit * 3}'
+      '&accept-language=es'
+      '&dedupe=1',
+    );
+
+    try {
+      final resp = await http
+          .get(
+            uri,
+            headers: const {
+              'User-Agent': 'ProfioApp/1.0 (profio; contact@profio.app)',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (resp.statusCode != 200) return [];
+
+      final data = jsonDecode(resp.body) as List<dynamic>;
+      final seen = <String>{};
+      final results = <AddressSuggestion>[];
+
+      for (final item in data) {
+        if (item is! Map<String, dynamic>) continue;
+        final suggestion = AddressSuggestion.fromNominatimSearch(item, cityName);
+        if (suggestion == null) continue;
+        final key = suggestion.streetAddress.toLowerCase();
+        if (seen.add(key)) {
+          results.add(suggestion);
+        }
+        if (results.length >= limit) break;
+      }
+
+      return results;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Extrae solo el nombre de ciudad de "Ciudad, Provincia".
+  static String _cityNameOnly(String city) {
+    final trimmed = city.trim();
+    if (trimmed.isEmpty) return '';
+    return trimmed.split(',').first.trim();
   }
 }
 
@@ -352,18 +561,58 @@ class GeoCityParser {
     return '';
   }
 
-  static String readStreetAddress(Map<String, dynamic> addr) {
-    final road = addr['road'] ??
-        addr['pedestrian'] ??
-        addr['residential'] ??
-        addr['footway'] ??
-        addr['path'];
-    if (road is! String || road.trim().isEmpty) return '';
-    final number = addr['house_number'];
-    if (number is String && number.trim().isNotEmpty) {
-      return '${road.trim()} ${number.trim()}';
+  static String readCityDisplayName(
+    Map<String, dynamic> addr,
+    Map<String, dynamic> item,
+  ) {
+    final city = readCityName(addr, item);
+    if (city.isEmpty) return '';
+    final province = readProvince(addr);
+    if (province.isNotEmpty && province != city) {
+      return '$city, $province';
     }
-    return road.trim();
+    return city;
+  }
+
+  static String readStreetAddress(
+    Map<String, dynamic> addr, {
+    Map<String, dynamic>? item,
+  }) {
+    for (final key in [
+      'road',
+      'street',
+      'pedestrian',
+      'residential',
+      'living_street',
+      'footway',
+      'path',
+      'cycleway',
+    ]) {
+      final value = addr[key];
+      if (value is String && value.trim().isNotEmpty) {
+        final road = value.trim();
+        final number = addr['house_number'];
+        if (number is String && number.trim().isNotEmpty) {
+          return '$road ${number.trim()}';
+        }
+        return road;
+      }
+    }
+
+    for (final key in ['building', 'amenity', 'place', 'commercial']) {
+      final value = addr[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+
+    final display = item?['display_name'];
+    if (display is String && display.isNotEmpty) {
+      final first = display.split(',').first.trim();
+      if (first.length >= 3) return first;
+    }
+
+    return '';
   }
 }
 
@@ -397,6 +646,55 @@ class CitySuggestion {
       shortName: city,
       displayName: displayName,
       province: province.isEmpty ? null : province,
+    );
+  }
+}
+
+class AddressSuggestion {
+  const AddressSuggestion({
+    required this.streetAddress,
+    required this.displayName,
+    this.latitude,
+    this.longitude,
+  });
+
+  /// Valor que se guarda en el campo (calle y número).
+  final String streetAddress;
+
+  /// Texto mostrado en el desplegable.
+  final String displayName;
+
+  final double? latitude;
+  final double? longitude;
+
+  static AddressSuggestion? fromNominatimSearch(
+    Map<String, dynamic> item,
+    String cityContext,
+  ) {
+    final addr = (item['address'] as Map<String, dynamic>?) ?? {};
+    final street = GeoCityParser.readStreetAddress(addr);
+    if (street.isEmpty) return null;
+
+    final lat = double.tryParse(item['lat']?.toString() ?? '');
+    final lon = double.tryParse(item['lon']?.toString() ?? '');
+
+    final suburb = addr['suburb'] ?? addr['neighbourhood'] ?? addr['quarter'];
+    final postcode = addr['postcode'];
+
+    final parts = <String>[street];
+    if (suburb is String && suburb.trim().isNotEmpty) {
+      parts.add(suburb.trim());
+    }
+    if (postcode is String && postcode.trim().isNotEmpty) {
+      parts.add(postcode.trim());
+    }
+    parts.add(cityContext);
+
+    return AddressSuggestion(
+      streetAddress: street,
+      displayName: parts.join(', '),
+      latitude: lat,
+      longitude: lon,
     );
   }
 }

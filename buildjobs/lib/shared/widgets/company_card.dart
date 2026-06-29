@@ -1,9 +1,7 @@
-import 'dart:ui';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/constants/app_constants.dart';
+import '../../core/constants/gallery_photo_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../models/company.dart';
 import 'hover_lift_card.dart';
@@ -16,11 +14,18 @@ class CompanyCard extends StatelessWidget {
     required this.company,
     this.onTap,
     this.photoOverlay,
+    this.savedCountOverride,
+    this.highlightProfession,
   });
 
   final Company company;
   final VoidCallback? onTap;
   final Widget? photoOverlay;
+  /// Si se proporciona, reemplaza company.savedCount en la UI (para actualizaciones optimistas).
+  final int? savedCountOverride;
+  /// Oficio activo en el filtro de búsqueda. Se mueve al principio de la lista
+  /// y se resalta visualmente dentro de la tarjeta.
+  final String? highlightProfession;
 
   /// Fotos ordenadas: primero el logo/portada, luego la galería sin duplicados.
   List<String> get _photos {
@@ -41,33 +46,35 @@ class CompanyCard extends StatelessWidget {
     // selección de texto (pantalla azul) al pulsar el carrusel o sus flechas.
     return SelectionContainer.disabled(
       child: HoverLiftCard(
-      onTap: null,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final useFramedPhoto = _useFramedPhoto(
-            cardWidth: constraints.maxWidth,
-            viewportWidth: MediaQuery.sizeOf(context).width,
-          );
-
-          if (constraints.maxHeight.isFinite) {
-            return _BoundedCardLayout(
-              company: company,
-              photos: photos,
-              onTap: onTap,
-              useFramedPhoto: useFramedPhoto,
-              photoOverlay: photoOverlay,
-            );
-          }
-          return _UnboundedCardLayout(
-            company: company,
-            photos: photos,
-            onTap: onTap,
-            useFramedPhoto: useFramedPhoto,
-            photoOverlay: photoOverlay,
-          );
-        },
+        onTap: null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AspectRatio(
+              aspectRatio: GalleryPhotoConstants.aspectRatio,
+              child: ClipRect(
+                child: _PhotoCarousel(
+                  photos: photos,
+                  onTap: onTap,
+                  overlay: photoOverlay,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+              child: _infoSection(
+                context,
+                company,
+                onTap,
+                savedCountOverride: savedCountOverride,
+                highlightProfession: highlightProfession,
+              ),
+            ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 
   static Widget _placeholder({Widget? child}) {
@@ -84,22 +91,34 @@ class CompanyCard extends StatelessWidget {
     );
   }
 
-  /// Textura de papel arrugado sólo en ventanas ~mitad de pantalla de escritorio
-  /// (720–1023 px) y tarjetas anchas (deck), no móvil ni grid de escritorio.
-  static bool _useFramedPhoto({
-    required double cardWidth,
-    required double viewportWidth,
-  }) {
-    return cardWidth >= 500 &&
-        viewportWidth >= 720 &&
-        viewportWidth < AppConstants.tabletBreakpoint;
+  /// Mueve [highlight] al primer lugar de [professions] si está presente.
+  static List<String> _sortedProfessions(
+    List<String> professions,
+    String? highlight,
+  ) {
+    if (highlight == null || professions.length <= 1) return professions;
+    final lower = highlight.toLowerCase();
+    final idx = professions.indexWhere((p) => p.toLowerCase() == lower);
+    if (idx <= 0) return professions;
+    final sorted = List<String>.from(professions);
+    sorted.insert(0, sorted.removeAt(idx));
+    return sorted;
   }
 
   static Widget _infoSection(
     BuildContext context,
     Company company,
-    VoidCallback? onTap,
-  ) {
+    VoidCallback? onTap, {
+    int? savedCountOverride,
+    String? highlightProfession,
+  }) {
+    final savedCount = savedCountOverride ?? company.savedCount;
+    final rawProfessions = company.professions.isNotEmpty
+        ? company.professions
+        : [company.profession];
+    final sortedProfessions =
+        _sortedProfessions(rawProfessions, highlightProfession);
+
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -115,11 +134,10 @@ class CompanyCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         ProfessionTagsRow(
-          professions: company.professions.isNotEmpty
-              ? company.professions
-              : [company.profession],
+          professions: sortedProfessions,
           maxVisible: 2,
           compact: true,
+          highlight: highlightProfession,
         ),
         const SizedBox(height: 4),
         Text(
@@ -165,6 +183,22 @@ class CompanyCard extends StatelessWidget {
                     color: AppTheme.textSecondary,
                   ),
             ),
+            if (savedCount > 0) ...[
+              const SizedBox(width: 10),
+              const Icon(
+                Icons.favorite_rounded,
+                size: 12,
+                color: Colors.redAccent,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                '$savedCount',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.textSecondary,
+                      fontSize: 11,
+                    ),
+              ),
+            ],
           ],
         ),
       ],
@@ -187,13 +221,11 @@ class CompanyCard extends StatelessWidget {
 class _PhotoCarousel extends StatefulWidget {
   const _PhotoCarousel({
     required this.photos,
-    required this.useFramedPhoto,
     this.onTap,
     this.overlay,
   });
 
   final List<String> photos;
-  final bool useFramedPhoto;
   final VoidCallback? onTap;
   final Widget? overlay;
 
@@ -219,52 +251,21 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
     super.dispose();
   }
 
-  Widget _buildImage(String url, int index) {
-    if (!widget.useFramedPhoto) {
-      return CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        memCacheWidth: _PhotoCarousel._imageCacheWidth,
-        maxWidthDiskCache: _PhotoCarousel._imageCacheWidth,
-        fadeInDuration: const Duration(milliseconds: 200),
-        errorWidget: (_, __, ___) => CompanyCard._placeholder(),
-        placeholder: (_, __) => CompanyCard._placeholder(
-          child: const SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-
-    // Marco persistente: la textura aparece al instante, la foto encima sin fade.
-    return _FramedPhotoShell(
-      child: CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.contain,
-        width: double.infinity,
-        height: double.infinity,
-        memCacheWidth: _PhotoCarousel._imageCacheWidth,
-        maxWidthDiskCache: _PhotoCarousel._imageCacheWidth,
-        fadeInDuration: Duration.zero,
-        fadeOutDuration: Duration.zero,
-        placeholderFadeInDuration: Duration.zero,
-        errorWidget: (_, __, ___) => const Center(
-          child: Icon(
-            Icons.construction,
-            size: 44,
-            color: Color(0xFF9A9A96),
-          ),
-        ),
-        placeholder: (_, __) => const Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+  Widget _buildImage(String url) {
+    return CachedNetworkImage(
+      imageUrl: url,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      memCacheWidth: _PhotoCarousel._imageCacheWidth,
+      maxWidthDiskCache: _PhotoCarousel._imageCacheWidth,
+      fadeInDuration: const Duration(milliseconds: 200),
+      errorWidget: (_, __, ___) => CompanyCard._placeholder(),
+      placeholder: (_, __) => CompanyCard._placeholder(
+        child: const SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
       ),
     );
@@ -292,17 +293,7 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
               cursor: widget.onTap != null
                   ? SystemMouseCursors.click
                   : MouseCursor.defer,
-              child: widget.useFramedPhoto
-                  ? _FramedPhotoShell(
-                      child: Center(
-                        child: Icon(
-                          Icons.construction,
-                          size: 44,
-                          color: Color(0xFF9A9A96),
-                        ),
-                      ),
-                    )
-                  : CompanyCard._placeholder(),
+              child: CompanyCard._placeholder(),
             ),
           ),
           if (widget.overlay != null)
@@ -318,11 +309,10 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // ── Imágenes deslizables ────────────────────────────────────────────
         GestureDetector(
           onTap: widget.onTap,
           child: photos.length == 1
-              ? _buildImage(photos[0], 0)
+              ? _buildImage(photos[0])
               : PageView.builder(
                   controller: _ctrl,
                   physics: const PageScrollPhysics(
@@ -330,11 +320,10 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
                   ),
                   onPageChanged: (i) => setState(() => _current = i),
                   itemCount: photos.length,
-                  itemBuilder: (_, i) => _buildImage(photos[i], i),
+                  itemBuilder: (_, i) => _buildImage(photos[i]),
                 ),
         ),
 
-        // ── Flecha izquierda ────────────────────────────────────────────────
         if (photos.length > 1 && _current > 0)
           Positioned(
             left: 6,
@@ -348,7 +337,6 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
             ),
           ),
 
-        // ── Flecha derecha ──────────────────────────────────────────────────
         if (photos.length > 1 && _current < photos.length - 1)
           Positioned(
             right: 6,
@@ -362,7 +350,6 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
             ),
           ),
 
-        // ── Indicador de puntos ─────────────────────────────────────────────
         if (photos.length > 1)
           Positioned(
             bottom: 8,
@@ -399,83 +386,6 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
   }
 }
 
-// ── Marco con textura (siempre visible desde el primer frame) ─────────────────
-class _FramedPhotoShell extends StatelessWidget {
-  const _FramedPhotoShell({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        RepaintBoundary(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: const _SoftBlurredThemeBackground(),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(10),
-          child: child,
-        ),
-      ],
-    );
-  }
-}
-
-// ── Fondo difuminado con colores del tema (sin assets) ────────────────────────
-class _SoftBlurredThemeBackground extends StatelessWidget {
-  const _SoftBlurredThemeBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        const ColoredBox(color: AppTheme.surface),
-        ImageFiltered(
-          imageFilter: ImageFilter.blur(sigmaX: 56, sigmaY: 56),
-          child: Stack(
-            fit: StackFit.expand,
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                top: -40,
-                left: -30,
-                child: _blurOrb(220, AppTheme.primary.withValues(alpha: 0.22)),
-              ),
-              Positioned(
-                bottom: -50,
-                right: -20,
-                child: _blurOrb(260, AppTheme.surfaceElevated),
-              ),
-              Positioned(
-                top: 40,
-                right: -60,
-                child: _blurOrb(180, AppTheme.primaryDark.withValues(alpha: 0.16)),
-              ),
-              Center(
-                child: _blurOrb(140, AppTheme.scaffoldBackground.withValues(alpha: 0.5)),
-              ),
-            ],
-          ),
-        ),
-        ColoredBox(color: AppTheme.scaffoldBackground.withValues(alpha: 0.28)),
-      ],
-    );
-  }
-
-  Widget _blurOrb(double size, Color color) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-    );
-  }
-}
-
 // ── Botón de flecha ────────────────────────────────────────────────────────────
 
 class _ArrowButton extends StatelessWidget {
@@ -498,99 +408,6 @@ class _ArrowButton extends StatelessWidget {
         ),
         child: Icon(icon, color: Colors.white, size: 20),
       ),
-    );
-  }
-}
-
-// ── Layouts ────────────────────────────────────────────────────────────────────
-
-class _BoundedCardLayout extends StatelessWidget {
-  const _BoundedCardLayout({
-    required this.company,
-    required this.photos,
-    required this.useFramedPhoto,
-    this.onTap,
-    this.photoOverlay,
-  });
-
-  final Company company;
-  final List<String> photos;
-  final bool useFramedPhoto;
-  final VoidCallback? onTap;
-  final Widget? photoOverlay;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          flex: 11,
-          child: ClipRect(
-            child: _PhotoCarousel(
-              photos: photos,
-              useFramedPhoto: useFramedPhoto,
-              onTap: onTap,
-              overlay: photoOverlay,
-            ),
-          ),
-        ),
-        Expanded(
-          flex: 10,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: SingleChildScrollView(
-                physics: const NeverScrollableScrollPhysics(),
-                child: CompanyCard._infoSection(context, company, onTap),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _UnboundedCardLayout extends StatelessWidget {
-  const _UnboundedCardLayout({
-    required this.company,
-    required this.photos,
-    required this.useFramedPhoto,
-    this.onTap,
-    this.photoOverlay,
-  });
-
-  final Company company;
-  final List<String> photos;
-  final bool useFramedPhoto;
-  final VoidCallback? onTap;
-  final Widget? photoOverlay;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          height: 160,
-          width: double.infinity,
-          child: ClipRect(
-            child: _PhotoCarousel(
-              photos: photos,
-              useFramedPhoto: useFramedPhoto,
-              onTap: onTap,
-              overlay: photoOverlay,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(14),
-          child: CompanyCard._infoSection(context, company, onTap),
-        ),
-      ],
     );
   }
 }

@@ -1,24 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../chat/presentation/providers/chat_providers.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerWidget {
   const MainShell({super.key, required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(conversationsRealtimeProvider);
+
     final location = GoRouterState.of(context).uri.toString();
     final selectedIndex = _indexForLocation(location);
+    final unreadCount = ref.watch(totalUnreadMessagesProvider);
 
     return ResponsiveLayout(
-      mobile: _MobileShell(selectedIndex: selectedIndex, child: child),
-      desktop: _DesktopShell(selectedIndex: selectedIndex, child: child),
+      mobile: _MobileShell(
+        selectedIndex: selectedIndex,
+        unreadCount: unreadCount,
+        child: child,
+      ),
+      desktop: _DesktopShell(
+        selectedIndex: selectedIndex,
+        unreadCount: unreadCount,
+        child: child,
+      ),
     );
   }
 
@@ -31,9 +44,14 @@ class MainShell extends StatelessWidget {
 }
 
 class _MobileShell extends StatelessWidget {
-  const _MobileShell({required this.selectedIndex, required this.child});
+  const _MobileShell({
+    required this.selectedIndex,
+    required this.unreadCount,
+    required this.child,
+  });
 
   final int selectedIndex;
+  final int unreadCount;
   final Widget child;
 
   @override
@@ -43,23 +61,29 @@ class _MobileShell extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) => _navigate(context, index),
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Inicio',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.search),
             selectedIcon: Icon(Icons.search),
             label: 'Buscar',
           ),
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline_rounded),
-            selectedIcon: Icon(Icons.chat_bubble_rounded),
+            icon: _BadgedChatIcon(
+              count: unreadCount,
+              outlined: true,
+            ),
+            selectedIcon: _BadgedChatIcon(
+              count: unreadCount,
+              outlined: false,
+            ),
             label: 'Mensajes',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
             label: 'Perfil',
@@ -84,9 +108,14 @@ class _MobileShell extends StatelessWidget {
 }
 
 class _DesktopShell extends StatelessWidget {
-  const _DesktopShell({required this.selectedIndex, required this.child});
+  const _DesktopShell({
+    required this.selectedIndex,
+    required this.unreadCount,
+    required this.child,
+  });
 
   final int selectedIndex;
+  final int unreadCount;
   final Widget child;
 
   @override
@@ -114,23 +143,29 @@ class _DesktopShell extends StatelessWidget {
                 ],
               ),
             ),
-            destinations: const [
-              NavigationRailDestination(
+            destinations: [
+              const NavigationRailDestination(
                 icon: Icon(Icons.home_outlined),
                 selectedIcon: Icon(Icons.home),
                 label: Text('Inicio'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.search),
                 selectedIcon: Icon(Icons.search),
                 label: Text('Buscar'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.chat_bubble_outline_rounded),
-                selectedIcon: Icon(Icons.chat_bubble_rounded),
-                label: Text('Mensajes'),
+                icon: _BadgedChatIcon(
+                  count: unreadCount,
+                  outlined: true,
+                ),
+                selectedIcon: _BadgedChatIcon(
+                  count: unreadCount,
+                  outlined: false,
+                ),
+                label: const Text('Mensajes'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.person_outline),
                 selectedIcon: Icon(Icons.person),
                 label: Text('Perfil'),
@@ -155,5 +190,38 @@ class _DesktopShell extends StatelessWidget {
       case 3:
         context.go(AppRoutes.profile);
     }
+  }
+}
+
+class _BadgedChatIcon extends StatelessWidget {
+  const _BadgedChatIcon({
+    required this.count,
+    required this.outlined,
+  });
+
+  final int count;
+  final bool outlined;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = Icon(
+      outlined ? Icons.chat_bubble_outline_rounded : Icons.chat_bubble_rounded,
+    );
+
+    if (count <= 0) return icon;
+
+    return Badge(
+      isLabelVisible: true,
+      backgroundColor: AppTheme.primary,
+      label: Text(
+        count > 99 ? '99+' : '$count',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      child: icon,
+    );
   }
 }

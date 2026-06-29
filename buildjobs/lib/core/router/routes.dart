@@ -19,6 +19,23 @@ class AppRoutes {
   static const clientRegister = '/register/client';
   static const professionalRegister = '/register/professional';
   static const professionalRegisterSuccess = '/register/professional/success';
+  static const emailVerification = '/email-verification';
+  static const emailVerifiedQueryKey = 'verified';
+  static const emailVerifiedQueryValue = 'email';
+
+  static String profileAfterEmailVerification() {
+    return Uri(
+      path: profile,
+      queryParameters: {emailVerifiedQueryKey: emailVerifiedQueryValue},
+    ).toString();
+  }
+
+  static bool isProfileEmailVerified(Uri uri) =>
+      uri.queryParameters[emailVerifiedQueryKey] == emailVerifiedQueryValue;
+
+  static String emailVerificationPath(String email) =>
+      Uri(path: emailVerification, queryParameters: {'email': email})
+          .toString();
 
   /// Buscar con filtros opcionales: /search?profession=Albañil&q=Madrid&cat=reformas&city=Madrid
   static String searchWith({
@@ -50,6 +67,22 @@ class AppRoutes {
     return Uri(
       path: login,
       queryParameters: {'redirect': redirectTo},
+    ).toString();
+  }
+
+  /// Abre login con el email rellenado (p. ej. cuenta ya existente).
+  static String loginWithEmail(
+    String email, {
+    String? redirect,
+    bool existingAccount = false,
+  }) {
+    return Uri(
+      path: login,
+      queryParameters: {
+        'email': email,
+        if (redirect != null && redirect.isNotEmpty) 'redirect': redirect,
+        if (existingAccount) 'existing': '1',
+      },
     ).toString();
   }
 }

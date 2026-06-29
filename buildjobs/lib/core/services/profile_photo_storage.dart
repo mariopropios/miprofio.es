@@ -40,7 +40,7 @@ class ProfilePhotoStorage {
           prepared.bytes,
           fileOptions: FileOptions(
             contentType: prepared.contentType,
-            upsert: false,
+            upsert: true,
           ),
         )
         .timeout(uploadTimeout);

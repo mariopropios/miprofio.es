@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/app_constants.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/device_form_factor.dart';
 
 /// Scroll behavior sin scrollbar overlay, compatible con mouse y touch.
 /// Evita que el scrollbar nativo de Flutter web se pinte encima del contenido.
@@ -42,6 +43,10 @@ class ProfioApp extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.dark,
       scrollBehavior: const _AppScrollBehavior(),
+      builder: (context, child) {
+        if (child == null) return const SizedBox.shrink();
+        return TabletAdaptiveFrame(child: child);
+      },
       routerConfig: router,
     );
   }

@@ -160,23 +160,47 @@ class _ClientRegisterScreenState extends ConsumerState<ClientRegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await ref.read(authRepositoryProvider).signUp(
-            email: _emailController.text.trim(),
-            password: _passwordController.text,
-            fullName: _nameController.text.trim(),
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+      final fullName = _nameController.text.trim();
+
+      final authResult = await ref.read(authRepositoryProvider).registerOrSignIn(
+            email: email,
+            password: password,
+            fullName: fullName,
+            role: 'client',
           );
 
-      if (response.user != null &&
-          response.session != null &&
-          _profileAvatar != null) {
+      if (authResult.accountAlreadyExists) {
+        if (mounted) {
+          context.go(
+            AppRoutes.loginWithEmail(
+              email,
+              existingAccount: true,
+              redirect: widget.redirectTo,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (authResult.needsEmailConfirmation) {
+        if (mounted) {
+          context.go(AppRoutes.emailVerificationPath(email));
+        }
+        return;
+      }
+
+      final userId = authResult.userId;
+      if (userId != null && _profileAvatar != null) {
         try {
           final client = ref.read(supabaseClientProvider);
           final avatarUrl = await ProfilePhotoStorage(client)
-              .uploadImage(_profileAvatar!, response.user!.id)
+              .uploadImage(_profileAvatar!, userId)
               .timeout(ProfilePhotoStorage.uploadTimeout);
 
           await ref.read(profileRepositoryProvider).updateAvatarUrl(
-                userId: response.user!.id,
+                userId: userId,
                 avatarUrl: avatarUrl,
               );
         } on StorageException catch (e) {
@@ -205,27 +229,11 @@ class _ClientRegisterScreenState extends ConsumerState<ClientRegisterScreen> {
       ref.invalidate(currentProfileProvider);
 
       if (mounted) {
-        final needsConfirmation =
-            response.user != null && response.session == null;
-
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              needsConfirmation
-                  ? 'Revisa tu email para confirmar la cuenta'
-                  : 'Cuenta creada correctamente',
-            ),
-          ),
+          const SnackBar(content: Text('Cuenta creada correctamente')),
         );
-
-        if (!needsConfirmation) {
-          TextInput.finishAutofillContext(shouldSave: true);
-          _navigateAfterAuth();
-        } else if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go(AppRoutes.home);
-        }
+        TextInput.finishAutofillContext(shouldSave: true);
+        _navigateAfterAuth();
       }
     } on AuthException catch (e) {
       if (mounted) {

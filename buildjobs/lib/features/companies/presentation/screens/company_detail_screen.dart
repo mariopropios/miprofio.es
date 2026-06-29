@@ -116,7 +116,10 @@ class CompanyDetailScreen extends ConsumerWidget {
                 SaveProfessionalButton(professionalId: companyId),
             ],
           ),
-          floatingActionButton: ProfessionalWriteReviewFab(companyId: companyId),
+          // Los profesionales no pueden reseñarse a sí mismos
+          floatingActionButton: isOwnListing
+              ? null
+              : ProfessionalWriteReviewFab(companyId: companyId),
           body: ProfessionalPublicProfileBody(companyId: companyId),
         );
       },

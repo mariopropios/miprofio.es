@@ -5,6 +5,7 @@ class Review {
     required this.userId,
     required this.userName,
     this.userAvatarUrl,
+    this.reviewerProfessionalId,
     required this.rating,
     required this.title,
     required this.body,
@@ -19,6 +20,9 @@ class Review {
   final String userId;
   final String userName;
   final String? userAvatarUrl;
+  /// ID del perfil profesional del reviewer, si es un profesional.
+  /// Null si es un cliente normal.
+  final String? reviewerProfessionalId;
   final int rating;
   final String title;
   final String body;
@@ -26,6 +30,9 @@ class Review {
   final List<String> photoUrls;
   final String? ownerReply;
   final DateTime? ownerReplyAt;
+
+  /// Verdadero si quien dejó la reseña tiene un perfil profesional propio.
+  bool get reviewerIsProfessional => reviewerProfessionalId != null;
 
   factory Review.fromJson(Map<String, dynamic> json) {
     final rawPhotos = json['photo_urls'];
@@ -39,6 +46,8 @@ class Review {
       userId: json['user_id'] as String,
       userName: json['user_name'] as String? ?? 'Usuario',
       userAvatarUrl: json['user_avatar_url'] as String?,
+      reviewerProfessionalId:
+          json['reviewer_professional_id'] as String?,
       rating: json['rating'] as int,
       title: json['title'] as String,
       body: json['body'] as String,

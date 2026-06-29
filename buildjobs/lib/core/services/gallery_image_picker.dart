@@ -60,10 +60,15 @@ class GalleryImagePicker {
   }
 
   static Future<List<XFile>> _pickFromWebGallery(int maxCount) async {
-    final picked = await _imagePicker.pickMultiImage(
-      imageQuality: 85,
-      limit: maxCount,
-    );
+    // Para una sola foto usamos pickImage (más fiable en web móvil).
+    if (maxCount == 1) {
+      final picked = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+      );
+      if (picked == null) return [];
+      return _normalizePicked([picked]);
+    }
+    final picked = await _imagePicker.pickMultiImage(limit: maxCount);
     return _normalizePicked(picked.take(maxCount).toList(growable: false));
   }
 

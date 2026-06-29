@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/gallery_photo_constants.dart';
 import '../../../../core/constants/profession_catalog.dart';
 import '../../../../core/models/search_suggestion.dart';
 import '../../../../core/providers/repository_providers.dart';
@@ -307,10 +308,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       data: (results) {
         if (compact) {
           final height = deckHeight ??
-              (MediaQuery.sizeOf(context).height * 0.72).clamp(420.0, 700.0);
+              GalleryPhotoConstants.deckViewportHeight(
+                MediaQuery.sizeOf(context).height,
+              );
           return CompanyCardDeck(
             companies: results,
             height: height,
+            highlightProfession: _selectedProfession,
           );
         }
         return GridView.builder(
@@ -321,7 +325,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
             childAspectRatio:
-                ResponsiveLayout.isDesktop(context) ? 0.78 : 0.82,
+                ResponsiveLayout.isDesktop(context) ? 0.78 : 0.74,
           ),
           itemCount: results.length,
           itemBuilder: (context, index) {
@@ -329,6 +333,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             return RepaintBoundary(
               child: SavableCompanyCard(
                 company: company,
+                highlightProfession: _selectedProfession,
                 onTap: () => context.push(
                   AppRoutes.companyDetailPath(company.id),
                 ),
@@ -345,8 +350,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     BuildContext context,
     AsyncValue<List<Company>> resultsAsync,
   ) {
-    final viewportHeight = MediaQuery.sizeOf(context).height;
-    final deckHeight = (viewportHeight * 0.78).clamp(440.0, 760.0);
+    final deckHeight = GalleryPhotoConstants.deckViewportHeight(
+      MediaQuery.sizeOf(context).height,
+    );
 
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(

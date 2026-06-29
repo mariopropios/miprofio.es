@@ -1,7 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../shared/models/message.dart';
+import 'chat_exceptions.dart';
 
 class ChatRepository {
   ChatRepository({SupabaseClient? client})
@@ -25,7 +28,7 @@ class ChatRepository {
         .eq('id', professionalId)
         .maybeSingle();
     if (profOwner != null && profOwner['owner_id'] == uid) {
-      throw Exception('No puedes enviarte mensajes a ti mismo.');
+      throw const ChatSelfMessageException();
     }
 
     // Intentar obtener la conversación existente
@@ -53,10 +56,13 @@ class ChatRepository {
     final uid = _uid;
     if (uid == null) return [];
 
+    const select =
+        '*, professionals(name, profile_photo), client:profiles!user_id(full_name, avatar_url)';
+
     // 1) Conversaciones donde el usuario es cliente
     final clientConvs = await _client
         .from('conversations')
-        .select('*, professionals(name, profile_photo)')
+        .select(select)
         .eq('user_id', uid)
         .order('updated_at', ascending: false);
 
@@ -65,26 +71,67 @@ class ChatRepository {
         .from('professionals')
         .select('id')
         .eq('owner_id', uid);
-    final myProfIds = (myProfs as List).map((e) => e['id'] as String).toList();
+    final ownedProfessionalIds =
+        (myProfs as List).map((e) => e['id'] as String).toSet();
 
     List profConvs = [];
-    if (myProfIds.isNotEmpty) {
+    if (ownedProfessionalIds.isNotEmpty) {
       profConvs = await _client
           .from('conversations')
-          .select('*, professionals(name, profile_photo)')
-          .inFilter('professional_id', myProfIds)
+          .select(select)
+          .inFilter('professional_id', ownedProfessionalIds.toList())
           .order('updated_at', ascending: false);
     }
 
     // Combinar y deduplicar por ID
     final seen = <String>{};
-    final all = <Conversation>[];
+    final rows = <Map<String, dynamic>>[];
     for (final row in [...clientConvs, ...profConvs]) {
-      final conv = Conversation.fromJson(row as Map<String, dynamic>);
-      if (seen.add(conv.id)) all.add(conv);
+      final map = row as Map<String, dynamic>;
+      if (seen.add(map['id'] as String)) rows.add(map);
     }
+
+    if (rows.isEmpty) return [];
+
+    final convIds = rows.map((r) => r['id'] as String).toList();
+    final unreadByConversation = await _unreadCountsForConversations(
+      conversationIds: convIds,
+      currentUserId: uid,
+    );
+
+    final all = rows
+        .map(
+          (row) => Conversation.fromRow(
+            row,
+            currentUserId: uid,
+            ownedProfessionalIds: ownedProfessionalIds,
+            unreadCount: unreadByConversation[row['id'] as String] ?? 0,
+          ),
+        )
+        .toList();
     all.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return all;
+  }
+
+  Future<Map<String, int>> _unreadCountsForConversations({
+    required List<String> conversationIds,
+    required String currentUserId,
+  }) async {
+    if (conversationIds.isEmpty) return {};
+
+    final data = await _client
+        .from('messages')
+        .select('conversation_id')
+        .inFilter('conversation_id', conversationIds)
+        .neq('sender_id', currentUserId)
+        .isFilter('read_at', null);
+
+    final counts = <String, int>{};
+    for (final row in data as List) {
+      final id = row['conversation_id'] as String;
+      counts[id] = (counts[id] ?? 0) + 1;
+    }
+    return counts;
   }
 
   // ── Mensajes ────────────────────────────────────────────────────────────────
@@ -173,26 +220,27 @@ class ChatRepository {
         .isFilter('read_at', null);
   }
 
+  // ── Imágenes ─────────────────────────────────────────────────────────────────
+
+  /// Sube una imagen al bucket `chat-images` y devuelve la URL pública.
+  Future<String> uploadChatImage(Uint8List bytes, String fileName) async {
+    const bucket = 'chat-images';
+    final path =
+        '${DateTime.now().millisecondsSinceEpoch}_$fileName';
+    await _client.storage.from(bucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(
+            upsert: true,
+            contentType: 'image/jpeg',
+          ),
+        );
+    return _client.storage.from(bucket).getPublicUrl(path);
+  }
+
   /// Número de mensajes no leídos del usuario actual en todas sus conversaciones.
   Future<int> unreadCount() async {
-    final uid = _uid;
-    if (uid == null) return 0;
-
-    final data = await _client
-        .from('messages')
-        .select('id')
-        .neq('sender_id', uid)
-        .isFilter('read_at', null)
-        .inFilter(
-          'conversation_id',
-          (await _client
-                  .from('conversations')
-                  .select('id')
-                  .or('user_id.eq.$uid,professional_id.in.(select id from professionals where owner_id=eq.$uid)'))
-              .map((e) => e['id'] as String)
-              .toList(),
-        );
-
-    return (data as List).length;
+    final conversations = await getConversations();
+    return conversations.fold<int>(0, (sum, c) => sum + c.unreadCount);
   }
 }

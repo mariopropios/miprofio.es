@@ -94,12 +94,35 @@ class ReviewRepository {
         .eq('professional_id', professionalId)
         .order('created_at', ascending: false);
 
-    return (data as List).map((e) {
+    final rows = data as List;
+
+    // Obtener los IDs únicos de los reviewers para buscar sus perfiles profesionales
+    final userIds = rows
+        .map((e) => e['user_id'] as String)
+        .toSet()
+        .toList();
+
+    // Mapa userId → {id, profile_photo} para reviewers que son profesionales
+    final Map<String, Map<String, dynamic>> profMap = {};
+    if (userIds.isNotEmpty) {
+      final profData = await _client
+          .from('professionals')
+          .select('owner_id, id, profile_photo')
+          .inFilter('owner_id', userIds);
+      for (final prof in (profData as List)) {
+        profMap[prof['owner_id'] as String] = prof;
+      }
+    }
+
+    return rows.map((e) {
       final profile = e['profiles'] as Map<String, dynamic>?;
+      final prof = profMap[e['user_id'] as String];
       return Review.fromJson({
         ...e,
         'user_name': profile?['full_name'] ?? 'Usuario',
-        'user_avatar_url': profile?['avatar_url'],
+        // Si el reviewer es profesional, preferimos su foto de perfil profesional
+        'user_avatar_url': prof?['profile_photo'] ?? profile?['avatar_url'],
+        'reviewer_professional_id': prof?['id'],
       });
     }).toList();
   }

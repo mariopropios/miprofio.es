@@ -36,11 +36,28 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
       final user = ref.read(currentUserProvider);
-      if (user == null && mounted) {
+      if (user == null) {
         context.pushReplacement(
           AppRoutes.loginWithRedirect(
             AppRoutes.writeReviewPath(widget.companyId),
+          ),
+        );
+        return;
+      }
+
+      // Un profesional no puede reseñarse a sí mismo
+      final view = ref.read(currentUserProfessionalViewProvider).valueOrNull;
+      if (view != null &&
+          view.isProfessional &&
+          view.hasListing &&
+          view.professionalId == widget.companyId) {
+        context.pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No puedes escribir una reseña sobre tu propio perfil.'),
           ),
         );
       }
