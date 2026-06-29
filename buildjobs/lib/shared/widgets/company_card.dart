@@ -173,32 +173,37 @@ class CompanyCard extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 8),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             RatingStars(rating: company.rating, size: 16),
-            const SizedBox(width: 8),
             Text(
               '(${company.reviewCount})',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.textSecondary,
                   ),
             ),
-            if (savedCount > 0) ...[
-              const SizedBox(width: 10),
-              const Icon(
-                Icons.favorite_rounded,
-                size: 12,
-                color: Colors.redAccent,
+            if (savedCount > 0)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.favorite_rounded,
+                    size: 12,
+                    color: Colors.redAccent,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    '$savedCount',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSecondary,
+                          fontSize: 11,
+                        ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 3),
-              Text(
-                '$savedCount',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.textSecondary,
-                      fontSize: 11,
-                    ),
-              ),
-            ],
           ],
         ),
       ],

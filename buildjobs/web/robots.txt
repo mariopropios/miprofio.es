@@ -1,0 +1,11 @@
+# Profio — https://profio.app
+User-agent: *
+Allow: /
+Allow: /search
+Disallow: /messages/
+Disallow: /profile/
+Disallow: /login
+Disallow: /register
+Disallow: /email-verification
+
+Sitemap: https://profio.app/sitemap.xml

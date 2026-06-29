@@ -275,24 +275,36 @@ class _CompanyGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: ResponsiveLayout.isDesktop(context) ? 3 : 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: ResponsiveLayout.isDesktop(context) ? 0.78 : 0.74,
-      ),
-      addAutomaticKeepAlives: false,
-      itemCount: companies.length,
-      itemBuilder: (context, index) {
-        final company = companies[index];
-        return RepaintBoundary(
-          child: SavableCompanyCard(
-            company: company,
-            onTap: () => context.push(AppRoutes.companyDetailPath(company.id)),
+    final crossAxisCount = ResponsiveLayout.isDesktop(context) ? 3 : 2;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final aspectRatio = GalleryPhotoConstants.gridChildAspectRatioFor(
+          gridWidth: constraints.maxWidth,
+          crossAxisCount: crossAxisCount,
+        );
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: aspectRatio,
           ),
+          addAutomaticKeepAlives: false,
+          itemCount: companies.length,
+          itemBuilder: (context, index) {
+            final company = companies[index];
+            return RepaintBoundary(
+              child: SavableCompanyCard(
+                company: company,
+                onTap: () =>
+                    context.push(AppRoutes.companyDetailPath(company.id)),
+              ),
+            );
+          },
         );
       },
     );

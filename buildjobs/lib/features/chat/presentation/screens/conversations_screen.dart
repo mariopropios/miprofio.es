@@ -113,7 +113,11 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
                 color: AppTheme.divider,
               ),
               itemBuilder: (context, index) {
-                return _ConversationTile(conversation: conversations[index]);
+                return RepaintBoundary(
+                  child: _ConversationTile(
+                    conversation: conversations[index],
+                  ),
+                );
               },
             ),
           );
@@ -376,13 +380,31 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final diameter = radius * 2;
     if (photoUrl != null && photoUrl!.isNotEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundImage: CachedNetworkImageProvider(photoUrl!),
-        backgroundColor: AppTheme.surfaceElevated,
+      final cacheWidth =
+          (diameter * MediaQuery.devicePixelRatioOf(context)).ceil();
+      return ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: photoUrl!,
+          width: diameter,
+          height: diameter,
+          fit: BoxFit.cover,
+          memCacheWidth: cacheWidth,
+          maxWidthDiskCache: cacheWidth,
+          fadeInDuration: const Duration(milliseconds: 120),
+          placeholder: (_, __) => CircleAvatar(
+            radius: radius,
+            backgroundColor: AppTheme.surfaceElevated,
+          ),
+          errorWidget: (_, __, ___) => _initialsAvatar(),
+        ),
       );
     }
+    return _initialsAvatar();
+  }
+
+  Widget _initialsAvatar() {
     final colors = [
       const Color(0xFF1A7F64),
       const Color(0xFF0063CB),

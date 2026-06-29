@@ -9,9 +9,6 @@ import 'device_form_factor_stub.dart'
 abstract final class DeviceFormFactor {
   DeviceFormFactor._();
 
-  /// Ancho máximo del “marco iPhone ampliado” en tablet.
-  static const tabletContentMaxWidth = 680.0;
-
   /// iPad (nativo o web) y tablets Android.
   static bool isTablet(BuildContext context) {
     if (platform.isIpadLikeUserAgent()) return true;
@@ -28,9 +25,14 @@ abstract final class DeviceFormFactor {
           size.longestSide < 1280) {
         return true;
       }
+      return false;
     }
 
-    // En web confiamos en el user-agent (iPad real o emulación DevTools).
+    // Web: iPad Air/Pro/Mini aunque DevTools no envíe user-agent iPad (común en Pro 1024).
+    if (shortestSide >= 744 && size.width < AppConstants.webDesktopMinWidth) {
+      return true;
+    }
+
     return false;
   }
 
@@ -38,7 +40,7 @@ abstract final class DeviceFormFactor {
   static bool isDesktopWeb(BuildContext context) {
     if (!kIsWeb) return false;
     if (isTablet(context)) return false;
-    return MediaQuery.sizeOf(context).width >= AppConstants.tabletBreakpoint;
+    return MediaQuery.sizeOf(context).width >= AppConstants.webDesktopMinWidth;
   }
 
   /// iPhone y iPad usan shell móvil (NavigationBar inferior).
@@ -51,37 +53,6 @@ abstract final class DeviceFormFactor {
 
   static double contentMaxWidth(BuildContext context) {
     if (isDesktopWeb(context)) return 1200;
-    if (isTablet(context)) return tabletContentMaxWidth;
     return double.infinity;
-  }
-
-  /// Centra la app en tablet con márgenes laterales (estilo iPhone ampliado).
-  static bool shouldFrameTabletContent(BuildContext context) =>
-      isTablet(context);
-}
-
-/// Envuelve [child] en un marco centrado en iPad/tablet.
-class TabletAdaptiveFrame extends StatelessWidget {
-  const TabletAdaptiveFrame({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!DeviceFormFactor.shouldFrameTabletContent(context)) {
-      return child;
-    }
-
-    return ColoredBox(
-      color: const Color(0xFF080C10),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: DeviceFormFactor.tabletContentMaxWidth,
-          ),
-          child: child,
-        ),
-      ),
-    );
   }
 }

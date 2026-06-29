@@ -46,20 +46,21 @@ class _HoverLiftCardState extends State<HoverLiftCard> {
               ? const []
               : (lift ? AppTheme.cardShadowHover : AppTheme.cardShadow),
         ),
-        child: SpringPressable(
-          onTap: widget.onTap,
-          child: Container(
-            padding: widget.padding,
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(widget.borderRadius),
-              border: Border.all(color: AppTheme.divider, width: 0.5),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: widget.child,
-          ),
-        ),
+        child: widget.onTap != null
+            ? SpringPressable(onTap: widget.onTap, child: _cardContent())
+            : _cardContent(),
       ),
     );
   }
+
+  Widget _cardContent() => Container(
+        padding: widget.padding,
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(widget.borderRadius),
+          border: Border.all(color: AppTheme.divider, width: 0.5),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: widget.child,
+      );
 }

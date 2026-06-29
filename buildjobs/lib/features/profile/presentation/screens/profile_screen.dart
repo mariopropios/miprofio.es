@@ -200,6 +200,7 @@ class _ProfileAppBar extends ConsumerWidget implements PreferredSizeWidget {
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await ref.read(authRepositoryProvider).signOut();
+              if (!context.mounted) return;
               ref.invalidate(currentProfileProvider);
               ref.invalidate(currentProfessionalProfileProvider);
               ref.invalidate(currentUserProfessionalViewProvider);
@@ -412,8 +413,14 @@ class _StatCard extends StatelessWidget {
           children: [
             Icon(icon, color: AppTheme.primary),
             const SizedBox(width: 12),
-            Text(label),
-            const Spacer(),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
             Text(
               value,
               style: const TextStyle(

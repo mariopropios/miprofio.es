@@ -1,11 +1,12 @@
 {
-  "name": "Profio",
+  "name": "Profio — Profesionales del hogar",
   "short_name": "Profio",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#12161A",
   "theme_color": "#00B27A",
-  "description": "Reseñas y directorio de profesionales del hogar",
+  "description": "Encuentra fontaneros, electricistas, albañiles y más profesionales del hogar cerca de ti. Reseñas verificadas en España.",
+  "lang": "es",
   "orientation": "portrait-primary",
   "prefer_related_applications": false,
   "icons": [

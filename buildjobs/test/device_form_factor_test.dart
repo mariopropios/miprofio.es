@@ -1,4 +1,5 @@
 import 'package:buildjobs/core/utils/device_form_factor.dart';
+import 'package:buildjobs/shared/widgets/responsive_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,20 +11,23 @@ void main() {
     );
   }
 
-  testWidgets('iPhone no enmarca contenido', (tester) async {
+  testWidgets('iPhone usa ancho completo de contenido', (tester) async {
     await tester.pumpWidget(
-      wrap(
-        const TabletAdaptiveFrame(child: Text('app')),
-        const Size(390, 844),
-      ),
+      wrap(const Text('app'), const Size(390, 844)),
     );
 
-    expect(find.text('app'), findsOneWidget);
-    expect(
-      DeviceFormFactor.shouldFrameTabletContent(
-        tester.element(find.text('app')),
-      ),
-      isFalse,
+    final context = tester.element(find.text('app'));
+    expect(DeviceFormFactor.contentMaxWidth(context), double.infinity);
+    expect(ResponsiveLayout.isDesktop(context), isFalse);
+  });
+
+  testWidgets('viewport iPad Pro no usa shell escritorio', (tester) async {
+    await tester.pumpWidget(
+      wrap(const SizedBox.shrink(), const Size(1024, 1366)),
     );
+
+    final context = tester.element(find.byType(SizedBox));
+    expect(ResponsiveLayout.isDesktop(context), isFalse);
+    expect(DeviceFormFactor.contentMaxWidth(context), double.infinity);
   });
 }

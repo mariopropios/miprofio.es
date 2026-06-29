@@ -29,20 +29,20 @@ class CompanyCardDeck extends StatefulWidget {
 
 class _CompanyCardDeckState extends State<CompanyCardDeck> {
   late final ScrollController _ctrl;
-  double _offset = 0;
+  late final ValueNotifier<double> _offsetNotifier;
 
   @override
   void initState() {
     super.initState();
     _ctrl = ScrollController();
-    _ctrl.addListener(() {
-      if (mounted) setState(() => _offset = _ctrl.offset);
-    });
+    _offsetNotifier = ValueNotifier(0);
+    _ctrl.addListener(() => _offsetNotifier.value = _ctrl.offset);
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _offsetNotifier.dispose();
     super.dispose();
   }
 
@@ -60,8 +60,6 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
         final itemExtent = GalleryPhotoConstants.estimatedCardHeight(cardWidth) +
             GalleryPhotoConstants.deckItemVerticalPadding;
         final viewportHeight = widget.height;
-        final pos =
-            (_offset / itemExtent).clamp(0.0, (count - 1).toDouble());
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -154,39 +152,46 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
             ),
 
             if (count > 1)
-              Padding(
-                padding: const EdgeInsets.only(right: 16, left: 12),
-                child: SizedBox(
-                  height: count * 14.0,
-                  child: Stack(
-                    alignment: Alignment.topCenter,
-                    children: [
-                      Container(
-                        width: 4,
-                        height: count * 14.0,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 60),
-                        curve: Curves.linear,
-                        top: count > 1
-                            ? pos / (count - 1) * (count * 14.0 - 22)
-                            : 0,
-                        child: Container(
-                          width: 4,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary,
-                            borderRadius: BorderRadius.circular(2),
+              ValueListenableBuilder<double>(
+                valueListenable: _offsetNotifier,
+                builder: (context, offset, _) {
+                  final pos =
+                      (offset / itemExtent).clamp(0.0, (count - 1).toDouble());
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 16, left: 12),
+                    child: SizedBox(
+                      height: count * 14.0,
+                      child: Stack(
+                        alignment: Alignment.topCenter,
+                        children: [
+                          Container(
+                            width: 4,
+                            height: count * 14.0,
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
                           ),
-                        ),
+                          AnimatedPositioned(
+                            duration: const Duration(milliseconds: 60),
+                            curve: Curves.linear,
+                            top: count > 1
+                                ? pos / (count - 1) * (count * 14.0 - 22)
+                                : 0,
+                            child: Container(
+                              width: 4,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: AppTheme.primary,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               ),
           ],
         );

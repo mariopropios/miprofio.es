@@ -9,6 +9,9 @@ class AppConstants {
   static const double tabletBreakpoint = 1024;
   static const double desktopBreakpoint = 1440;
 
+  /// Shell escritorio web (NavigationRail). Por encima de iPad Pro (1024 px).
+  static const double webDesktopMinWidth = 1280;
+
   static const int reviewsPerPage = 10;
   static const int companiesPerPage = 20;
 

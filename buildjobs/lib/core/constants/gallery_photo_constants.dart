@@ -22,6 +22,20 @@ abstract final class GalleryPhotoConstants {
   static double gridChildAspectRatio(double cardWidth) =>
       cardWidth / estimatedCardHeight(cardWidth);
 
+  /// Ratio seguro para [GridView] según ancho disponible y columnas.
+  static double gridChildAspectRatioFor({
+    required double gridWidth,
+    required int crossAxisCount,
+    double crossAxisSpacing = 16,
+    double heightSlack = 16,
+  }) {
+    if (gridWidth <= 0 || crossAxisCount < 1) return 0.72;
+    final cardWidth =
+        (gridWidth - crossAxisSpacing * (crossAxisCount - 1)) / crossAxisCount;
+    final cardHeight = estimatedCardHeight(cardWidth) + heightSlack;
+    return cardWidth / cardHeight;
+  }
+
   /// Ancho máximo de tarjeta en el tambor ([CompanyCardDeck]).
   /// Por debajo de ~680 px de marco en iPad; evita ítems >700 px que colgaban web.
   static const deckMaxCardWidth = 600.0;

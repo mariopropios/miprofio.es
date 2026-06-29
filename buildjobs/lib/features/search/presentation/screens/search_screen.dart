@@ -317,27 +317,37 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             highlightProfession: _selectedProfession,
           );
         }
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: ResponsiveLayout.isDesktop(context) ? 3 : 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio:
-                ResponsiveLayout.isDesktop(context) ? 0.78 : 0.74,
-          ),
-          itemCount: results.length,
-          itemBuilder: (context, index) {
-            final company = results[index];
-            return RepaintBoundary(
-              child: SavableCompanyCard(
-                company: company,
-                highlightProfession: _selectedProfession,
-                onTap: () => context.push(
-                  AppRoutes.companyDetailPath(company.id),
-                ),
+        final crossAxisCount = ResponsiveLayout.isDesktop(context) ? 3 : 2;
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final aspectRatio = GalleryPhotoConstants.gridChildAspectRatioFor(
+              gridWidth: constraints.maxWidth,
+              crossAxisCount: crossAxisCount,
+            );
+
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: aspectRatio,
               ),
+              itemCount: results.length,
+              itemBuilder: (context, index) {
+                final company = results[index];
+                return RepaintBoundary(
+                  child: SavableCompanyCard(
+                    company: company,
+                    highlightProfession: _selectedProfession,
+                    onTap: () => context.push(
+                      AppRoutes.companyDetailPath(company.id),
+                    ),
+                  ),
+                );
+              },
             );
           },
         );

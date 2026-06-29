@@ -125,28 +125,33 @@ class _ProfessionalProfileContent extends StatelessWidget {
               ),
         ),
         const SizedBox(height: 8),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            RatingStars(rating: company.rating),
-            const SizedBox(width: 8),
+            RatingStars(rating: company.rating, size: 16),
             Text(
               '${company.reviewCount} reseñas',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.textSecondary,
                   ),
             ),
-            if (company.savedCount > 0) ...[
-              const SizedBox(width: 14),
-              const Icon(Icons.favorite_rounded,
-                  size: 14, color: Colors.redAccent),
-              const SizedBox(width: 4),
-              Text(
-                '${company.savedCount} ${company.savedCount == 1 ? 'guardado' : 'guardados'}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
+            if (company.savedCount > 0)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.favorite_rounded,
+                      size: 14, color: Colors.redAccent),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${company.savedCount} ${company.savedCount == 1 ? 'guardado' : 'guardados'}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.textSecondary,
+                        ),
+                  ),
+                ],
               ),
-            ],
           ],
         ),
         const SizedBox(height: 12),

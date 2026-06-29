@@ -1,16 +1,74 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Profio - Reseñas y directorio de Profesionales del hogar">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#00B27A">
-  <title>Profio</title>
+  <meta name="robots" content="index, follow">
+  <meta name="googlebot" content="index, follow">
+
+  <title>Profio · Profesionales del hogar con reseñas en España</title>
+  <meta name="description" content="Encuentra fontaneros, electricistas, albañiles y más profesionales del hogar cerca de ti. Compara reseñas, distancia y contacta gratis en Profio.">
+  <meta name="keywords" content="profesionales del hogar, fontanero, electricista, albañil, reformas, reseñas, cerca de mí, España">
+  <link rel="canonical" href="https://profio.app/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Profio">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:title" content="Profio · Profesionales del hogar con reseñas en España">
+  <meta property="og:description" content="Encuentra fontaneros, electricistas, albañiles y más profesionales del hogar cerca de ti. Compara reseñas y contacta gratis.">
+  <meta property="og:url" content="https://profio.app/">
+  <meta property="og:image" content="https://profio.app/favicon.png">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Profio · Profesionales del hogar con reseñas">
+  <meta name="twitter:description" content="Encuentra y valora fontaneros, electricistas, albañiles y más profesionales cerca de ti.">
+  <meta name="twitter:image" content="https://profio.app/favicon.png">
+
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="512x512" href="favicon.png"/>
   <link rel="apple-touch-icon" href="favicon.png"/>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Profio",
+    "alternateName": "Profio Profesionales del hogar",
+    "url": "https://profio.app/",
+    "inLanguage": "es-ES",
+    "description": "Directorio de profesionales del hogar en España con reseñas verificadas y búsqueda por proximidad.",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": "https://profio.app/search?profession={profession}&city={city}"
+      },
+      "query-input": [
+        "required name=profession",
+        "optional name=city"
+      ]
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Profio",
+    "url": "https://profio.app/",
+    "logo": "https://profio.app/favicon.png",
+    "description": "Plataforma para encontrar y valorar profesionales del hogar en España.",
+    "areaServed": {
+      "@type": "Country",
+      "name": "España"
+    }
+  }
+  </script>
 
   <!-- ── Preconnect: acelera las conexiones externas más usadas ──────────── -->
   <link rel="preconnect" href="https://stwlyupcmkxdiccxdhvn.supabase.co" crossorigin>
@@ -27,6 +85,19 @@
     body {
       background: #12161A;
       overflow: hidden;
+    }
+
+    /* Contenido estático para crawlers (oculto visualmente, legible en HTML) */
+    #seo-static {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     /* ── Pantalla de carga ───────────────────────────────────────────────── */
@@ -172,6 +243,21 @@
 </head>
 <body>
 
+  <main id="seo-static" lang="es">
+    <h1>Profio — Encuentra y valora profesionales del hogar en España</h1>
+    <p>
+      Directorio de fontaneros, electricistas, albañiles, pintores, cerrajeros,
+      técnicos de climatización y más oficios. Busca por profesión, ciudad o
+      cerca de ti. Reseñas verificadas, distancia en kilómetros y contacto directo.
+    </p>
+    <nav aria-label="Búsquedas populares">
+      <a href="/search?profession=Fontanero&amp;city=Madrid">Fontaneros en Madrid</a>
+      <a href="/search?profession=Electricista&amp;city=Barcelona">Electricistas en Barcelona</a>
+      <a href="/search?profession=Alba%C3%B1il&amp;city=Valencia">Albañiles en Valencia</a>
+      <a href="/search?profession=Fontanero&amp;city=Candeleda">Fontaneros en Candeleda</a>
+    </nav>
+  </main>
+
   <!-- ── Pantalla de carga (visible hasta que Flutter renderiza) ─────────── -->
   <div id="hc-loader">
     <div class="rings">
@@ -227,6 +313,8 @@
         loader.classList.add('fade-out');
         setTimeout(function () { loader.remove(); }, 600);
       }
+      var seo = document.getElementById('seo-static');
+      if (seo) seo.remove();
     });
 
     // ── Fallback: si Flutter no arranca (p.ej. error en main), no dejar colgado ─
