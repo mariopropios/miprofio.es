@@ -24,3 +24,7 @@ Thumbs.db
 
 # Coverage
 coverage/
+
+# Cloudflare Wrangler (local cache)
+.wrangler/
+profio-web-deploy.zip
