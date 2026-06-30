@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
+import '../constants/seo_constants.dart';
+
 /// Servicio de geolocalización multiplataforma (web, Android, iOS).
 class GeoService {
   static const _detectTimeout = Duration(seconds: 25);
@@ -78,7 +80,7 @@ class GeoService {
           .get(
             uri,
             headers: const {
-              'User-Agent': 'ProfioApp/1.0 (profio; contact@profio.app)',
+              'User-Agent': SeoConstants.publicUserAgent,
               'Accept': 'application/json',
             },
           )
@@ -172,7 +174,7 @@ class GeoService {
           .get(
             uri,
             headers: const {
-              'User-Agent': 'ProfioApp/1.0 (profio; contact@profio.app)',
+              'User-Agent': SeoConstants.publicUserAgent,
               'Accept': 'application/json',
             },
           )
@@ -237,7 +239,7 @@ class GeoService {
           .get(
             uri,
             headers: const {
-              'User-Agent': 'ProfioApp/1.0 (profio; contact@profio.app)',
+              'User-Agent': SeoConstants.publicUserAgent,
               'Accept': 'application/json',
             },
           )
@@ -417,7 +419,7 @@ class GeoService {
           .get(
             uri,
             headers: const {
-              'User-Agent': 'ProfioApp/1.0 (profio; contact@profio.app)',
+              'User-Agent': SeoConstants.publicUserAgent,
               'Accept': 'application/json',
             },
           )
@@ -475,7 +477,7 @@ class GeoService {
           .get(
             uri,
             headers: const {
-              'User-Agent': 'ProfioApp/1.0 (profio; contact@profio.app)',
+              'User-Agent': SeoConstants.publicUserAgent,
               'Accept': 'application/json',
             },
           )

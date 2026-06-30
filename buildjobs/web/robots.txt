@@ -1,4 +1,4 @@
-# Profio — https://profio.app
+# Profio — https://miprofio.es
 User-agent: *
 Allow: /
 Allow: /search
@@ -8,4 +8,4 @@ Disallow: /login
 Disallow: /register
 Disallow: /email-verification
 
-Sitemap: https://profio.app/sitemap.xml
+Sitemap: https://miprofio.es/sitemap.xml
