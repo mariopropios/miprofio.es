@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/services/geo_permission_helper.dart';
 import '../../../../core/services/geo_service.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/services/profile_photo_storage.dart';
@@ -1088,7 +1089,10 @@ class _CityStepState extends State<_CityStep> {
         _validateFormLater();
       }
     } on GeoServiceException catch (e) {
-      if (mounted) setState(() => _geoError = e.message);
+      if (mounted) {
+        setState(() => _geoError = e.message);
+        await GeoPermissionHelper.handleException(context, e);
+      }
     } catch (_) {
       if (mounted) {
         setState(

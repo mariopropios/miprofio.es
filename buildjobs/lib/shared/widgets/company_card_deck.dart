@@ -57,8 +57,11 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
         final availableWidth = constraints.maxWidth - horizontalPadding;
         final cardWidth =
             GalleryPhotoConstants.deckCardWidth(availableWidth);
-        final itemExtent = GalleryPhotoConstants.estimatedCardHeight(cardWidth) +
-            GalleryPhotoConstants.deckItemVerticalPadding;
+        final cardHeight =
+            GalleryPhotoConstants.deckEstimatedCardHeight(cardWidth);
+        final itemExtent = GalleryPhotoConstants.deckItemExtent(
+          constraints.maxWidth,
+        );
         final viewportHeight = widget.height;
 
         return Row(
@@ -72,7 +75,9 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
                     ListWheelScrollView.useDelegate(
                       controller: _ctrl,
                       itemExtent: itemExtent,
-                      physics: const BouncingScrollPhysics(),
+                      physics: const ClampingScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
                       perspective: 0.0012,
                       squeeze: 0.96,
                       useMagnifier: false,
@@ -86,9 +91,11 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
                             child: Center(
                               child: SizedBox(
                                 width: cardWidth,
+                                height: cardHeight,
                                 child: RepaintBoundary(
                                   child: SavableCompanyCard(
                                     company: company,
+                                    dense: true,
                                     highlightProfession:
                                         widget.highlightProfession,
                                     onTap: () => context.push(
@@ -108,7 +115,7 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
                       top: 0,
                       left: 0,
                       right: 0,
-                      height: 72,
+                      height: 48,
                       child: IgnorePointer(
                         child: DecoratedBox(
                           decoration: BoxDecoration(
@@ -130,7 +137,7 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
                       bottom: 0,
                       left: 0,
                       right: 0,
-                      height: 72,
+                      height: 48,
                       child: IgnorePointer(
                         child: DecoratedBox(
                           decoration: BoxDecoration(

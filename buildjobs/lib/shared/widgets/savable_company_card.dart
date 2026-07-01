@@ -14,12 +14,14 @@ class SavableCompanyCard extends ConsumerWidget {
     required this.company,
     this.onTap,
     this.highlightProfession,
+    this.dense = false,
   });
 
   final Company company;
   final VoidCallback? onTap;
   /// Oficio activo en el filtro de búsqueda para reordenar/resaltar tags.
   final String? highlightProfession;
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,6 +54,7 @@ class SavableCompanyCard extends ConsumerWidget {
       onTap: onTap,
       savedCountOverride: effectiveSavedCount,
       highlightProfession: highlightProfession,
+      dense: dense,
       photoOverlay: showSaveButton
           ? SaveProfessionalButton(
               professionalId: company.id,

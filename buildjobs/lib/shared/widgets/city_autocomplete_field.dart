@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/services/geo_permission_helper.dart';
 import '../../core/services/geo_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -194,6 +195,7 @@ class CityAutocompleteFieldState extends State<CityAutocompleteField> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.message)),
         );
+        await GeoPermissionHelper.handleException(context, e);
       }
     } catch (_) {
       if (mounted) {

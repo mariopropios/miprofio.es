@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/services/geo_permission_helper.dart';
 import '../../../../core/services/geo_service.dart';
 import '../../../../core/theme/app_theme.dart';
 
@@ -57,7 +58,10 @@ class _LocationFilterSheetState extends State<LocationFilterSheet> {
         setState(() {});
       }
     } on GeoServiceException catch (e) {
-      if (mounted) setState(() => _geoError = e.message);
+      if (mounted) {
+        setState(() => _geoError = e.message);
+        await GeoPermissionHelper.handleException(context, e);
+      }
     } catch (e) {
       if (mounted) {
         final msg = e.toString().contains('timeout') || e.toString().contains('TimeoutException')

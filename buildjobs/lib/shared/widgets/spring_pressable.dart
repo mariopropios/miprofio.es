@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 /// Interacción estilo iOS: sin ripple de Material, opacidad al 80% y
@@ -10,6 +13,8 @@ class SpringPressable extends StatefulWidget {
     this.enabled = true,
     this.pressedScale = 0.96,
     this.pressedOpacity = 0.8,
+    /// Distancia máxima de arrastre para contar como tap (evita taps al scroll).
+    this.tapSlop = kTouchSlop,
   });
 
   final Widget child;
@@ -17,6 +22,7 @@ class SpringPressable extends StatefulWidget {
   final bool enabled;
   final double pressedScale;
   final double pressedOpacity;
+  final double tapSlop;
 
   @override
   State<SpringPressable> createState() => _SpringPressableState();
@@ -27,6 +33,8 @@ class _SpringPressableState extends State<SpringPressable>
   late AnimationController _springController;
   late Animation<double> _scaleAnimation;
   bool _isPressed = false;
+  Offset? _downGlobalPosition;
+  bool _exceededSlop = false;
 
   bool get _canInteract => widget.enabled && widget.onTap != null;
 
@@ -55,23 +63,45 @@ class _SpringPressableState extends State<SpringPressable>
     super.dispose();
   }
 
-  void _handlePointerDown(PointerDownEvent _) {
+  void _releasePress({required bool fireTap}) {
     if (!_canInteract) return;
+    final shouldTap = fireTap && !_exceededSlop;
+    setState(() {
+      _isPressed = false;
+      _downGlobalPosition = null;
+      _exceededSlop = false;
+    });
+    _springController.forward(from: 0.0);
+    if (shouldTap) widget.onTap?.call();
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (!_canInteract) return;
+    _downGlobalPosition = event.position;
+    _exceededSlop = false;
     setState(() => _isPressed = true);
     _springController.value = 0.0;
   }
 
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (!_canInteract || _downGlobalPosition == null || _exceededSlop) {
+      return;
+    }
+
+    final delta = event.position - _downGlobalPosition!;
+    if (math.sqrt(delta.dx * delta.dx + delta.dy * delta.dy) > widget.tapSlop) {
+      _exceededSlop = true;
+      setState(() => _isPressed = false);
+      _springController.forward(from: 0.0);
+    }
+  }
+
   void _handlePointerUp(PointerUpEvent _) {
-    if (!_canInteract) return;
-    setState(() => _isPressed = false);
-    _springController.forward(from: 0.0);
-    widget.onTap?.call();
+    _releasePress(fireTap: true);
   }
 
   void _handlePointerCancel(PointerCancelEvent _) {
-    if (!_canInteract) return;
-    setState(() => _isPressed = false);
-    _springController.forward(from: 0.0);
+    _releasePress(fireTap: false);
   }
 
   @override
@@ -79,6 +109,7 @@ class _SpringPressableState extends State<SpringPressable>
     return Listener(
       behavior: HitTestBehavior.opaque,
       onPointerDown: _handlePointerDown,
+      onPointerMove: _handlePointerMove,
       onPointerUp: _handlePointerUp,
       onPointerCancel: _handlePointerCancel,
       child: AnimatedBuilder(

@@ -8,7 +8,7 @@ import '../constants/seo_constants.dart';
 
 /// Servicio de geolocalización multiplataforma (web, Android, iOS).
 class GeoService {
-  static const _detectTimeout = Duration(seconds: 25);
+  static const _detectTimeout = Duration(seconds: 40);
 
   /// Obtiene el nombre de la ciudad actual del dispositivo.
   /// Lanza [GeoServiceException] si no se puede obtener.
@@ -34,7 +34,7 @@ class GeoService {
   }
 
   static Future<GeoLocationResult> _detectLocationImpl() async {
-    await _ensureLocationPermission();
+    await _ensureLocationPermission(userInitiated: true);
     final pos = await _resolveHighAccuracyPosition();
     return _reverseGeocodeFull(pos.latitude, pos.longitude);
   }
@@ -281,39 +281,61 @@ class GeoService {
     return location.city;
   }
 
-  static Future<void> _ensureLocationPermission() async {
+  static Future<void> _ensureLocationPermission({
+    bool userInitiated = true,
+  }) async {
     if (!kIsWeb) {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         throw const GeoServiceException(
           'Los servicios de ubicación están desactivados.',
+          failure: GeoServiceFailure.locationDisabled,
         );
       }
     }
 
     var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      try {
-        permission = await Geolocator.requestPermission().timeout(
-          const Duration(seconds: 25),
-          onTimeout: () => LocationPermission.denied,
-        );
-      } catch (_) {
-        permission = LocationPermission.denied;
-      }
-      if (permission == LocationPermission.denied) {
-        throw const GeoServiceException(
-          'Permiso de ubicación denegado. Actívalo en el navegador '
-          'y vuelve a intentarlo.',
-        );
-      }
+
+    if (!_isPermissionGranted(permission) && userInitiated) {
+      // Cada pulsación del usuario vuelve a solicitar permiso (también tras denegar).
+      permission = await _requestPermissionWithTimeout();
+    } else if (permission == LocationPermission.denied) {
+      permission = await _requestPermissionWithTimeout();
     }
+
+    if (_isPermissionGranted(permission)) return;
+
+    // En web móvil, getCurrentPosition en gesto de usuario puede reabrir el
+    // diálogo del navegador aunque checkPermission siga en denied/deniedForever.
+    if (kIsWeb && userInitiated) return;
 
     if (permission == LocationPermission.deniedForever) {
       throw const GeoServiceException(
         'Permiso de ubicación bloqueado. Actívalo en los ajustes '
         'del navegador o del dispositivo.',
+        failure: GeoServiceFailure.permissionBlocked,
       );
+    }
+
+    throw const GeoServiceException(
+      'Permiso de ubicación denegado. Pulsa de nuevo y acepta '
+      'cuando el navegador lo solicite.',
+      failure: GeoServiceFailure.permissionDenied,
+    );
+  }
+
+  static bool _isPermissionGranted(LocationPermission permission) =>
+      permission == LocationPermission.whileInUse ||
+      permission == LocationPermission.always;
+
+  static Future<LocationPermission> _requestPermissionWithTimeout() async {
+    try {
+      return await Geolocator.requestPermission().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => LocationPermission.denied,
+      );
+    } catch (_) {
+      return LocationPermission.denied;
     }
   }
 
@@ -321,8 +343,8 @@ class GeoService {
     if (kIsWeb) {
       return WebSettings(
         accuracy: LocationAccuracy.high,
-        maximumAge: const Duration(seconds: 30),
-        timeLimit: const Duration(seconds: 18),
+        maximumAge: const Duration(seconds: 60),
+        timeLimit: const Duration(seconds: 30),
       );
     }
     return const LocationSettings(
@@ -336,19 +358,40 @@ class GeoService {
       return await Geolocator.getCurrentPosition(
         locationSettings: _highAccuracySettings,
       ).timeout(
-        const Duration(seconds: 20),
+        Duration(seconds: kIsWeb ? 35 : 20),
         onTimeout: () => throw const GeoServiceException(
           'No se pudo obtener la ubicación a tiempo. '
           'Comprueba el GPS o escribe la dirección manualmente.',
+          failure: GeoServiceFailure.timeout,
         ),
       );
     } on GeoServiceException {
       rethrow;
     } catch (e) {
-      throw GeoServiceException(
-        'Error al obtener coordenadas: ${e.toString()}',
+      throw _mapPositionError(e);
+    }
+  }
+
+  static GeoServiceException _mapPositionError(Object e) {
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('denied') || msg.contains('permission')) {
+      final blocked = msg.contains('forever') ||
+          msg.contains('blocked') ||
+          msg.contains('not allowed');
+      return GeoServiceException(
+        blocked
+            ? 'Permiso de ubicación bloqueado. Actívalo en los ajustes '
+                'del navegador o del dispositivo.'
+            : 'Permiso de ubicación denegado. Pulsa de nuevo y acepta '
+                'cuando el navegador lo solicite.',
+        failure: blocked
+            ? GeoServiceFailure.permissionBlocked
+            : GeoServiceFailure.permissionDenied,
       );
     }
+    return GeoServiceException(
+      'Error al obtener coordenadas: ${e.toString()}',
+    );
   }
 
   static LocationSettings get _locationSettings {
@@ -702,10 +745,24 @@ class AddressSuggestion {
 }
 
 class GeoServiceException implements Exception {
-  const GeoServiceException(this.message);
+  const GeoServiceException(
+    this.message, {
+    this.failure = GeoServiceFailure.other,
+  });
+
   final String message;
+  final GeoServiceFailure failure;
+
   @override
   String toString() => message;
+}
+
+enum GeoServiceFailure {
+  permissionDenied,
+  permissionBlocked,
+  locationDisabled,
+  timeout,
+  other,
 }
 
 class GeoLocationResult {

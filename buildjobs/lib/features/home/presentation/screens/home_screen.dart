@@ -6,7 +6,9 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/gallery_photo_constants.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/services/geo_permission_helper.dart';
 import '../../../../core/services/geo_service.dart';
+import '../../../../core/utils/device_form_factor.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/company.dart';
 import '../../../../shared/widgets/async_value_widget.dart';
@@ -24,8 +26,11 @@ class HomeScreen extends ConsumerWidget {
     final featuredAsync = ref.watch(featuredProfessionalsProvider);
     // Escritorio web: sin logo en AppBar (NavigationRail). iPhone/iPad: con logo.
     final isDesktop = ResponsiveLayout.isDesktop(context);
+    final screenH = MediaQuery.sizeOf(context).height;
+    final isTablet = DeviceFormFactor.isTablet(context);
     final deckHeight = GalleryPhotoConstants.deckViewportHeight(
-      MediaQuery.sizeOf(context).height,
+      screenH,
+      isTablet: isTablet,
     );
 
     return Scaffold(
@@ -51,7 +56,9 @@ class HomeScreen extends ConsumerWidget {
         },
         child: ResponsiveContent(
           child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
             padding: const EdgeInsets.only(bottom: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -151,7 +158,10 @@ class _SearchBarState extends State<_SearchBar> {
       final city = await GeoService.detectCity();
       if (mounted) widget.onNearMe(city);
     } on GeoServiceException catch (e) {
-      if (mounted) setState(() => _locError = e.message);
+      if (mounted) {
+        setState(() => _locError = e.message);
+        await GeoPermissionHelper.handleException(context, e);
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _locError = 'No se pudo obtener la ubicación.');

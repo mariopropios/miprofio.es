@@ -16,6 +16,7 @@ class CompanyCard extends StatelessWidget {
     this.photoOverlay,
     this.savedCountOverride,
     this.highlightProfession,
+    this.dense = false,
   });
 
   final Company company;
@@ -26,6 +27,8 @@ class CompanyCard extends StatelessWidget {
   /// Oficio activo en el filtro de búsqueda. Se mueve al principio de la lista
   /// y se resalta visualmente dentro de la tarjeta.
   final String? highlightProfession;
+  /// Layout más compacto para el tambor móvil ([CompanyCardDeck]).
+  final bool dense;
 
   /// Fotos ordenadas: primero el logo/portada, luego la galería sin duplicados.
   List<String> get _photos {
@@ -62,13 +65,16 @@ class CompanyCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+              padding: dense
+                  ? const EdgeInsets.fromLTRB(12, 6, 12, 8)
+                  : const EdgeInsets.fromLTRB(12, 8, 12, 10),
               child: _infoSection(
                 context,
                 company,
                 onTap,
                 savedCountOverride: savedCountOverride,
                 highlightProfession: highlightProfession,
+                dense: dense,
               ),
             ),
           ],
@@ -111,6 +117,7 @@ class CompanyCard extends StatelessWidget {
     VoidCallback? onTap, {
     int? savedCountOverride,
     String? highlightProfession,
+    bool dense = false,
   }) {
     final savedCount = savedCountOverride ?? company.savedCount;
     final rawProfessions = company.professions.isNotEmpty
@@ -139,7 +146,7 @@ class CompanyCard extends StatelessWidget {
           compact: true,
           highlight: highlightProfession,
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: dense ? 3 : 4),
         Text(
           company.city,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -149,12 +156,12 @@ class CompanyCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         if (company.travelRadiusLabel.isNotEmpty) ...[
-          const SizedBox(height: 2),
+          SizedBox(height: dense ? 1 : 2),
           Row(
             children: [
               Icon(
                 Icons.directions_car_outlined,
-                size: 12,
+                size: dense ? 11 : 12,
                 color: AppTheme.textSecondary.withValues(alpha: 0.85),
               ),
               const SizedBox(width: 4),
@@ -163,7 +170,7 @@ class CompanyCard extends StatelessWidget {
                   company.travelRadiusLabel,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppTheme.textSecondary,
-                        fontSize: 11,
+                        fontSize: dense ? 10 : 11,
                       ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -172,7 +179,7 @@ class CompanyCard extends StatelessWidget {
             ],
           ),
         ],
-        const SizedBox(height: 8),
+        SizedBox(height: dense ? 6 : 8),
         Wrap(
           spacing: 8,
           runSpacing: 4,

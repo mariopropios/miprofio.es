@@ -7,6 +7,7 @@ import '../../../../core/constants/profession_catalog.dart';
 import '../../../../core/models/search_suggestion.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/utils/device_form_factor.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/company.dart';
 import '../../../../shared/widgets/async_value_widget.dart';
@@ -307,9 +308,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       data: (results) {
         if (compact) {
+          final screenH = MediaQuery.sizeOf(context).height;
+          final isTablet = DeviceFormFactor.isTablet(context);
           final height = deckHeight ??
               GalleryPhotoConstants.deckViewportHeight(
-                MediaQuery.sizeOf(context).height,
+                screenH,
+                isTablet: isTablet,
               );
           return CompanyCardDeck(
             companies: results,
@@ -360,8 +364,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     BuildContext context,
     AsyncValue<List<Company>> resultsAsync,
   ) {
+    final screenH = MediaQuery.sizeOf(context).height;
+    final isTablet = DeviceFormFactor.isTablet(context);
     final deckHeight = GalleryPhotoConstants.deckViewportHeight(
-      MediaQuery.sizeOf(context).height,
+      screenH,
+      isTablet: isTablet,
     );
 
     return CustomScrollView(

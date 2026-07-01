@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/services/geo_permission_helper.dart';
 import '../../../../core/services/geo_service.dart';
 import '../../../../core/services/gallery_image_cropper.dart';
 import '../../../../core/services/gallery_image_picker.dart';
@@ -138,7 +139,10 @@ class _EditProfessionalProfileScreenState
         _skipGeoClear = false;
       }
     } on GeoServiceException catch (e) {
-      if (mounted) setState(() => _geoError = e.message);
+      if (mounted) {
+        setState(() => _geoError = e.message);
+        await GeoPermissionHelper.handleException(context, e);
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _geoError = 'No se pudo obtener la ubicación.');
