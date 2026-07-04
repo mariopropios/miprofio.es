@@ -47,12 +47,14 @@ class _LocationFilterSheetState extends State<LocationFilterSheet> {
   }
 
   Future<void> _detectLocation() async {
+    if (_detecting) return;
+    final detection = GeoService.detectCity();
     setState(() {
       _detecting = true;
       _geoError = null;
     });
     try {
-      final city = await GeoService.detectCity();
+      final city = await detection;
       if (mounted) {
         _controller.text = city;
         setState(() {});

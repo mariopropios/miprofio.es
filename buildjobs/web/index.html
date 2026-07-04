@@ -6,6 +6,19 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        regs.forEach(function (reg) { reg.unregister(); });
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then(function (keys) {
+        keys.forEach(function (key) { caches.delete(key); });
+      });
+    }
+  </script>
   <meta name="theme-color" content="#00B27A">
   <meta name="robots" content="index, follow">
   <meta name="googlebot" content="index, follow">
@@ -82,6 +95,11 @@
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+    }
 
     body {
       background: #12161A;
@@ -287,23 +305,19 @@
   </div>
 
   <script>
-    // ── Service Worker: cachea los archivos de Flutter para recargas rápidas
+    // ── Sin caché agresiva: el móvil debe recibir cada deploy al recargar ───
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('flutter_service_worker.js', { scope: '/' })
-          .then(function (reg) {
-            // Forzar activación inmediata si hay worker en espera
-            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-            reg.addEventListener('updatefound', function () {
-              var nw = reg.installing;
-              if (nw) nw.addEventListener('statechange', function () {
-                if (nw.state === 'installed' && reg.active) {
-                  nw.postMessage({ type: 'SKIP_WAITING' });
-                }
-              });
-            });
-          })
-          .catch(function () { /* dev mode: sin service worker, sin problema */ });
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (reg) { reg.unregister(); });
+        });
+      });
+    }
+    if ('caches' in window) {
+      window.addEventListener('load', function () {
+        caches.keys().then(function (keys) {
+          keys.forEach(function (key) { caches.delete(key); });
+        });
       });
     }
 

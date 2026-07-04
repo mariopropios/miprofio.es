@@ -7,6 +7,7 @@ import '../models/company.dart';
 import 'hover_lift_card.dart';
 import 'profession_tags_row.dart';
 import 'rating_stars.dart';
+import 'web_tap_guard.dart';
 
 class CompanyCard extends StatelessWidget {
   const CompanyCard({
@@ -45,9 +46,9 @@ class CompanyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final photos = _photos;
 
-    // SelectionContainer.disabled evita que el navegador web active la
-    // selección de texto (pantalla azul) al pulsar el carrusel o sus flechas.
-    return SelectionContainer.disabled(
+    // WebTapGuard evita que el navegador active selección de texto (pantalla azul)
+    // al pulsar el carrusel o sus flechas.
+    return WebTapGuard(
       child: HoverLiftCard(
         onTap: null,
         child: Column(

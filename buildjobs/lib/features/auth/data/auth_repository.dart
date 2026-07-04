@@ -34,7 +34,7 @@ class AuthRepository {
     );
   }
 
-  /// Registro con detección de email ya existente.
+  /// Registro con detección de email ya existente (una sola cuenta por email).
   Future<AuthRegisterResult> registerOrSignIn({
     required String email,
     required String password,
@@ -51,7 +51,7 @@ class AuthRepository {
       );
     } on AuthException catch (e) {
       if (_isAlreadyRegisteredError(e)) {
-        return _resolveExistingAccount(email: email, password: password);
+        return _existingAccountResult();
       }
       rethrow;
     }
@@ -70,7 +70,7 @@ class AuthRepository {
     }
 
     if (_isDuplicateSignup(user)) {
-      return _resolveExistingAccount(email: email, password: password);
+      return _existingAccountResult();
     }
 
     return (
@@ -80,48 +80,51 @@ class AuthRepository {
     );
   }
 
-  Future<AuthRegisterResult> _resolveExistingAccount({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      await signIn(email: email, password: password);
-    } on AuthException catch (e) {
-      if (_isEmailNotConfirmedError(e)) {
-        return (
-          userId: null,
-          needsEmailConfirmation: true,
-          accountAlreadyExists: false,
-        );
-      }
-      return (
-        userId: null,
-        needsEmailConfirmation: false,
-        accountAlreadyExists: true,
+  /// Envía un enlace seguro de recuperación al email (válido un tiempo limitado).
+  ///
+  /// Requiere plantilla de email en Supabase con enlace directo:
+  /// `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _client.auth.resetPasswordForEmail(
+      email.trim(),
+      redirectTo: kIsWeb ? AuthCallbackService.webPasswordResetRedirectTo() : null,
+    );
+  }
+
+  /// Valida el enlace de recuperación (token_hash o code PKCE) y abre sesión.
+  Future<bool> completePasswordRecoveryFromUrl(Uri uri) async {
+    if (currentSession != null) return true;
+
+    final tokenHash = AuthCallbackService.recoveryTokenHash(uri);
+    if (tokenHash != null &&
+        AuthCallbackService.isPasswordRecoveryCallback(uri)) {
+      await _client.auth.verifyOTP(
+        type: OtpType.recovery,
+        tokenHash: tokenHash,
       );
+      return currentSession != null;
     }
 
-    final signedIn = currentUser;
-    if (signedIn == null) {
-      return (
-        userId: null,
-        needsEmailConfirmation: false,
-        accountAlreadyExists: true,
-      );
+    if (AuthCallbackService.isAuthCallback(uri)) {
+      await _client.auth.getSessionFromUrl(uri);
+      return currentSession != null;
     }
 
-    if (currentSession == null) {
-      return (
-        userId: signedIn.id,
-        needsEmailConfirmation: true,
-        accountAlreadyExists: false,
-      );
-    }
+    return false;
+  }
 
+  /// Establece una nueva contraseña tras abrir el enlace de recuperación.
+  Future<void> updatePassword(String newPassword) async {
+    await _client.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+  }
+
+  AuthRegisterResult _existingAccountResult() {
     return (
-      userId: signedIn.id,
+      userId: null,
       needsEmailConfirmation: false,
-      accountAlreadyExists: false,
+      accountAlreadyExists: true,
     );
   }
 
@@ -138,14 +141,6 @@ class AuthRepository {
         message.contains('already registered') ||
         message.contains('already exists') ||
         message.contains('user already registered');
-  }
-
-  bool _isEmailNotConfirmedError(AuthException e) {
-    final code = e.code?.toLowerCase() ?? '';
-    final message = e.message.toLowerCase();
-    return code.contains('email_not_confirmed') ||
-        message.contains('email not confirmed') ||
-        message.contains('confirm your email');
   }
 
   Future<void> signOut() => _client.auth.signOut();

@@ -8,7 +8,9 @@ import '../services/auth_callback_service.dart';
 import '../services/notification_service.dart';
 
 import '../../features/auth/presentation/screens/email_verification_screen.dart';
+import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/auth/presentation/screens/reset_password_screen.dart';
 import '../../features/auth/presentation/screens/client_register_screen.dart';
 import '../../features/auth/presentation/screens/professional_register_screen.dart';
 import '../../features/auth/presentation/screens/professional_register_success_screen.dart';
@@ -195,6 +197,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           existingAccountNotice:
               state.uri.queryParameters['existing'] == '1',
         ),
+        routes: [
+          GoRoute(
+            path: 'forgot-password',
+            builder: (context, state) => ForgotPasswordScreen(
+              initialEmail: state.uri.queryParameters['email'],
+              redirectTo: state.uri.queryParameters['redirect'],
+            ),
+          ),
+          GoRoute(
+            path: 'reset-password',
+            builder: (context, state) => ResetPasswordScreen(
+              redirectTo: state.uri.queryParameters['redirect'],
+            ),
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.emailVerification,
@@ -259,6 +276,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             _tryDisableNotifications();
             router.go(AppRoutes.home);
 
+          case AuthChangeEvent.passwordRecovery:
+            router.go(AppRoutes.resetPassword);
+
           case AuthChangeEvent.initialSession:
           case AuthChangeEvent.signedIn:
           case AuthChangeEvent.tokenRefreshed:
@@ -269,7 +289,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             _trySyncNotifications();
             if (authState.session != null &&
                 AuthCallbackService.isAuthCallback(Uri.base)) {
-              router.go(AppRoutes.profileAfterEmailVerification());
+              if (AuthCallbackService.isPasswordRecoveryCallback(Uri.base)) {
+                router.go(AppRoutes.resetPassword);
+              } else {
+                router.go(AppRoutes.profileAfterEmailVerification());
+              }
             }
 
           default:

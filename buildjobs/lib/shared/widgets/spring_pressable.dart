@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'web_tap_guard.dart';
+
 /// Interacción estilo iOS: sin ripple de Material, opacidad al 80% y
 /// escala elástica (0.96 → 1.0 con rebote) al presionar.
 class SpringPressable extends StatefulWidget {
@@ -106,28 +108,30 @@ class _SpringPressableState extends State<SpringPressable>
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: _handlePointerDown,
-      onPointerMove: _handlePointerMove,
-      onPointerUp: _handlePointerUp,
-      onPointerCancel: _handlePointerCancel,
-      child: AnimatedBuilder(
-        animation: _scaleAnimation,
-        builder: (context, child) {
-          final scale = _canInteract
-              ? (_isPressed ? widget.pressedScale : _scaleAnimation.value)
-              : 1.0;
-          final opacity = _canInteract && _isPressed
-              ? widget.pressedOpacity
-              : 1.0;
+    return WebTapGuard(
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: _handlePointerDown,
+        onPointerMove: _handlePointerMove,
+        onPointerUp: _handlePointerUp,
+        onPointerCancel: _handlePointerCancel,
+        child: AnimatedBuilder(
+          animation: _scaleAnimation,
+          builder: (context, child) {
+            final scale = _canInteract
+                ? (_isPressed ? widget.pressedScale : _scaleAnimation.value)
+                : 1.0;
+            final opacity = _canInteract && _isPressed
+                ? widget.pressedOpacity
+                : 1.0;
 
-          return Opacity(
-            opacity: opacity,
-            child: Transform.scale(scale: scale, child: child),
-          );
-        },
-        child: widget.child,
+            return Opacity(
+              opacity: opacity,
+              child: Transform.scale(scale: scale, child: child),
+            );
+          },
+          child: widget.child,
+        ),
       ),
     );
   }

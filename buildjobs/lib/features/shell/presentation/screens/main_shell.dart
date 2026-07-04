@@ -7,6 +7,7 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../chat/presentation/providers/chat_providers.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
+import '../../../../shared/widgets/web_tap_guard.dart';
 
 class MainShell extends ConsumerWidget {
   const MainShell({super.key, required this.child});
@@ -58,10 +59,11 @@ class _MobileShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) => _navigate(context, index),
-        destinations: [
+      bottomNavigationBar: WebTapGuard(
+        child: NavigationBar(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (index) => _navigate(context, index),
+          destinations: [
           const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
@@ -89,6 +91,7 @@ class _MobileShell extends StatelessWidget {
             label: 'Perfil',
           ),
         ],
+        ),
       ),
     );
   }
@@ -123,7 +126,8 @@ class _DesktopShell extends StatelessWidget {
     return Scaffold(
       body: Row(
         children: [
-          NavigationRail(
+          WebTapGuard(
+            child: NavigationRail(
             selectedIndex: selectedIndex,
             onDestinationSelected: (index) => _navigate(context, index),
             labelType: NavigationRailLabelType.all,
@@ -171,6 +175,7 @@ class _DesktopShell extends StatelessWidget {
                 label: Text('Perfil'),
               ),
             ],
+            ),
           ),
           const VerticalDivider(width: 1, color: AppTheme.divider),
           Expanded(child: child),

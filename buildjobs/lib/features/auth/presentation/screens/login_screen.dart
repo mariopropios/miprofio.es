@@ -143,7 +143,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
+                      Text(
+                        '¿Has olvidado tu contraseña? Te enviaremos un enlace '
+                        'seguro a tu email para elegir una nueva.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textSecondary,
+                              height: 1.4,
+                            ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: TextButton(
+                          onPressed: () {
+                            context.push(
+                              AppRoutes.forgotPasswordPath(
+                                email: _emailController.text.trim(),
+                                redirect: widget.redirectTo,
+                              ),
+                            );
+                          },
+                          child: const Text('Recuperar contraseña'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                     ],
                     TextFormField(
                       controller: _emailController,
@@ -182,7 +206,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       validator: (v) =>
                           v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
                     ),
-                  const SizedBox(height: 28),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          context.push(
+                            AppRoutes.forgotPasswordPath(
+                              email: _emailController.text.trim(),
+                              redirect: widget.redirectTo,
+                            ),
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 4,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          '¿Has olvidado tu contraseña?',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
                   PremiumButton(
                     label: 'Iniciar sesión',
                     isLoading: _isLoading,

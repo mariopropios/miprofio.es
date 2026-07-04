@@ -8,7 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/config/supabase_config.dart';
-import 'core/services/auth_callback_service.dart';
+import 'features/auth/data/auth_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,15 +31,13 @@ Future<void> main() async {
     ),
   );
 
-  // Por si el callback llega antes de que GoRouter evalúe redirects.
-  final callbackUri = Uri.base;
-  if (AuthCallbackService.isAuthCallback(callbackUri) &&
-      Supabase.instance.client.auth.currentSession == null) {
-    try {
-      await Supabase.instance.client.auth.getSessionFromUrl(callbackUri);
-    } catch (e) {
-      debugPrint('No se pudo completar el inicio de sesión desde el enlace: $e');
-    }
+  // Recuperación de contraseña: token_hash (email) o code (PKCE mismo navegador).
+  try {
+    await AuthRepository().completePasswordRecoveryFromUrl(Uri.base);
+  } on AuthException catch (e) {
+    debugPrint('Enlace de recuperación: ${e.message}');
+  } catch (e) {
+    debugPrint('Enlace de recuperación: $e');
   }
 
   // ── Firebase (push notifications) ────────────────────────────────────────

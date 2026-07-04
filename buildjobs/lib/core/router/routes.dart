@@ -12,6 +12,8 @@ class AppRoutes {
   static const conversations = '/messages';
   static const chat = '/messages/:professionalId';
   static const login = '/login';
+  static const forgotPassword = '/login/forgot-password';
+  static const resetPassword = '/login/reset-password';
 
   static String chatPath(String professionalId) =>
       '/messages/$professionalId';
@@ -82,6 +84,16 @@ class AppRoutes {
         'email': email,
         if (redirect != null && redirect.isNotEmpty) 'redirect': redirect,
         if (existingAccount) 'existing': '1',
+      },
+    ).toString();
+  }
+
+  static String forgotPasswordPath({String? email, String? redirect}) {
+    return Uri(
+      path: forgotPassword,
+      queryParameters: {
+        if (email != null && email.isNotEmpty) 'email': email,
+        if (redirect != null && redirect.isNotEmpty) 'redirect': redirect,
       },
     ).toString();
   }

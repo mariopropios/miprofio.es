@@ -179,6 +179,7 @@ class CityAutocompleteFieldState extends State<CityAutocompleteField> {
   Future<void> _detectLocation() async {
     if (_detectingLocation) return;
 
+    final detection = GeoService.detectCity();
     setState(() {
       _detectingLocation = true;
       _showSuggestions = false;
@@ -186,7 +187,7 @@ class CityAutocompleteFieldState extends State<CityAutocompleteField> {
     _focusNode.unfocus();
 
     try {
-      final city = await GeoService.detectCity();
+      final city = await detection;
       if (!mounted) return;
       applyCity(city);
       _focusNode.unfocus();

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -34,7 +35,12 @@ class GeoService {
   }
 
   static Future<GeoLocationResult> _detectLocationImpl() async {
-    await _ensureLocationPermission(userInitiated: true);
+    // En web el prompt nativo solo aparece si getCurrentPosition se invoca
+    // directamente en el gesto del usuario; requestPermission/checkPermission
+    // lo impiden en Safari iOS y devuelven «denied» sin diálogo.
+    if (!kIsWeb) {
+      await _ensureLocationPermission(userInitiated: true);
+    }
     final pos = await _resolveHighAccuracyPosition();
     return _reverseGeocodeFull(pos.latitude, pos.longitude);
   }
@@ -373,6 +379,27 @@ class GeoService {
   }
 
   static GeoServiceException _mapPositionError(Object e) {
+    if (e is PermissionDeniedException) {
+      return const GeoServiceException(
+        'Permiso de ubicación denegado. Pulsa de nuevo y acepta '
+        'cuando el navegador lo solicite, o actívalo en los ajustes del sitio.',
+        failure: GeoServiceFailure.permissionDenied,
+      );
+    }
+    if (e is TimeoutException) {
+      return const GeoServiceException(
+        'No se pudo obtener la ubicación a tiempo. '
+        'Comprueba el GPS o escribe la dirección manualmente.',
+        failure: GeoServiceFailure.timeout,
+      );
+    }
+    if (e is PositionUpdateException) {
+      return const GeoServiceException(
+        'No se pudo determinar tu ubicación. Comprueba que el GPS '
+        'esté activo o escribe la ciudad manualmente.',
+      );
+    }
+
     final msg = e.toString().toLowerCase();
     if (msg.contains('denied') || msg.contains('permission')) {
       final blocked = msg.contains('forever') ||

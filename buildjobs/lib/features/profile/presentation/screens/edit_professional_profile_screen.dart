@@ -124,12 +124,14 @@ class _EditProfessionalProfileScreenState
   }
 
   Future<void> _detectCity() async {
+    if (_detectingCity) return;
+    final detection = GeoService.detectLocation();
     setState(() {
       _detectingCity = true;
       _geoError = null;
     });
     try {
-      final location = await GeoService.detectLocation();
+      final location = await detection;
       if (mounted) {
         _skipGeoClear = true;
         _cityFieldKey.currentState?.applyCity(location.city);

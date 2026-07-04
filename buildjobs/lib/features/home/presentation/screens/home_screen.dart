@@ -8,7 +8,6 @@ import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/services/geo_permission_helper.dart';
 import '../../../../core/services/geo_service.dart';
-import '../../../../core/utils/device_form_factor.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/company.dart';
 import '../../../../shared/widgets/async_value_widget.dart';
@@ -16,6 +15,7 @@ import '../../../../shared/widgets/savable_company_card.dart';
 import '../../../../shared/widgets/company_card_deck.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../shared/widgets/spring_pressable.dart';
+import '../../../../shared/widgets/web_tap_guard.dart';
 import '../widgets/profession_filter_section.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -26,12 +26,6 @@ class HomeScreen extends ConsumerWidget {
     final featuredAsync = ref.watch(featuredProfessionalsProvider);
     // Escritorio web: sin logo en AppBar (NavigationRail). iPhone/iPad: con logo.
     final isDesktop = ResponsiveLayout.isDesktop(context);
-    final screenH = MediaQuery.sizeOf(context).height;
-    final isTablet = DeviceFormFactor.isTablet(context);
-    final deckHeight = GalleryPhotoConstants.deckViewportHeight(
-      screenH,
-      isTablet: isTablet,
-    );
 
     return Scaffold(
       appBar: AppBar(
@@ -55,82 +49,169 @@ class HomeScreen extends ConsumerWidget {
           await ref.read(featuredProfessionalsProvider.future);
         },
         child: ResponsiveContent(
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            padding: const EdgeInsets.only(bottom: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 16),
-                Text(
-                  AppConstants.appTagline,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
+          child: isDesktop
+              ? SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _HomeScrollHeader(
+                        onSearchTap: () => context.go(AppRoutes.search),
+                        onNearMe: (city) => context.go(
+                          AppRoutes.searchWith(city: city),
+                        ),
                       ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Descubre, compara y valora profesionales del hogar cerca de ti.',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                ),
-                const SizedBox(height: 24),
-                _SearchBar(
-                  onTap: () => context.go(AppRoutes.search),
-                  onNearMe: (city) => context.go(
-                    AppRoutes.searchWith(city: city),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                ProfessionFilterSection(
-                  onProfessionTap: (name, categoryId) => context.go(
-                    AppRoutes.searchWith(
-                      profession: name,
-                      categoryId: categoryId,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  'Profesionales destacados',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 16),
-                AsyncValueWidget<List<Company>>(
-                  value: featuredAsync,
-                  loadingMessage: 'Cargando profesionales...',
-                  empty: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        'No hay profesionales todavía.\nEjecuta el script SQL en Supabase.',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: AppTheme.textSecondary,
+                      const SizedBox(height: 32),
+                      Text(
+                        'Profesionales destacados',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
                             ),
                       ),
-                    ),
-                  ),
-                  data: (companies) => ResponsiveLayout.isDesktop(context)
-                      ? _CompanyGrid(companies: companies)
-                      : SizedBox(
-                          height: deckHeight,
-                          child: CompanyCardDeck(
-                            companies: companies,
-                            height: deckHeight,
+                      const SizedBox(height: 16),
+                      AsyncValueWidget<List<Company>>(
+                        value: featuredAsync,
+                        loadingMessage: 'Cargando profesionales...',
+                        empty: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              'No hay profesionales todavía.\n'
+                              'Ejecuta el script SQL en Supabase.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyLarge
+                                  ?.copyWith(color: AppTheme.textSecondary),
+                            ),
                           ),
                         ),
+                        data: (companies) => _CompanyGrid(companies: companies),
+                      ),
+                    ],
+                  ),
+                )
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final viewportH = constraints.maxHeight;
+                    final deckHeight =
+                        GalleryPhotoConstants.deckContentHeightForViewport(
+                      viewportH,
+                      pinnedHeaderHeight:
+                          GalleryPhotoConstants.deckHomeTitleBlockHeight,
+                    );
+
+                    return CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: _HomeScrollHeader(
+                            onSearchTap: () => context.go(AppRoutes.search),
+                            onNearMe: (city) => context.go(
+                              AppRoutes.searchWith(city: city),
+                            ),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 32),
+                              Text(
+                                'Profesionales destacados',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 16),
+                              AsyncValueWidget<List<Company>>(
+                                value: featuredAsync,
+                                loadingMessage: 'Cargando profesionales...',
+                                empty: Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Text(
+                                      'No hay profesionales todavía.\n'
+                                      'Ejecuta el script SQL en Supabase.',
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            color: AppTheme.textSecondary,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                                data: (companies) => SizedBox(
+                                  height: deckHeight,
+                                  child: CompanyCardDeck(
+                                    companies: companies,
+                                    height: deckHeight,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                height:
+                                    GalleryPhotoConstants.deckScrollTailHeight,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
-              ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeScrollHeader extends StatelessWidget {
+  const _HomeScrollHeader({
+    required this.onSearchTap,
+    required this.onNearMe,
+  });
+
+  final VoidCallback onSearchTap;
+  final ValueChanged<String> onNearMe;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Text(
+          AppConstants.appTagline,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Descubre, compara y valora profesionales del hogar cerca de ti.',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppTheme.textSecondary,
+              ),
+        ),
+        const SizedBox(height: 24),
+        _SearchBar(onTap: onSearchTap, onNearMe: onNearMe),
+        const SizedBox(height: 32),
+        ProfessionFilterSection(
+          onProfessionTap: (name, categoryId) => context.go(
+            AppRoutes.searchWith(
+              profession: name,
+              categoryId: categoryId,
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -150,12 +231,14 @@ class _SearchBarState extends State<_SearchBar> {
   String? _locError;
 
   Future<void> _handleNearMe() async {
+    if (_locating) return;
+    final detection = GeoService.detectCity();
     setState(() {
       _locating = true;
       _locError = null;
     });
     try {
-      final city = await GeoService.detectCity();
+      final city = await detection;
       if (mounted) widget.onNearMe(city);
     } on GeoServiceException catch (e) {
       if (mounted) {
@@ -213,7 +296,8 @@ class _SearchBarState extends State<_SearchBar> {
         const SizedBox(height: 10),
 
         // ── Botón "Cerca de mí" ────────────────────────────────────────────
-        GestureDetector(
+        WebTapGuard(
+          child: GestureDetector(
           onTap: _locating ? null : _handleNearMe,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
@@ -261,6 +345,7 @@ class _SearchBarState extends State<_SearchBar> {
               ],
             ),
           ),
+        ),
         ),
 
         // Error de geolocalización (si ocurre)

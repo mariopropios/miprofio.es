@@ -1078,12 +1078,14 @@ class _CityStepState extends State<_CityStep> {
   }
 
   Future<void> _detectLocation() async {
+    if (_isDetecting) return;
+    final detection = GeoService.detectLocation();
     setState(() {
       _isDetecting = true;
       _geoError = null;
     });
     try {
-      final location = await GeoService.detectLocation();
+      final location = await detection;
       if (mounted) {
         widget.onLocationDetected(location);
         _validateFormLater();

@@ -19,7 +19,9 @@ abstract final class GeoPermissionHelper {
       return;
     }
 
-    if (error.failure == GeoServiceFailure.permissionBlocked) {
+    if (kIsWeb &&
+        (error.failure == GeoServiceFailure.permissionBlocked ||
+            error.failure == GeoServiceFailure.permissionDenied)) {
       await showBlockedGuide(context);
     }
   }
@@ -45,8 +47,9 @@ abstract final class GeoPermissionHelper {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'El navegador tiene bloqueado el acceso a tu ubicación. '
-                'Para usar «Cerca de mí», actívalo y vuelve a pulsar el botón.',
+                'Para usar «Cerca de mí», acepta cuando el navegador '
+                'solicite tu ubicación o actívala en los ajustes del sitio '
+                'y vuelve a pulsar el botón.',
                 style: TextStyle(
                   color: AppTheme.textSecondary,
                   height: 1.45,

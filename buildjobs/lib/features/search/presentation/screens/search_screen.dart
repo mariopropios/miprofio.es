@@ -7,13 +7,13 @@ import '../../../../core/constants/profession_catalog.dart';
 import '../../../../core/models/search_suggestion.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
-import '../../../../core/utils/device_form_factor.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/company.dart';
 import '../../../../shared/widgets/async_value_widget.dart';
 import '../../../../shared/widgets/savable_company_card.dart';
 import '../../../../shared/widgets/city_autocomplete_field.dart';
 import '../../../../shared/widgets/company_card_deck.dart';
+import '../../../../shared/widgets/pinned_header_delegate.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../shared/widgets/search_autocomplete_field.dart';
 import '../../../home/presentation/widgets/profession_filter_section.dart';
@@ -44,6 +44,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   String? _selectedCity;
   String _query = '';
   List<String> _expandedProfessions = const [];
+
+  bool get _hasActiveFilters =>
+      _selectedProfession != null ||
+      _query.isNotEmpty ||
+      _selectedCity != null;
 
   @override
   void initState() {
@@ -182,6 +187,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildFiltersForm(),
+        if (_hasActiveFilters) ...[
+          const SizedBox(height: 12),
+          _buildActiveFilterChips(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildFiltersForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         const SizedBox(height: 16),
         SearchAutocompleteField(
           controller: _controller,
@@ -204,87 +222,83 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           selectedProfession: _selectedProfession,
           onProfessionTap: (name, catId) => _selectProfession(name, catId),
         ),
-        if (_selectedProfession != null ||
-            _query.isNotEmpty ||
-            _selectedCity != null) ...[
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              if (_selectedProfession != null)
-                Chip(
-                  avatar: const Icon(Icons.work_outline_rounded,
-                      size: 16, color: AppTheme.textSecondary),
-                  label: Text(
-                    _selectedProfession!,
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  deleteIconColor: AppTheme.textSecondary,
-                  side: const BorderSide(color: AppTheme.divider),
-                  backgroundColor: AppTheme.surfaceElevated,
-                  onDeleted: () => _selectProfession(_selectedProfession),
-                ),
-              if (_query.isNotEmpty)
-                Chip(
-                  avatar: const Icon(Icons.search_rounded,
-                      size: 16, color: AppTheme.textSecondary),
-                  label: Text(
-                    '"$_query"',
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  deleteIconColor: AppTheme.textSecondary,
-                  side: const BorderSide(color: AppTheme.divider),
-                  backgroundColor: AppTheme.surfaceElevated,
-                  onDeleted: () {
-                    _controller.clear();
-                    setState(() {
-                      _query = '';
-                      _expandedProfessions = const [];
-                    });
-                    if (_selectedProfession == null &&
-                        _selectedCity == null) {
-                      context.go(AppRoutes.home);
-                    } else {
-                      context.go(AppRoutes.searchWith(
-                        profession: _selectedProfession,
-                        city: _selectedCity,
-                      ));
-                    }
-                  },
-                ),
-              if (_selectedCity != null)
-                Chip(
-                  avatar: const Icon(Icons.location_on_outlined,
-                      size: 16, color: AppTheme.primary),
-                  label: Text(
-                    _selectedCity!,
-                    style: const TextStyle(
-                      color: AppTheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  deleteIconColor: AppTheme.textSecondary,
-                  side: const BorderSide(color: AppTheme.primary),
-                  backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-                  onDeleted: () {
-                    _cityController.clear();
-                    setState(() => _selectedCity = null);
-                    if (_selectedProfession == null && _query.isEmpty) {
-                      context.go(AppRoutes.home);
-                    }
-                  },
-                ),
-            ],
+      ],
+    );
+  }
+
+  Widget _buildActiveFilterChips() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        if (_selectedProfession != null)
+          Chip(
+            avatar: const Icon(Icons.work_outline_rounded,
+                size: 16, color: AppTheme.textSecondary),
+            label: Text(
+              _selectedProfession!,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            deleteIconColor: AppTheme.textSecondary,
+            side: const BorderSide(color: AppTheme.divider),
+            backgroundColor: AppTheme.surfaceElevated,
+            onDeleted: () => _selectProfession(_selectedProfession),
           ),
-        ],
-        const SizedBox(height: 16),
+        if (_query.isNotEmpty)
+          Chip(
+            avatar: const Icon(Icons.search_rounded,
+                size: 16, color: AppTheme.textSecondary),
+            label: Text(
+              '"$_query"',
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            deleteIconColor: AppTheme.textSecondary,
+            side: const BorderSide(color: AppTheme.divider),
+            backgroundColor: AppTheme.surfaceElevated,
+            onDeleted: () {
+              _controller.clear();
+              setState(() {
+                _query = '';
+                _expandedProfessions = const [];
+              });
+              if (_selectedProfession == null && _selectedCity == null) {
+                context.go(AppRoutes.home);
+              } else {
+                context.go(AppRoutes.searchWith(
+                  profession: _selectedProfession,
+                  city: _selectedCity,
+                ));
+              }
+            },
+          ),
+        if (_selectedCity != null)
+          Chip(
+            avatar: const Icon(Icons.location_on_outlined,
+                size: 16, color: AppTheme.primary),
+            label: Text(
+              _selectedCity!,
+              style: const TextStyle(
+                color: AppTheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            deleteIconColor: AppTheme.textSecondary,
+            side: const BorderSide(color: AppTheme.primary),
+            backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+            onDeleted: () {
+              _cityController.clear();
+              setState(() => _selectedCity = null);
+              if (_selectedProfession == null && _query.isEmpty) {
+                context.go(AppRoutes.home);
+              }
+            },
+          ),
       ],
     );
   }
@@ -308,13 +322,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       data: (results) {
         if (compact) {
-          final screenH = MediaQuery.sizeOf(context).height;
-          final isTablet = DeviceFormFactor.isTablet(context);
-          final height = deckHeight ??
-              GalleryPhotoConstants.deckViewportHeight(
-                screenH,
-                isTablet: isTablet,
-              );
+          final height = deckHeight ?? 400;
+          if (height <= 0) return const SizedBox.shrink();
           return CompanyCardDeck(
             companies: results,
             height: height,
@@ -359,37 +368,63 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  /// Móvil / iPad: desplaza filtros hacia arriba para dar más alto a las cartas.
+  /// Móvil / iPad: mismos criterios que Inicio — filtros arriba al scroll, deck grande.
   Widget _buildCompactLayout(
     BuildContext context,
     AsyncValue<List<Company>> resultsAsync,
   ) {
-    final screenH = MediaQuery.sizeOf(context).height;
-    final isTablet = DeviceFormFactor.isTablet(context);
-    final deckHeight = GalleryPhotoConstants.deckViewportHeight(
-      screenH,
-      isTablet: isTablet,
-    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportH = constraints.maxHeight;
+        final pinnedHeaderHeight = _hasActiveFilters
+            ? GalleryPhotoConstants.deckSearchPinnedChipsHeight
+            : 0.0;
+        final deckHeight = GalleryPhotoConstants.deckContentHeightForViewport(
+          viewportH,
+          pinnedHeaderHeight: pinnedHeaderHeight,
+        );
 
-    return CustomScrollView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      slivers: [
-        SliverToBoxAdapter(child: _buildFiltersPanel()),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: deckHeight,
-            child: _buildResultsPanel(
-              context,
-              resultsAsync,
-              compact: true,
-              deckHeight: deckHeight,
-            ),
+        return CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
           ),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 24)),
-      ],
+          slivers: [
+            SliverToBoxAdapter(child: _buildFiltersForm()),
+            if (_hasActiveFilters)
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: PinnedHeaderDelegate(
+                  extent: GalleryPhotoConstants.deckSearchPinnedChipsHeight,
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _buildActiveFilterChips(),
+                    ),
+                  ),
+                ),
+              ),
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: deckHeight,
+                    child: _buildResultsPanel(
+                      context,
+                      resultsAsync,
+                      compact: true,
+                      deckHeight: deckHeight,
+                    ),
+                  ),
+                  SizedBox(
+                    height: GalleryPhotoConstants.deckScrollTailHeight,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
