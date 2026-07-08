@@ -455,6 +455,9 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
         ref.read(supabaseClientProvider).auth.currentUser?.id ?? '';
 
     ref.listen(_chatNotifierProvider(widget.conversationId), (prev, next) {
+      if (prev?.isLoading == true && !next.isLoading) {
+        _scrollToBottom();
+      }
       if ((prev?.messages.length ?? 0) < next.messages.length) {
         _scrollToBottom();
       }

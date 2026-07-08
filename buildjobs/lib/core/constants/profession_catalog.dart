@@ -81,6 +81,13 @@ class ProfessionCatalog {
         ),
         ProfessionItem(
           categoryId: 'reparaciones',
+          name: 'Gasista',
+          description:
+              'Instalación y reparación de calderas, cocinas de gas, tuberías '
+              'y revisiones de instalaciones de gas.',
+        ),
+        ProfessionItem(
+          categoryId: 'reparaciones',
           name: 'Antenista',
           description:
               'Instalación y configuración de antenas de TV, redes Wi-Fi y telecomunicaciones.',
@@ -139,6 +146,25 @@ class ProfessionCatalog {
         ),
         ProfessionItem(
           categoryId: 'reformas',
+          name: 'Gasista',
+          description:
+              'Instalación de gas en cocinas, calderas y reformas con certificación '
+              'de instalaciones.',
+        ),
+        ProfessionItem(
+          categoryId: 'reformas',
+          name: 'Instalador de Baños',
+          description:
+              'Reforma integral de baños: sanitarios, grifería, mamparas y alicatado.',
+        ),
+        ProfessionItem(
+          categoryId: 'reformas',
+          name: 'Instalador de Cocinas',
+          description:
+              'Montaje de muebles de cocina, encimeras, fregaderos y electrodomésticos.',
+        ),
+        ProfessionItem(
+          categoryId: 'reformas',
           name: 'Albañil',
           description:
               'Construcción de tabiques, cimientos, ladrillo y reformas estructurales.',
@@ -160,6 +186,12 @@ class ProfessionCatalog {
           name: 'Pladurista',
           description:
               'Montaje de falsos techos, tabiquería seca y aislamiento acústico con pladur.',
+        ),
+        ProfessionItem(
+          categoryId: 'reformas',
+          name: 'Escayolista',
+          description:
+              'Techos de escayola, molduras, cornisas, enlucidos y reparación de grietas en paredes.',
         ),
         ProfessionItem(
           categoryId: 'reformas',
@@ -496,6 +528,12 @@ class ProfessionCatalog {
       'andamiero': 'reformas',
       'vallado': 'reformas',
       'vallamiento': 'reformas',
+      'gasista': 'reparaciones',
+      'gas': 'reparaciones',
+      'caldera': 'reparaciones',
+      'cocina': 'reformas',
+      'baño': 'reformas',
+      'bano': 'reformas',
     };
     final mapped = legacyMap[lower];
     if (mapped != null) return categoryById(mapped);

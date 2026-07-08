@@ -142,7 +142,7 @@ class ChatRepository {
         .from('messages')
         .select()
         .eq('conversation_id', conversationId)
-        .order('created_at');
+        .order('created_at', ascending: true);
     return (data as List).map((e) => ChatMessage.fromJson(e)).toList();
   }
 
@@ -152,7 +152,7 @@ class ChatRepository {
         .from('messages')
         .stream(primaryKey: ['id'])
         .eq('conversation_id', conversationId)
-        .order('created_at')
+        .order('created_at', ascending: true)
         .map((rows) => rows.map(ChatMessage.fromJson).toList());
   }
 
