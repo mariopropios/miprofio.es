@@ -28,6 +28,10 @@ dependencies:
   firebase_core: ^4.11.0
   firebase_messaging: ^16.4.1
   crop_your_image: ^2.0.0
+  record: ^7.1.1
+  audioplayers: ^6.8.1
+  path_provider: ^2.1.6
+  cross_file: ^0.3.5+4
 
 dev_dependencies:
   flutter_test:

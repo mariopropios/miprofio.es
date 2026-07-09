@@ -238,6 +238,25 @@ class ChatRepository {
     return _client.storage.from(bucket).getPublicUrl(path);
   }
 
+  /// Sube un audio al bucket `chat-audio` y devuelve la URL pública.
+  Future<String> uploadChatAudio(
+    Uint8List bytes,
+    String fileName, {
+    required String contentType,
+  }) async {
+    const bucket = 'chat-audio';
+    final path = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
+    await _client.storage.from(bucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            upsert: true,
+            contentType: contentType,
+          ),
+        );
+    return _client.storage.from(bucket).getPublicUrl(path);
+  }
+
   /// Número de mensajes no leídos del usuario actual en todas sus conversaciones.
   Future<int> unreadCount() async {
     final conversations = await getConversations();

@@ -213,7 +213,12 @@ class _ConversationTile extends StatelessWidget {
         : '';
     final raw = conversation.lastMessage;
     final isImage = raw != null && raw.startsWith('[image]');
-    final preview = isImage ? 'Imagen' : raw ?? 'Conversación iniciada';
+    final isAudio = raw != null && raw.startsWith('[audio]');
+    final preview = isImage
+        ? 'Imagen'
+        : isAudio
+            ? 'Audio'
+            : raw ?? 'Conversación iniciada';
 
     return InkWell(
       onTap: () => context.push(
@@ -277,6 +282,16 @@ class _ConversationTile extends StatelessWidget {
                       if (isImage) ...[
                         Icon(
                           Icons.photo_camera_outlined,
+                          size: 14,
+                          color: hasUnread
+                              ? AppTheme.textPrimary.withValues(alpha: 0.85)
+                              : AppTheme.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      if (isAudio) ...[
+                        Icon(
+                          Icons.mic_rounded,
                           size: 14,
                           color: hasUnread
                               ? AppTheme.textPrimary.withValues(alpha: 0.85)
