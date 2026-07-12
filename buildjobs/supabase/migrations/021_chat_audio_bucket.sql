@@ -9,12 +9,14 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
   )
   on conflict (id) do nothing;
 
-create policy if not exists "chat_audio_insert"
+drop policy if exists "chat_audio_insert" on storage.objects;
+create policy "chat_audio_insert"
   on storage.objects for insert
   to authenticated
   with check (bucket_id = 'chat-audio');
 
-create policy if not exists "chat_audio_select"
+drop policy if exists "chat_audio_select" on storage.objects;
+create policy "chat_audio_select"
   on storage.objects for select
   to public
   using (bucket_id = 'chat-audio');
