@@ -28,6 +28,24 @@ const _imagePrefix = '[image]';
 /// Prefijo que distingue mensajes de audio de texto plano.
 const _audioPrefix = '[audio]';
 
+String _imageContentType(String ext, String? mimeType) {
+  if (mimeType != null && mimeType.startsWith('image/')) return mimeType;
+  switch (ext.toLowerCase()) {
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    case 'gif':
+      return 'image/gif';
+    case 'heic':
+      return 'image/heic';
+    case 'heif':
+      return 'image/heif';
+    default:
+      return 'image/jpeg';
+  }
+}
+
 // ── Providers ─────────────────────────────────────────────────────────────────
 
 final _chatRepoProvider = chatRepositoryProvider;
@@ -419,7 +437,11 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
       final fileName = '${DateTime.now().millisecondsSinceEpoch}.$ext';
 
       final repo = ref.read(_chatRepoProvider);
-      final url = await repo.uploadChatImage(bytes, fileName);
+      final url = await repo.uploadChatImage(
+        bytes,
+        fileName,
+        contentType: _imageContentType(ext, file.mimeType),
+      );
 
       await ref
           .read(_chatNotifierProvider(widget.conversationId).notifier)
@@ -427,8 +449,11 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
+        final message = e.toString().contains('Bucket not found')
+            ? 'El almacenamiento de imágenes no está configurado. Contacta con soporte.'
+            : 'Error al enviar imagen: $e';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al enviar imagen: $e')),
+          SnackBar(content: Text(message)),
         );
       }
     } finally {

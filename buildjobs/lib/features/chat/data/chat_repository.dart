@@ -223,16 +223,20 @@ class ChatRepository {
   // ── Imágenes ─────────────────────────────────────────────────────────────────
 
   /// Sube una imagen al bucket `chat-images` y devuelve la URL pública.
-  Future<String> uploadChatImage(Uint8List bytes, String fileName) async {
+  Future<String> uploadChatImage(
+    Uint8List bytes,
+    String fileName, {
+    String contentType = 'image/jpeg',
+  }) async {
     const bucket = 'chat-images';
     final path =
         '${DateTime.now().millisecondsSinceEpoch}_$fileName';
     await _client.storage.from(bucket).uploadBinary(
           path,
           bytes,
-          fileOptions: const FileOptions(
+          fileOptions: FileOptions(
             upsert: true,
-            contentType: 'image/jpeg',
+            contentType: contentType,
           ),
         );
     return _client.storage.from(bucket).getPublicUrl(path);
