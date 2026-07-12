@@ -53,17 +53,17 @@ abstract final class ChatAttachmentMenu {
                       curve: Curves.easeOutCubic,
                     )),
                     child: _MenuCard(
-                      onPick: (source) async {
-                        // iOS Safari exige lanzar el picker en el mismo gesto del tap.
+                      onPick: (source, dialogContext) {
+                        // Lanzar el picker en el mismo gesto del tap (iOS/Android web).
                         final pickFuture = onPick(source);
                         if (dialogContext.mounted) {
                           Navigator.pop(dialogContext);
                         }
-                        try {
-                          result.complete(await pickFuture);
-                        } catch (_) {
-                          result.complete(null);
-                        }
+                        pickFuture.then((file) {
+                          if (!result.isCompleted) result.complete(file);
+                        }).catchError((_) {
+                          if (!result.isCompleted) result.complete(null);
+                        });
                       },
                     ),
                   ),
@@ -83,7 +83,8 @@ abstract final class ChatAttachmentMenu {
 class _MenuCard extends StatelessWidget {
   const _MenuCard({required this.onPick});
 
-  final Future<void> Function(ChatAttachmentSource source) onPick;
+  final void Function(ChatAttachmentSource source, BuildContext dialogContext)
+      onPick;
 
   static const _bg = Color(0xFF2A3942);
   static const _text = Color(0xFFE9EDEF);
@@ -114,19 +115,19 @@ class _MenuCard extends StatelessWidget {
               _MenuItem(
                 icon: Icons.photo_library_outlined,
                 label: 'Fototeca',
-                onTap: () => onPick(ChatAttachmentSource.gallery),
+                onTap: () => onPick(ChatAttachmentSource.gallery, context),
               ),
               const Divider(height: 1, thickness: 0.5, color: Color(0xFF3B4A54)),
               _MenuItem(
                 icon: Icons.photo_camera_outlined,
                 label: 'Hacer foto',
-                onTap: () => onPick(ChatAttachmentSource.camera),
+                onTap: () => onPick(ChatAttachmentSource.camera, context),
               ),
               const Divider(height: 1, thickness: 0.5, color: Color(0xFF3B4A54)),
               _MenuItem(
                 icon: Icons.folder_open_outlined,
                 label: 'Seleccionar archivo',
-                onTap: () => onPick(ChatAttachmentSource.file),
+                onTap: () => onPick(ChatAttachmentSource.file, context),
               ),
             ],
           ),
