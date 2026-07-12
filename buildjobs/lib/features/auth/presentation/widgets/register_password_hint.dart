@@ -23,7 +23,7 @@ class RegisterPasswordHint extends StatelessWidget {
             child: Text(
               'Usa una contraseña nueva que no uses en otros sitios. '
               'Si Chrome te avisa de una filtración, es porque esa contraseña '
-              'ya se filtró en otro servicio, no en Profio.',
+              'ya se filtró en otro servicio, no en miProfio.es.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.textSecondary,
                     height: 1.4,

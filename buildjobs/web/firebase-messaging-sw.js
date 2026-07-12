@@ -25,10 +25,6 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener('fetch', function (event) {
-  event.respondWith(fetch(event.request));
-});
-
 const DB_NAME = 'profio-push';
 const STORE_NAME = 'conversation_messages';
 const MAX_LINES = 7;

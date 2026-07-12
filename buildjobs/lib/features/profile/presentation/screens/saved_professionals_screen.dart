@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/gallery_photo_constants.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/professional.dart';
 import '../../../../shared/widgets/async_value_widget.dart';
+import '../../../../shared/widgets/company_card_deck.dart';
+import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../shared/widgets/save_professional_button.dart';
 import '../../../../shared/widgets/savable_company_card.dart';
 import '../../../saved/providers/saved_professional_providers.dart';
@@ -18,8 +21,14 @@ class SavedProfessionalsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final savedAsync = ref.watch(savedProfessionalsProvider);
-    final bottomInset =
-        MediaQuery.paddingOf(context).bottom + kBottomNavigationBarHeight;
+    final bottomInset = MediaQuery.paddingOf(context).bottom + 24;
+    final useDeck = ResponsiveLayout.isMobile(context);
+
+    Future<void> refresh() async {
+      ref.invalidate(savedProfessionalsProvider);
+      ref.invalidate(savedProfessionalIdsProvider);
+      await ref.read(savedProfessionalsProvider.future);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -39,32 +48,119 @@ class SavedProfessionalsScreen extends ConsumerWidget {
           }
 
           return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(savedProfessionalsProvider);
-              ref.invalidate(savedProfessionalIdsProvider);
-              await ref.read(savedProfessionalsProvider.future);
-            },
-            child: ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
-              itemCount: professionals.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final professional = professionals[index];
-                return SizedBox(
-                  height: 320,
-                  child: SavableCompanyCard(
-                    company: professional,
-                    onTap: () => context.push(
-                      AppRoutes.companyDetailPath(professional.id),
-                    ),
+            onRefresh: refresh,
+            child: useDeck
+                ? _SavedDeckLayout(professionals: professionals)
+                : _SavedGridLayout(
+                    professionals: professionals,
+                    bottomInset: bottomInset,
                   ),
-                );
-              },
-            ),
           );
         },
       ),
+    );
+  }
+}
+
+/// Tambor de tarjetas (mismo flujo adictivo que Inicio / Buscar en móvil).
+class _SavedDeckLayout extends StatelessWidget {
+  const _SavedDeckLayout({required this.professionals});
+
+  final List<Professional> professionals;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final deckHeight = GalleryPhotoConstants.deckContentHeightForViewport(
+          constraints.maxHeight,
+          pinnedHeaderHeight: 56,
+        );
+
+        return CustomScrollView(
+          physics: GalleryPhotoConstants.mobileOuterScrollPhysics,
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: Text(
+                  professionals.length == 1
+                      ? '1 profesional guardado'
+                      : '${professionals.length} profesionales guardados',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: deckHeight,
+                    child: CompanyCardDeck(
+                      companies: professionals,
+                      height: deckHeight,
+                    ),
+                  ),
+                  SizedBox(
+                    height: GalleryPhotoConstants.deckScrollTailHeight,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Grid en escritorio / tablet ancha.
+class _SavedGridLayout extends StatelessWidget {
+  const _SavedGridLayout({
+    required this.professionals,
+    required this.bottomInset,
+  });
+
+  final List<Professional> professionals;
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) {
+    final crossAxisCount = ResponsiveLayout.isDesktop(context) ? 3 : 2;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final aspectRatio = GalleryPhotoConstants.gridChildAspectRatioFor(
+          gridWidth: constraints.maxWidth - 32,
+          crossAxisCount: crossAxisCount,
+        );
+
+        return GridView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: aspectRatio,
+          ),
+          itemCount: professionals.length,
+          itemBuilder: (context, index) {
+            final professional = professionals[index];
+            return RepaintBoundary(
+              child: SavableCompanyCard(
+                company: professional,
+                onTap: () => context.push(
+                  AppRoutes.companyDetailPath(professional.id),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

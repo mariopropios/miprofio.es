@@ -20,63 +20,32 @@
       window.dispatchEvent(new Event('pwa-install-available'));
     });
   </script>
-  <script>
-    (function () {
-      if (!('serviceWorker' in navigator)) return;
-
-      function isFirebaseMessagingSw(url) {
-        return url && url.indexOf('firebase-messaging-sw.js') !== -1;
-      }
-
-      // Solo eliminar el SW de caché de Flutter; conservar Firebase Messaging.
-      navigator.serviceWorker.getRegistrations().then(function (regs) {
-        regs.forEach(function (reg) {
-          var scriptUrl = (reg.active && reg.active.scriptURL) ||
-            (reg.installing && reg.installing.scriptURL) ||
-            (reg.waiting && reg.waiting.scriptURL) || '';
-          if (!isFirebaseMessagingSw(scriptUrl)) {
-            reg.unregister();
-          }
-        });
-      });
-
-      // Navegación desde notificación cuando navigate() no está disponible.
-      navigator.serviceWorker.addEventListener('message', function (event) {
-        if (event.data && event.data.type === 'NOTIFICATION_CLICK' && event.data.url) {
-          window.location.href = event.data.url;
-        }
-      });
-    })();
-    if ('caches' in window) {
-      caches.keys().then(function (keys) {
-        keys.forEach(function (key) { caches.delete(key); });
-      });
-    }
-  </script>
+  <script src="profio_pwa_boot.js"></script>
   <meta name="theme-color" content="#00B27A">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Profio">
+  <meta name="apple-mobile-web-app-title" content="miProfio.es">
   <meta name="robots" content="index, follow">
   <meta name="googlebot" content="index, follow">
 
-  <title>Profio · Profesionales del hogar con reseñas en España</title>
-  <meta name="description" content="Encuentra fontaneros, electricistas, albañiles y más profesionales del hogar cerca de ti. Compara reseñas, distancia y contacta gratis en Profio.">
+  <title>miProfio.es · Profesionales del hogar con reseñas en España</title>
+  <meta name="description" content="Encuentra fontaneros, electricistas, albañiles y más profesionales del hogar cerca de ti. Compara reseñas, distancia y contacta gratis en miProfio.es.">
   <meta name="keywords" content="profesionales del hogar, fontanero, electricista, albañil, reformas, reseñas, cerca de mí, España">
   <link rel="canonical" href="https://miprofio.es/">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Profio">
+  <meta property="og:site_name" content="miProfio.es">
   <meta property="og:locale" content="es_ES">
-  <meta property="og:title" content="Profio · Profesionales del hogar con reseñas en España">
+  <meta property="og:title" content="miProfio.es · Profesionales del hogar con reseñas en España">
   <meta property="og:description" content="Encuentra fontaneros, electricistas, albañiles y más profesionales del hogar cerca de ti. Compara reseñas y contacta gratis.">
   <meta property="og:url" content="https://miprofio.es/">
   <meta property="og:image" content="https://miprofio.es/favicon.png">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Profio · Profesionales del hogar con reseñas">
+  <meta name="twitter:title" content="miProfio.es · Profesionales del hogar con reseñas">
   <meta name="twitter:description" content="Encuentra y valora fontaneros, electricistas, albañiles y más profesionales cerca de ti.">
   <meta name="twitter:image" content="https://miprofio.es/favicon.png">
 
@@ -88,8 +57,8 @@
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "name": "Profio",
-    "alternateName": "Profio Profesionales del hogar",
+    "name": "miProfio.es",
+    "alternateName": "miProfio.es Profesionales del hogar",
     "url": "https://miprofio.es/",
     "inLanguage": "es-ES",
     "description": "Directorio de profesionales del hogar en España con reseñas verificadas y búsqueda por proximidad.",
@@ -110,7 +79,7 @@
   {
     "@context": "https://schema.org",
     "@type": "Organization",
-    "name": "Profio",
+    "name": "miProfio.es",
     "url": "https://miprofio.es/",
     "logo": "https://miprofio.es/favicon.png",
     "description": "Plataforma para encontrar y valorar profesionales del hogar en España.",
@@ -300,7 +269,7 @@
 <body>
 
   <main id="seo-static" lang="es">
-    <h1>Profio — Encuentra y valora profesionales del hogar en España</h1>
+    <h1>miProfio.es — Encuentra y valora profesionales del hogar en España</h1>
     <p>
       Directorio de fontaneros, electricistas, albañiles, pintores, cerrajeros,
       técnicos de climatización y más oficios. Busca por profesión, ciudad o
@@ -332,7 +301,7 @@
     </div>
 
     <div class="brand-text">
-      <span class="brand-name">Profio</span>
+      <span class="brand-name">miProfio.es</span>
       <span class="brand-sub">Profesionales del hogar</span>
     </div>
 
@@ -342,21 +311,6 @@
   </div>
 
   <script>
-    // Limpiar caché de Flutter y registrar SW de push (segundo plano / pestaña cerrada).
-    window.addEventListener('load', function () {
-      if ('caches' in window) {
-        caches.keys().then(function (keys) {
-          keys.forEach(function (key) { caches.delete(key); });
-        });
-      }
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: '/' })
-          .catch(function (err) {
-            console.warn('[FCM] No se pudo registrar firebase-messaging-sw.js', err);
-          });
-      }
-    });
-
     // ── Ocultar loader cuando Flutter ha pintado su primer frame ───────────
     window.addEventListener('flutter-first-frame', function () {
       var loader = document.getElementById('hc-loader');

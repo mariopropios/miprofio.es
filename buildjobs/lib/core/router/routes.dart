@@ -17,6 +17,12 @@ class AppRoutes {
 
   static String chatPath(String professionalId) =>
       '/messages/$professionalId';
+
+  /// `/messages/:id` — chat abierto encima de la lista.
+  static bool isChatDetailLocation(String location) {
+    final segments = Uri.parse(location).pathSegments;
+    return segments.length == 2 && segments.first == 'messages';
+  }
   static const register = '/register';
   static const clientRegister = '/register/client';
   static const professionalRegister = '/register/professional';

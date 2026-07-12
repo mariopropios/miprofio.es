@@ -9,6 +9,7 @@ import '../../../../core/services/auth_callback_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/device_form_factor.dart';
 import '../../../../shared/widgets/premium_button.dart';
+import '../widgets/password_form_field.dart';
 
 /// Pantalla tras abrir el enlace de recuperación de Supabase.
 class ResetPasswordScreen extends ConsumerStatefulWidget {
@@ -241,30 +242,23 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 36),
-                  TextFormField(
+                  PasswordFormField(
                     controller: _passwordController,
-                    obscureText: true,
-                    enableSuggestions: false,
-                    autocorrect: false,
+                    labelText: 'Nueva contraseña',
                     textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Nueva contraseña',
-                      prefixIcon: Icon(Icons.lock_outline),
-                    ),
+                    autofillHints: const [AutofillHints.newPassword],
                     validator: (v) =>
                         v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
+                  PasswordFormField(
                     controller: _confirmController,
-                    obscureText: true,
-                    enableSuggestions: false,
-                    autocorrect: false,
+                    labelText: 'Confirmar contraseña',
                     textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                      labelText: 'Confirmar contraseña',
-                      prefixIcon: Icon(Icons.lock_outline),
-                    ),
+                    autofillHints: const [AutofillHints.newPassword],
+                    onFieldSubmitted: (_) {
+                      if (!_isLoading) _updatePassword();
+                    },
                     validator: (v) {
                       if (v == null || v.length < 6) {
                         return 'Mínimo 6 caracteres';
@@ -273,9 +267,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                         return 'Las contraseñas no coinciden';
                       }
                       return null;
-                    },
-                    onFieldSubmitted: (_) {
-                      if (!_isLoading) _updatePassword();
                     },
                   ),
                   const SizedBox(height: 28),

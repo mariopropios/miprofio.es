@@ -13,11 +13,15 @@ class ProfessionFilterSection extends StatefulWidget {
     super.key,
     this.selectedProfession,
     this.onProfessionTap,
+    this.preservedCity,
+    this.preservedQuery,
   });
 
   final String? selectedProfession;
   /// Llamado con (professionName, categoryId) al pulsar un chip de oficio.
   final void Function(String profession, String categoryId)? onProfessionTap;
+  final String? preservedCity;
+  final String? preservedQuery;
 
   @override
   State<ProfessionFilterSection> createState() =>
@@ -86,7 +90,12 @@ class _ProfessionFilterSectionState extends State<ProfessionFilterSection> {
               ),
             ),
             VerTodoChip(
-              onTap: () => ProfessionCatalogSheet.show(context),
+              onTap: () => ProfessionCatalogSheet.show(
+                context,
+                city: widget.preservedCity,
+                query: widget.preservedQuery,
+                onProfessionSelected: widget.onProfessionTap,
+              ),
             ),
           ],
         ),
@@ -112,51 +121,24 @@ class _ProfessionFilterSectionState extends State<ProfessionFilterSection> {
         const SizedBox(height: 10),
 
         // ── Chips de oficio ────────────────────────────────────────────────
-        // AnimatedSize suaviza el cambio de altura en desktop (más/menos chips).
-        // AnimatedSwitcher hace fade + deslizamiento vertical suave al cambiar
-        // de categoría, evitando el crossfade brusco.
         AnimatedSize(
           duration: const Duration(milliseconds: 280),
           curve: Curves.easeOutCubic,
           alignment: Alignment.topLeft,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.06),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                )),
-                child: child,
-              ),
-            ),
-            layoutBuilder: (currentChild, previousChildren) => Stack(
-              alignment: Alignment.topLeft,
-              children: [
-                ...previousChildren,
-                if (currentChild != null) currentChild,
-              ],
-            ),
-            child: isMobile
-                ? _MobileChipsRow(
-                    key: ValueKey(_selectedBrowseGroupId),
-                    professions: _visibleProfessions,
-                    selectedProfession: widget.selectedProfession,
-                    onTap: _handleProfessionTap,
-                  )
-                : _DesktopChipsWrap(
-                    key: ValueKey(_selectedBrowseGroupId),
-                    professions: _visibleProfessions,
-                    selectedProfession: widget.selectedProfession,
-                    onTap: _handleProfessionTap,
-                  ),
-          ),
+          clipBehavior: Clip.none,
+          child: isMobile
+              ? _MobileChipsRow(
+                  key: ValueKey(_selectedBrowseGroupId),
+                  professions: _visibleProfessions,
+                  selectedProfession: widget.selectedProfession,
+                  onTap: _handleProfessionTap,
+                )
+              : _DesktopChipsWrap(
+                  key: ValueKey(_selectedBrowseGroupId),
+                  professions: _visibleProfessions,
+                  selectedProfession: widget.selectedProfession,
+                  onTap: _handleProfessionTap,
+                ),
         ),
       ],
     );

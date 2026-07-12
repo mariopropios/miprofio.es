@@ -90,6 +90,14 @@ abstract final class GalleryPhotoConstants {
   static double get deckScrollTailHeight =>
       deckBottomBreathingRoom + deckScrollBottomSlack;
 
+  /// Scroll de la página (filtros / cabecera) cuando el gesto empieza fuera
+  /// de la tarjeta del tambor.
+  static const mobileOuterScrollPhysics = AlwaysScrollableScrollPhysics(
+    parent: BouncingScrollPhysics(
+      decelerationRate: ScrollDecelerationRate.fast,
+    ),
+  );
+
   /// Altura del deck según el viewport real del body (sin restar nav dos veces).
   static double deckContentHeightForViewport(
     double viewportHeight, {

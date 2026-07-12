@@ -293,7 +293,6 @@ final _chatNotifierProvider = StateNotifierProvider.autoDispose
       conversationId: conversationId,
       repo: repo,
       currentUserId: currentUserId,
-      onMessagesRead: () => ref.invalidate(conversationsProvider),
     );
   },
 );

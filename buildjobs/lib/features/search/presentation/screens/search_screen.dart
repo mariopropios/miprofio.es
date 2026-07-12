@@ -13,7 +13,6 @@ import '../../../../shared/widgets/async_value_widget.dart';
 import '../../../../shared/widgets/savable_company_card.dart';
 import '../../../../shared/widgets/city_autocomplete_field.dart';
 import '../../../../shared/widgets/company_card_deck.dart';
-import '../../../../shared/widgets/pinned_header_delegate.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../shared/widgets/search_autocomplete_field.dart';
 import '../../../home/presentation/widgets/profession_filter_section.dart';
@@ -50,21 +49,83 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _query.isNotEmpty ||
       _selectedCity != null;
 
+  String? _nullableRouteParam(String? value) =>
+      (value != null && value.isNotEmpty) ? value : null;
+
+  void _navigateSearch({
+    String? profession,
+    String? categoryId,
+    String? query,
+    String? city,
+  }) {
+    final normalizedQuery = _nullableRouteParam(query);
+    final normalizedCity = _nullableRouteParam(city);
+    final normalizedProfession = _nullableRouteParam(profession);
+
+    if (normalizedProfession == null &&
+        normalizedQuery == null &&
+        normalizedCity == null) {
+      context.go(AppRoutes.home);
+      return;
+    }
+
+    context.go(
+      AppRoutes.searchWith(
+        profession: normalizedProfession,
+        categoryId: normalizedProfession != null ? categoryId : null,
+        q: normalizedQuery,
+        city: normalizedCity,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    _selectedProfession = widget.initialProfession;
-    _selectedCategoryId = widget.initialCategoryId;
-    _selectedCity = widget.initialCity;
-    if (widget.initialCity != null) {
-      _cityController.text = widget.initialCity!;
+    _syncFromRouteParams();
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialProfession != widget.initialProfession ||
+        oldWidget.initialCategoryId != widget.initialCategoryId ||
+        oldWidget.initialCity != widget.initialCity ||
+        oldWidget.initialQuery != widget.initialQuery) {
+      _syncFromRouteParams();
     }
-    if (widget.initialQuery != null) {
-      _controller.text = widget.initialQuery!;
-      _query = widget.initialQuery!;
-      _expandedProfessions =
-          ProfessionCatalog.relatedProfessionNames(widget.initialQuery!);
+  }
+
+  void _syncFromRouteParams() {
+    final profession = _nullableRouteParam(widget.initialProfession);
+    final categoryId = widget.initialCategoryId;
+    final city = _nullableRouteParam(widget.initialCity);
+    final query = _nullableRouteParam(widget.initialQuery) ?? '';
+
+    if (_selectedProfession == profession &&
+        _selectedCategoryId == (profession != null ? categoryId : null) &&
+        _selectedCity == city &&
+        _query == query) {
+      return;
     }
+
+    setState(() {
+      _selectedProfession = profession;
+      _selectedCategoryId = profession != null ? categoryId : null;
+      _selectedCity = city;
+
+      if (query.isNotEmpty) {
+        _query = query;
+        _expandedProfessions =
+            ProfessionCatalog.relatedProfessionNames(query);
+      } else {
+        _query = '';
+        _expandedProfessions = const [];
+      }
+    });
+
+    _controller.text = _query;
+    _cityController.text = _selectedCity ?? '';
   }
 
   @override
@@ -76,82 +137,47 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   void _applySuggestion(SearchSuggestion suggestion) {
     if (suggestion.isProfession) {
-      setState(() {
-        _query = '';
-        _expandedProfessions = const [];
-      });
-      _selectProfession(suggestion.label, suggestion.categoryId);
+      _navigateSearch(
+        profession: suggestion.label,
+        categoryId: suggestion.categoryId,
+        city: _selectedCity,
+      );
       return;
     }
 
     final name = suggestion.label.trim();
-    setState(() {
-      _query = name;
-      _expandedProfessions = ProfessionCatalog.relatedProfessionNames(name);
-      _selectedProfession = null;
-      _selectedCategoryId = null;
-    });
-    context.go(
-      AppRoutes.searchWith(
-        q: name,
-        city: _selectedCity,
-      ),
+    _navigateSearch(
+      query: name,
+      city: _selectedCity,
     );
   }
 
   void _search() {
-    final query = _controller.text.trim();
-    final expanded = query.isNotEmpty
-        ? ProfessionCatalog.relatedProfessionNames(query)
-        : <String>[];
-    setState(() {
-      _query = query;
-      _expandedProfessions = expanded;
-    });
-    context.go(
-      AppRoutes.searchWith(
-        profession: _selectedProfession,
-        q: query.isEmpty ? null : query,
-        categoryId: _selectedCategoryId,
-        city: _selectedCity,
-      ),
+    _navigateSearch(
+      profession: _selectedProfession,
+      categoryId: _selectedCategoryId,
+      query: _controller.text.trim(),
+      city: _selectedCity,
     );
   }
 
-  void _selectProfession(String? profession, [String? categoryId]) {
-    final next = _selectedProfession == profession ? null : profession;
-    setState(() {
-      _selectedProfession = next;
-      _selectedCategoryId = next != null ? categoryId : null;
-    });
-
-    // Si no queda ningún filtro activo, volver al inicio con los destacados
-    if (next == null && _query.isEmpty) {
-      context.go(AppRoutes.home);
-      return;
-    }
-
-    context.go(
-      AppRoutes.searchWith(
-        profession: next,
-        q: _query.isEmpty ? null : _query,
-        categoryId: next != null ? categoryId : null,
-        city: _selectedCity,
-      ),
+  void _selectProfession(String profession, [String? categoryId]) {
+    final togglingOff = _selectedProfession == profession;
+    _navigateSearch(
+      profession: togglingOff ? null : profession,
+      categoryId: togglingOff ? null : categoryId,
+      query: _query.isEmpty ? null : _query,
+      city: _selectedCity,
     );
   }
 
   void _applyCityFilter(String? city) {
     final normalized = city?.trim();
-    final next = (normalized == null || normalized.isEmpty) ? null : normalized;
-    setState(() => _selectedCity = next);
-    context.go(
-      AppRoutes.searchWith(
-        profession: _selectedProfession,
-        q: _query.isEmpty ? null : _query,
-        categoryId: _selectedCategoryId,
-        city: next,
-      ),
+    _navigateSearch(
+      profession: _selectedProfession,
+      categoryId: _selectedCategoryId,
+      query: _query.isEmpty ? null : _query,
+      city: (normalized == null || normalized.isEmpty) ? null : normalized,
     );
   }
 
@@ -185,16 +211,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _buildFiltersPanel() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildFiltersForm(),
-        if (_hasActiveFilters) ...[
-          const SizedBox(height: 12),
-          _buildActiveFilterChips(),
-        ],
-      ],
-    );
+    return _buildFiltersForm();
   }
 
   Widget _buildFiltersForm() {
@@ -222,7 +239,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ProfessionFilterSection(
           selectedProfession: _selectedProfession,
           onProfessionTap: (name, catId) => _selectProfession(name, catId),
+          preservedCity: _selectedCity,
+          preservedQuery: _query.isEmpty ? null : _query,
         ),
+        if (_hasActiveFilters) ...[
+          const SizedBox(height: 12),
+          _buildActiveFilterChips(),
+          const SizedBox(height: 16),
+        ],
       ],
     );
   }
@@ -230,77 +254,87 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget _buildActiveFilterChips() {
     return Wrap(
       spacing: 8,
-      runSpacing: 4,
+      runSpacing: 8,
       children: [
         if (_selectedProfession != null)
-          Chip(
-            avatar: const Icon(Icons.work_outline_rounded,
-                size: 16, color: AppTheme.textSecondary),
-            label: Text(
-              _selectedProfession!,
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            deleteIconColor: AppTheme.textSecondary,
-            side: const BorderSide(color: AppTheme.divider),
+          _filterChip(
+            icon: Icons.work_outline_rounded,
+            label: _selectedProfession!,
+            iconColor: AppTheme.textSecondary,
+            labelColor: AppTheme.textPrimary,
+            borderColor: AppTheme.divider,
             backgroundColor: AppTheme.surfaceElevated,
-            onDeleted: () => _selectProfession(_selectedProfession),
+            onDeleted: () {
+              final profession = _selectedProfession;
+              if (profession != null) {
+                _selectProfession(profession, _selectedCategoryId);
+              }
+            },
           ),
         if (_query.isNotEmpty)
-          Chip(
-            avatar: const Icon(Icons.search_rounded,
-                size: 16, color: AppTheme.textSecondary),
-            label: Text(
-              '"$_query"',
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            deleteIconColor: AppTheme.textSecondary,
-            side: const BorderSide(color: AppTheme.divider),
+          _filterChip(
+            icon: Icons.search_rounded,
+            label: '"$_query"',
+            iconColor: AppTheme.textSecondary,
+            labelColor: AppTheme.textPrimary,
+            borderColor: AppTheme.divider,
             backgroundColor: AppTheme.surfaceElevated,
             onDeleted: () {
               _controller.clear();
-              setState(() {
-                _query = '';
-                _expandedProfessions = const [];
-              });
-              if (_selectedProfession == null && _selectedCity == null) {
-                context.go(AppRoutes.home);
-              } else {
-                context.go(AppRoutes.searchWith(
-                  profession: _selectedProfession,
-                  city: _selectedCity,
-                ));
-              }
+              _navigateSearch(
+                profession: _selectedProfession,
+                categoryId: _selectedCategoryId,
+                city: _selectedCity,
+              );
             },
           ),
         if (_selectedCity != null)
-          Chip(
-            avatar: const Icon(Icons.location_on_outlined,
-                size: 16, color: AppTheme.primary),
-            label: Text(
-              _selectedCity!,
-              style: const TextStyle(
-                color: AppTheme.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            deleteIconColor: AppTheme.textSecondary,
-            side: const BorderSide(color: AppTheme.primary),
+          _filterChip(
+            icon: Icons.location_on_outlined,
+            label: _selectedCity!,
+            iconColor: AppTheme.primary,
+            labelColor: AppTheme.primary,
+            borderColor: AppTheme.primary,
             backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
             onDeleted: () {
               _cityController.clear();
-              setState(() => _selectedCity = null);
-              if (_selectedProfession == null && _query.isEmpty) {
-                context.go(AppRoutes.home);
-              }
+              _navigateSearch(
+                profession: _selectedProfession,
+                categoryId: _selectedCategoryId,
+                query: _query.isEmpty ? null : _query,
+              );
             },
           ),
       ],
+    );
+  }
+
+  Widget _filterChip({
+    required IconData icon,
+    required String label,
+    required Color iconColor,
+    required Color labelColor,
+    required Color borderColor,
+    required Color backgroundColor,
+    required VoidCallback onDeleted,
+  }) {
+    return Chip(
+      avatar: Icon(icon, size: 16, color: iconColor),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: labelColor,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      deleteIconColor: AppTheme.textSecondary,
+      side: BorderSide(color: borderColor),
+      backgroundColor: backgroundColor,
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      onDeleted: onDeleted,
     );
   }
 
@@ -377,34 +411,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportH = constraints.maxHeight;
-        final pinnedHeaderHeight = _hasActiveFilters
-            ? GalleryPhotoConstants.deckSearchPinnedChipsHeight
-            : 0.0;
         final deckHeight = GalleryPhotoConstants.deckContentHeightForViewport(
           viewportH,
-          pinnedHeaderHeight: pinnedHeaderHeight,
+          pinnedHeaderHeight: 0,
         );
 
         return CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          ),
+          physics: GalleryPhotoConstants.mobileOuterScrollPhysics,
           slivers: [
             SliverToBoxAdapter(child: _buildFiltersForm()),
-            if (_hasActiveFilters)
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: PinnedHeaderDelegate(
-                  extent: GalleryPhotoConstants.deckSearchPinnedChipsHeight,
-                  child: Align(
-                    alignment: Alignment.bottomLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _buildActiveFilterChips(),
-                    ),
-                  ),
-                ),
-              ),
             SliverToBoxAdapter(
               child: Column(
                 children: [
@@ -440,6 +455,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildFiltersPanel(),
+          const SizedBox(height: 24),
           _buildResultsPanel(context, resultsAsync, compact: false),
         ],
       ),

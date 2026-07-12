@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import 'password_form_field.dart';
 
 /// Campo de texto premium para el wizard de registro.
-class RegisterFormField extends StatelessWidget {
+class RegisterFormField extends StatefulWidget {
   const RegisterFormField({
     super.key,
     required this.controller,
@@ -39,12 +40,29 @@ class RegisterFormField extends StatelessWidget {
   final Iterable<String>? autofillHints;
 
   @override
+  State<RegisterFormField> createState() => _RegisterFormFieldState();
+}
+
+class _RegisterFormFieldState extends State<RegisterFormField> {
+  bool _obscured = true;
+
+  @override
   Widget build(BuildContext context) {
+    final isPassword = widget.obscureText;
+    final suffix = widget.suffixIcon ??
+        (isPassword
+            ? PasswordVisibilityToggle(
+                obscured: _obscured,
+                iconSize: 20,
+                onToggle: () => setState(() => _obscured = !_obscured),
+              )
+            : null);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          widget.label,
           style: const TextStyle(
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w600,
@@ -53,28 +71,28 @@ class RegisterFormField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         TextFormField(
-          controller: controller,
-          autofocus: autofocus,
-          keyboardType: keyboardType,
-          textInputAction: textInputAction,
-          obscureText: obscureText,
-          maxLines: maxLines,
-          inputFormatters: inputFormatters,
-          validator: validator,
-          onChanged: onChanged,
-          autofillHints: autofillHints,
+          controller: widget.controller,
+          autofocus: widget.autofocus,
+          keyboardType: widget.keyboardType,
+          textInputAction: widget.textInputAction,
+          obscureText: isPassword ? _obscured : false,
+          maxLines: widget.maxLines,
+          inputFormatters: widget.inputFormatters,
+          validator: widget.validator,
+          onChanged: widget.onChanged,
+          autofillHints: widget.autofillHints,
           autocorrect: false,
-          enableSuggestions: !obscureText,
+          enableSuggestions: !isPassword,
           style: const TextStyle(
             color: AppTheme.textPrimary,
             fontSize: 15,
           ),
           decoration: InputDecoration(
-            hintText: hint,
-            prefixIcon: icon != null
-                ? Icon(icon, color: AppTheme.textSecondary, size: 20)
+            hintText: widget.hint,
+            prefixIcon: widget.icon != null
+                ? Icon(widget.icon, color: AppTheme.textSecondary, size: 20)
                 : null,
-            suffixIcon: suffixIcon,
+            suffixIcon: suffix,
             filled: true,
             fillColor: const Color(0xFF1E252B),
             contentPadding: const EdgeInsets.symmetric(

@@ -23,6 +23,7 @@ import '../widgets/international_phone_field.dart';
 import '../widgets/profile_avatar_picker.dart';
 import '../widgets/register_form_field.dart';
 import '../widgets/register_password_hint.dart';
+import '../../providers/pending_email_verification_provider.dart';
 import '../widgets/register_profile_preview.dart';
 import '../widgets/register_step_indicator.dart';
 import '../widgets/work_gallery_upload.dart';
@@ -527,6 +528,15 @@ class _ProfessionalRegisterScreenState
 
         if (authResult.needsEmailConfirmation) {
           if (mounted) {
+            ref.read(pendingEmailVerificationProvider.notifier).set(
+                  PendingEmailVerification(
+                    userId: authResult.userId!,
+                    email: email,
+                    password: password,
+                    fullName: fullName,
+                    role: 'professional',
+                  ),
+                );
             context.go(AppRoutes.emailVerificationPath(email));
           }
           return;
@@ -1431,8 +1441,6 @@ class _AccountStep extends StatefulWidget {
 }
 
 class _AccountStepState extends State<_AccountStep> {
-  bool _obscurePassword = true;
-
   static bool _isValidEmail(String email) =>
       RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim());
 
@@ -1474,23 +1482,9 @@ class _AccountStepState extends State<_AccountStep> {
               label: 'Contraseña',
               hint: 'Mínimo 6 caracteres',
               icon: Icons.lock_outline,
-              obscureText: _obscurePassword,
+              obscureText: true,
               textInputAction: TextInputAction.done,
               autofillHints: const [AutofillHints.newPassword],
-              suffixIcon: IconButton(
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                  color: AppTheme.textSecondary,
-                  size: 20,
-                ),
-                tooltip: _obscurePassword
-                    ? 'Mostrar contraseña'
-                    : 'Ocultar contraseña',
-              ),
               validator: (v) =>
                   v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
             ),

@@ -8,8 +8,10 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/message.dart';
+import '../models/active_chat_route.dart';
 import '../providers/chat_providers.dart';
 import '../widgets/chat_message_state.dart';
+import 'chat_screen.dart';
 
 class ConversationsScreen extends ConsumerStatefulWidget {
   const ConversationsScreen({super.key});
@@ -20,15 +22,86 @@ class ConversationsScreen extends ConsumerStatefulWidget {
 }
 
 class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin,
+        SingleTickerProviderStateMixin {
+  static const _chatSlideDuration = Duration(milliseconds: 280);
+
+  late final AnimationController _chatSlideController;
+  late final Animation<Offset> _chatSlideAnimation;
+
+  ActiveChatRoute? _visibleChat;
+  GoRouterDelegate? _routerDelegate;
+
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   void initState() {
     super.initState();
+    _chatSlideController = AnimationController(
+      vsync: this,
+      duration: _chatSlideDuration,
+      reverseDuration: _chatSlideDuration,
+    );
+    _chatSlideAnimation = Tween<Offset>(
+      begin: const Offset(1, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _chatSlideController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInOutCubic,
+    ));
+
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.invalidate(conversationsProvider);
+      final cached = ref.read(conversationsProvider);
+      if (!cached.hasValue) {
+        ref.invalidate(conversationsProvider);
+      }
       _syncNotificationsIfAlreadyGranted();
+      _attachRouteListener();
+      _syncChatFromRoute();
     });
+  }
+
+  void _attachRouteListener() {
+    final delegate = GoRouter.of(context).routerDelegate;
+    if (_routerDelegate == delegate) return;
+    _routerDelegate?.removeListener(_syncChatFromRoute);
+    _routerDelegate = delegate;
+    _routerDelegate!.addListener(_syncChatFromRoute);
+  }
+
+  void _syncChatFromRoute() {
+    if (!mounted) return;
+    final state = GoRouter.of(context).state;
+    final nextChat = ActiveChatRoute.fromRouterState(state);
+    final currentId = _visibleChat?.professionalId;
+    final nextId = nextChat?.professionalId;
+
+    if (currentId == nextId) {
+      if (nextChat != null) {
+        _visibleChat = nextChat;
+      }
+      return;
+    }
+
+    if (nextChat != null) {
+      setState(() => _visibleChat = nextChat);
+      _chatSlideController.forward();
+      return;
+    }
+
+    if (_visibleChat != null) {
+      _chatSlideController.reverse().then((_) {
+        if (!mounted) return;
+        final stillClosed =
+            ActiveChatRoute.fromRouterState(GoRouter.of(context).state) == null;
+        if (stillClosed) {
+          setState(() => _visibleChat = null);
+        }
+      });
+    }
   }
 
   /// Solo sincroniza token si el permiso ya estaba concedido; no muestra diálogo.
@@ -40,8 +113,16 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
 
   @override
   void dispose() {
+    _routerDelegate?.removeListener(_syncChatFromRoute);
+    _chatSlideController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _attachRouteListener();
   }
 
   @override
@@ -53,6 +134,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     ref.watch(conversationsRealtimeProvider);
 
     final user = ref.watch(currentUserProvider);
@@ -89,48 +171,73 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
 
     final convAsync = ref.watch(conversationsProvider);
 
-    return Scaffold(
-      primary: false,
-      backgroundColor: AppTheme.scaffoldBackground,
-      appBar: _buildAppBar(context),
-      body: Column(
-        children: [
-          Expanded(
-            child: convAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => ChatErrorState(
-          error: e,
-          title: 'No se pudieron cargar los mensajes',
-          onRetry: () => ref.invalidate(conversationsProvider),
-        ),
-        data: (conversations) {
-          if (conversations.isEmpty) {
-            return const _EmptyState();
-          }
-          return RefreshIndicator(
-            color: AppTheme.primary,
-            onRefresh: () async => ref.invalidate(conversationsProvider),
-            child: ListView.separated(
-              itemCount: conversations.length,
-              separatorBuilder: (_, __) => const Divider(
-                height: 1,
-                indent: 78,
-                color: AppTheme.divider,
-              ),
-              itemBuilder: (context, index) {
-                return RepaintBoundary(
-                  child: _ConversationTile(
-                    conversation: conversations[index],
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Scaffold(
+          primary: false,
+          backgroundColor: AppTheme.scaffoldBackground,
+          appBar: _buildAppBar(context),
+          body: RepaintBoundary(
+            child: Column(
+              children: [
+                Expanded(
+                  child: convAsync.when(
+                    skipLoadingOnReload: true,
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (e, _) => ChatErrorState(
+                      error: e,
+                      title: 'No se pudieron cargar los mensajes',
+                      onRetry: () => ref.invalidate(conversationsProvider),
+                    ),
+                    data: (conversations) {
+                      if (conversations.isEmpty) {
+                        return const _EmptyState();
+                      }
+                      return RefreshIndicator(
+                        color: AppTheme.primary,
+                        onRefresh: () async =>
+                            ref.invalidate(conversationsProvider),
+                        child: ListView.separated(
+                          itemCount: conversations.length,
+                          separatorBuilder: (_, __) => const Divider(
+                            height: 1,
+                            indent: 78,
+                            color: AppTheme.divider,
+                          ),
+                          itemBuilder: (context, index) {
+                            return RepaintBoundary(
+                              child: _ConversationTile(
+                                conversation: conversations[index],
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-          );
-        },
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+        if (_visibleChat != null)
+          SlideTransition(
+            position: _chatSlideAnimation,
+            child: Material(
+              color: AppTheme.scaffoldBackground,
+              child: ChatScreen(
+                professionalId: _visibleChat!.professionalId,
+                professionalName: _visibleChat!.name ?? 'Profesional',
+                professionalPhoto: _visibleChat!.photo,
+                conversationId: _visibleChat!.conversationId,
+                peerUserId: _visibleChat!.peerUserId,
+                viewingAsProfessional: _visibleChat!.viewingAsProfessional,
+              ),
+            ),
+          ),
+      ],
     );
   }
 

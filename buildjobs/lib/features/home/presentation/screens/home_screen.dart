@@ -104,9 +104,7 @@ class HomeScreen extends ConsumerWidget {
                     );
 
                     return CustomScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(
-                        parent: BouncingScrollPhysics(),
-                      ),
+                      physics: GalleryPhotoConstants.mobileOuterScrollPhysics,
                       slivers: [
                         SliverToBoxAdapter(
                           child: _HomeScrollHeader(

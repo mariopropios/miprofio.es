@@ -15,6 +15,7 @@ import '../../../../shared/widgets/premium_button.dart';
 import '../widgets/profile_avatar_picker.dart';
 import '../widgets/register_form_field.dart';
 import '../widgets/register_password_hint.dart';
+import '../../providers/pending_email_verification_provider.dart';
 
 class ClientRegisterScreen extends ConsumerStatefulWidget {
   const ClientRegisterScreen({super.key, this.redirectTo});
@@ -188,6 +189,15 @@ class _ClientRegisterScreenState extends ConsumerState<ClientRegisterScreen> {
 
       if (authResult.needsEmailConfirmation) {
         if (mounted) {
+          ref.read(pendingEmailVerificationProvider.notifier).set(
+                PendingEmailVerification(
+                  userId: authResult.userId!,
+                  email: email,
+                  password: password,
+                  fullName: fullName,
+                  role: 'client',
+                ),
+              );
           context.go(AppRoutes.emailVerificationPath(email));
         }
         return;

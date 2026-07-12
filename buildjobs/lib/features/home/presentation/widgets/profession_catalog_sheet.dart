@@ -14,14 +14,32 @@ class ProfessionCatalogSheet extends StatefulWidget {
     this.multiSelect = false,
     this.selectedProfessions = const {},
     this.onToggleProfession,
+    this.onProfessionSelected,
+    this.city,
+    this.query,
   });
 
   final bool multiSelect;
   final Set<String> selectedProfessions;
   final ValueChanged<String>? onToggleProfession;
+  final void Function(String profession, String categoryId)? onProfessionSelected;
+  final String? city;
+  final String? query;
 
-  static Future<void> show(BuildContext context) {
-    return _present(context, const ProfessionCatalogSheet());
+  static Future<void> show(
+    BuildContext context, {
+    String? city,
+    String? query,
+    void Function(String profession, String categoryId)? onProfessionSelected,
+  }) {
+    return _present(
+      context,
+      ProfessionCatalogSheet(
+        city: city,
+        query: query,
+        onProfessionSelected: onProfessionSelected,
+      ),
+    );
   }
 
   static Future<void> showForMultiSelect(
@@ -145,6 +163,9 @@ class _ProfessionCatalogSheetState extends State<ProfessionCatalogSheet> {
                 multiSelect: widget.multiSelect,
                 selectedProfessions: _selected,
                 onToggleProfession: _handleToggle,
+                onProfessionSelected: widget.onProfessionSelected,
+                city: widget.city,
+                query: widget.query,
               );
             },
           ),
@@ -161,6 +182,9 @@ class _CategoryBlock extends StatelessWidget {
     required this.multiSelect,
     required this.selectedProfessions,
     this.onToggleProfession,
+    this.onProfessionSelected,
+    this.city,
+    this.query,
   });
 
   final String title;
@@ -168,6 +192,32 @@ class _CategoryBlock extends StatelessWidget {
   final bool multiSelect;
   final Set<String> selectedProfessions;
   final ValueChanged<String>? onToggleProfession;
+  final void Function(String profession, String categoryId)? onProfessionSelected;
+  final String? city;
+  final String? query;
+
+  void _selectProfession(BuildContext context, ProfessionItem prof) {
+    if (onProfessionSelected != null) {
+      Navigator.pop(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onProfessionSelected!(prof.name, prof.categoryId);
+      });
+      return;
+    }
+
+    final router = GoRouter.of(context);
+    final params = GoRouterState.of(context).uri.queryParameters;
+    final destination = AppRoutes.searchWith(
+      profession: prof.name,
+      categoryId: prof.categoryId,
+      city: city ?? params['city'],
+      q: query ?? params['q'],
+    );
+    Navigator.pop(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      router.go(destination);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -194,8 +244,7 @@ class _CategoryBlock extends StatelessWidget {
                 if (multiSelect) {
                   onToggleProfession?.call(prof.name);
                 } else {
-                  Navigator.pop(context);
-                  context.go(AppRoutes.searchWith(profession: prof.name));
+                  _selectProfession(context, prof);
                 }
               },
             );

@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/app_theme.dart';
@@ -38,5 +38,20 @@ Page<T> slidePage<T>({
         ),
       );
     },
+  );
+}
+
+/// Chat en el mismo navegador que la lista (transición nativa, sin flash).
+Page<T> chatPage<T>({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return MaterialPage<T>(
+    key: key,
+    fullscreenDialog: false,
+    child: ColoredBox(
+      color: AppTheme.scaffoldBackground,
+      child: child,
+    ),
   );
 }

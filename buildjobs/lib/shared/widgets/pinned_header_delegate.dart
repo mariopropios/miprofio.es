@@ -26,7 +26,9 @@ class PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
   ) {
     return ColoredBox(
       color: AppTheme.scaffoldBackground,
-      child: child,
+      child: ClipRect(
+        child: child,
+      ),
     );
   }
 

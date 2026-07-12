@@ -147,10 +147,60 @@ class AuthRepository {
 
   /// Reenvía el email de confirmación al usuario actual o al email indicado.
   Future<void> resendVerificationEmail(String email) async {
-    await _client.auth.resend(
-      type: OtpType.signup,
-      email: email,
-      emailRedirectTo: kIsWeb ? AuthCallbackService.webEmailRedirectTo() : null,
+    try {
+      await _client.auth.resend(
+        type: OtpType.signup,
+        email: email.trim(),
+        emailRedirectTo: kIsWeb ? AuthCallbackService.webEmailRedirectTo() : null,
+      );
+    } on AuthException catch (e) {
+      throw AuthException(mapVerificationEmailError(e));
+    }
+  }
+
+  /// Corrige el email de una cuenta aún no confirmada (evita registros huérfanos).
+  Future<void> correctUnconfirmedEmail({
+    required String userId,
+    required String oldEmail,
+    required String newEmail,
+  }) async {
+    final response = await _client.functions.invoke(
+      'correct-signup-email',
+      body: {
+        'userId': userId,
+        'oldEmail': oldEmail.trim(),
+        'newEmail': newEmail.trim(),
+      },
     );
+
+    final data = response.data;
+    if (response.status != 200) {
+      final message = data is Map && data['error'] is String
+          ? data['error'] as String
+          : 'No se pudo actualizar el email.';
+      throw AuthException(message);
+    }
+  }
+
+  static String mapVerificationEmailError(AuthException e) {
+    final code = e.code?.toLowerCase() ?? '';
+    final message = e.message.toLowerCase();
+
+    if (code.contains('invalid') ||
+        message.contains('invalid') ||
+        message.contains('unable to validate') ||
+        message.contains('is not a valid')) {
+      return 'El email no parece válido. Revísalo y corrígelo antes de reenviar.';
+    }
+
+    if (message.contains('rate') || message.contains('too many')) {
+      return 'Demasiados intentos. Espera un momento y vuelve a probar.';
+    }
+
+    if (message.contains('not found') || message.contains('user not found')) {
+      return 'No hay ninguna cuenta pendiente con ese email. Regístrate de nuevo.';
+    }
+
+    return 'No se pudo enviar el email. Comprueba que la dirección esté bien escrita.';
   }
 }

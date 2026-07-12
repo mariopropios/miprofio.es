@@ -63,98 +63,118 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
           constraints.maxWidth,
         );
         final viewportHeight = widget.height;
+        final wheelTop =
+            ((viewportHeight - itemExtent) / 2).clamp(0.0, viewportHeight);
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
-              child: SizedBox(
-                height: viewportHeight,
-                child: Stack(
-                  children: [
-                    ListWheelScrollView.useDelegate(
-                      controller: _ctrl,
-                      itemExtent: itemExtent,
-                      physics: const ClampingScrollPhysics(
-                        parent: BouncingScrollPhysics(),
-                      ),
-                      perspective: 0.0012,
-                      squeeze: 0.96,
-                      useMagnifier: false,
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: count,
-                        builder: (context, index) {
-                          final company = widget.companies[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 6),
-                            child: Center(
-                              child: SizedBox(
-                                width: cardWidth,
-                                height: cardHeight,
-                                child: RepaintBoundary(
-                                  child: SavableCompanyCard(
-                                    company: company,
-                                    dense: true,
-                                    highlightProfession:
-                                        widget.highlightProfession,
-                                    onTap: () => context.push(
-                                      AppRoutes.companyDetailPath(company.id),
+              child: LayoutBuilder(
+                builder: (context, laneConstraints) {
+                  final laneWidth = laneConstraints.maxWidth;
+                  final wheelLeft =
+                      ((laneWidth - cardWidth) / 2).clamp(0.0, laneWidth);
+
+                  return SizedBox(
+                    height: viewportHeight,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          left: wheelLeft,
+                          top: wheelTop,
+                          width: cardWidth,
+                          height: itemExtent,
+                          child: ListWheelScrollView.useDelegate(
+                            controller: _ctrl,
+                            itemExtent: itemExtent,
+                            physics: const ClampingScrollPhysics(
+                              parent: BouncingScrollPhysics(),
+                            ),
+                            perspective: 0.0012,
+                            squeeze: 0.96,
+                            useMagnifier: false,
+                            childDelegate: ListWheelChildBuilderDelegate(
+                              childCount: count,
+                              builder: (context, index) {
+                                final company = widget.companies[index];
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 6),
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: cardWidth,
+                                      height: cardHeight,
+                                      child: RepaintBoundary(
+                                        child: SavableCompanyCard(
+                                          company: company,
+                                          dense: true,
+                                          highlightProfession:
+                                              widget.highlightProfession,
+                                          onTap: () => context.push(
+                                            AppRoutes.companyDetailPath(
+                                                company.id),
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+
+                        // Degradado superior (solo sobre la tarjeta)
+                        Positioned(
+                          top: wheelTop,
+                          left: wheelLeft,
+                          width: cardWidth,
+                          height: 48,
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    AppTheme.scaffoldBackground,
+                                    AppTheme.scaffoldBackground
+                                        .withValues(alpha: 0),
+                                  ],
                                 ),
                               ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
+                          ),
+                        ),
 
-                    // Degradado superior
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: 48,
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                AppTheme.scaffoldBackground,
-                                AppTheme.scaffoldBackground.withValues(alpha: 0),
-                              ],
+                        // Degradado inferior (solo sobre la tarjeta)
+                        Positioned(
+                          top: wheelTop + itemExtent - 48,
+                          left: wheelLeft,
+                          width: cardWidth,
+                          height: 48,
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [
+                                    AppTheme.scaffoldBackground,
+                                    AppTheme.scaffoldBackground
+                                        .withValues(alpha: 0),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-
-                    // Degradado inferior
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      height: 48,
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                              colors: [
-                                AppTheme.scaffoldBackground,
-                                AppTheme.scaffoldBackground.withValues(alpha: 0),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
 
@@ -162,8 +182,8 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
               ValueListenableBuilder<double>(
                 valueListenable: _offsetNotifier,
                 builder: (context, offset, _) {
-                  final pos =
-                      (offset / itemExtent).clamp(0.0, (count - 1).toDouble());
+                  final pos = (offset / itemExtent)
+                      .clamp(0.0, (count - 1).toDouble());
                   return Padding(
                     padding: const EdgeInsets.only(right: 16, left: 12),
                     child: SizedBox(

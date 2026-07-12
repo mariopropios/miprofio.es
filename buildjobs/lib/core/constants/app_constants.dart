@@ -1,7 +1,7 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'Profio';
+  static const String appName = 'miProfio.es';
   static const String appTagline =
       'Encuentra y valora profesionales del hogar';
 

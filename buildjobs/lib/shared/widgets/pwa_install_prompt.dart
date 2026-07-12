@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/providers/repository_providers.dart';
 import '../../core/router/app_router.dart';
 import '../../core/services/notification_service.dart';
@@ -194,8 +195,8 @@ abstract final class PwaInstallSheets {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         ),
-        title: const Text(
-          'Cómo añadir Profio a tu inicio',
+        title: Text(
+          'Cómo añadir ${AppConstants.appName} a tu inicio',
           style: TextStyle(
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w700,
@@ -356,10 +357,10 @@ class _InstallPromptDialogState extends State<_InstallPromptDialog> {
       content: SingleChildScrollView(
         child: Text(
           canAutoInstallPwa()
-              ? 'Abre Profio como una app desde el icono de tu pantalla de '
+              ? 'Abre ${AppConstants.appName} como una app desde el icono de tu pantalla de '
                   'inicio. Pulsa «Añadir a inicio» cuando el navegador te lo '
                   'ofrezca.'
-              : 'Abre Profio como una app desde el icono de tu pantalla de '
+              : 'Abre ${AppConstants.appName} como una app desde el icono de tu pantalla de '
                   'inicio. Te explicamos en un paso cómo crear el acceso directo.',
           style: const TextStyle(
             color: AppTheme.textSecondary,

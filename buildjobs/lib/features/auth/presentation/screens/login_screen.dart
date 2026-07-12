@@ -10,6 +10,7 @@ import '../../../../core/router/routes.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../../core/utils/device_form_factor.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../widgets/password_form_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({
@@ -188,18 +189,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           v == null || !v.contains('@') ? 'Email inválido' : null,
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
+                    PasswordFormField(
                       controller: _passwordController,
-                      style: const TextStyle(fontSize: 16),
-                      autofillHints: const [AutofillHints.password],
+                      labelText: 'Contraseña',
                       textInputAction: TextInputAction.done,
-                      decoration: const InputDecoration(
-                        labelText: 'Contraseña',
-                        prefixIcon: Icon(Icons.lock_outline),
-                      ),
-                      obscureText: true,
-                      enableSuggestions: false,
-                      autocorrect: false,
                       onFieldSubmitted: (_) {
                         if (!_isLoading) _login();
                       },

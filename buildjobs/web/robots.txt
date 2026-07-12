@@ -1,4 +1,4 @@
-# Profio — https://miprofio.es
+# miProfio.es — https://miprofio.es
 User-agent: *
 Allow: /
 Allow: /search

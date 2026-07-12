@@ -23,7 +23,6 @@ import '../../features/profile/presentation/screens/public_client_profile_screen
 import '../../features/profile/presentation/screens/saved_professionals_screen.dart';
 import '../../features/profile/presentation/screens/edit_client_profile_screen.dart';
 import '../../features/profile/presentation/screens/edit_professional_profile_screen.dart';
-import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/chat/presentation/screens/conversations_screen.dart';
 import '../../features/reviews/presentation/screens/write_review_screen.dart';
 import '../../features/search/presentation/screens/search_screen.dart';
@@ -36,6 +35,13 @@ import 'slide_page.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
+
+Page<void> _buildMessagesHubPage(GoRouterState state) {
+  return const NoTransitionPage(
+    key: ValueKey<String>('messages-hub'),
+    child: ConversationsScreen(),
+  );
+}
 
 // ── Auth notifier ─────────────────────────────────────────────────────────────
 // ChangeNotifier que avisa a GoRouter cada vez que el auth state cambia,
@@ -130,9 +136,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.conversations,
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: ConversationsScreen(),
-            ),
+            pageBuilder: (context, state) => _buildMessagesHubPage(state),
+            routes: [
+              GoRoute(
+                path: ':professionalId',
+                pageBuilder: (context, state) => const NoTransitionPage(
+                  child: SizedBox.shrink(),
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: AppRoutes.editProfile,
@@ -150,34 +162,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Pantallas a pantalla completa (sin shell) ────────────────────────
-      GoRoute(
-        path: AppRoutes.chat,
-        parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) {
-          final professionalId = state.pathParameters['professionalId']!;
-          final extra = state.extra as Map<String, dynamic>?;
-          final qp = state.uri.queryParameters;
-          String? decodeParam(String? value) =>
-              value == null || value.isEmpty ? null : Uri.decodeComponent(value);
-
-          return slidePage<void>(
-            key: state.pageKey,
-            child: ChatScreen(
-              professionalId: professionalId,
-              professionalName: extra?['name'] as String? ??
-                  decodeParam(qp['name']) ??
-                  'Profesional',
-              professionalPhoto:
-                  extra?['photo'] as String? ?? decodeParam(qp['photo']),
-              conversationId: extra?['conversationId'] as String? ??
-                  qp['conversationId'],
-              peerUserId: extra?['peerUserId'] as String?,
-              viewingAsProfessional:
-                  extra?['viewingAsProfessional'] as bool? ?? false,
-            ),
-          );
-        },
-      ),
       GoRoute(
         path: AppRoutes.userProfile,
         parentNavigatorKey: rootNavigatorKey,

@@ -1,5 +1,5 @@
 name: buildjobs
-description: Profio — reseñas y directorio de profesionales del hogar.
+description: "miProfio.es — reseñas y directorio de profesionales del hogar."
 publish_to: 'none'
 version: 1.0.0+1
 
