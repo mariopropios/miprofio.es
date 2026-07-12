@@ -29,6 +29,10 @@ class SearchAutocompleteField extends ConsumerStatefulWidget {
 
 class SearchAutocompleteFieldState
     extends ConsumerState<SearchAutocompleteField> {
+  static const _visibleSlots = 4;
+  static const _rowHeight = 60.0;
+  static const _maxPanelHeight = _visibleSlots * _rowHeight;
+
   late final TextEditingController _innerCtrl;
   late final FocusNode _focusNode;
   List<SearchSuggestion> _suggestions = [];
@@ -219,17 +223,34 @@ class SearchAutocompleteFieldState
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: _suggestions.asMap().entries.map((entry) {
-                    final i = entry.key;
-                    final s = entry.value;
-                    return _SuggestionTile(
-                      suggestion: s,
-                      isLast: i == _suggestions.length - 1,
-                      onSelect: () => _selectSuggestion(s),
-                    );
-                  }).toList(),
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (notification) =>
+                      _suggestions.length > _visibleSlots,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxHeight: _maxPanelHeight,
+                    ),
+                    child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    physics: _suggestions.length > _visibleSlots
+                        ? const BouncingScrollPhysics()
+                        : const NeverScrollableScrollPhysics(),
+                    itemCount: _suggestions.length,
+                    separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      color: AppTheme.divider,
+                      indent: 40,
+                    ),
+                    itemBuilder: (context, index) {
+                      final s = _suggestions[index];
+                      return _SuggestionTile(
+                        suggestion: s,
+                        onSelect: () => _selectSuggestion(s),
+                      );
+                    },
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -243,12 +264,10 @@ class _SuggestionTile extends StatefulWidget {
   const _SuggestionTile({
     required this.suggestion,
     required this.onSelect,
-    required this.isLast,
   });
 
   final SearchSuggestion suggestion;
   final VoidCallback onSelect;
-  final bool isLast;
 
   @override
   State<_SuggestionTile> createState() => _SuggestionTileState();
@@ -275,72 +294,66 @@ class _SuggestionTileState extends State<_SuggestionTile> {
           color: _hovered
               ? AppTheme.primary.withValues(alpha: 0.08)
               : Colors.transparent,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 11,
-                ),
-                child: Row(
-                  children: [
-                    Icon(icon, size: 16, color: AppTheme.textSecondary),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            s.label,
-                            style: const TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          if (s.subtitle != null &&
-                              s.subtitle!.isNotEmpty &&
-                              !s.isProfession) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              s.subtitle!,
-                              style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        typeLabel,
-                        style: TextStyle(
-                          color: AppTheme.primary.withValues(alpha: 0.95),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 11,
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 16, color: AppTheme.textSecondary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
+                      if (s.subtitle != null &&
+                          s.subtitle!.isNotEmpty &&
+                          !s.isProfession) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          s.subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    typeLabel,
+                    style: TextStyle(
+                      color: AppTheme.primary.withValues(alpha: 0.95),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              if (!widget.isLast)
-                const Divider(
-                  height: 1,
-                  color: AppTheme.divider,
-                  indent: 40,
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

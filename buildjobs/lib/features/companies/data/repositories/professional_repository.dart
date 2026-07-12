@@ -431,7 +431,8 @@ class ProfessionalRepository {
   /// Sugerencias de autocompletado: oficios del catálogo + empresas publicadas.
   Future<List<SearchSuggestion>> searchSuggestions(
     String query, {
-    int limit = 8,
+    int maxProfessions = 15,
+    int maxCompanies = 12,
   }) async {
     final term = query.trim();
     if (term.length < 2) return [];
@@ -439,48 +440,103 @@ class ProfessionalRepository {
     final results = <SearchSuggestion>[];
     final seen = <String>{};
 
-    for (final prof in ProfessionCatalog.matchingProfessions(term, limit: 5)) {
-      final key = 'prof:${prof.name.toLowerCase()}';
-      if (seen.add(key)) {
-        results.add(SearchSuggestion(
-          label: prof.name,
-          kind: SearchSuggestionKind.profession,
-          subtitle: 'Oficio',
-          categoryId: prof.categoryId,
-        ));
-      }
-    }
-
-    for (final name in ProfessionCatalog.relatedProfessionNames(term)) {
-      if (results.length >= limit) break;
-      final key = 'prof:${name.toLowerCase()}';
+    for (final match
+        in ProfessionCatalog.scoredProfessionMatches(term, limit: maxProfessions)) {
+      final key = 'prof:${match.item.name.toLowerCase()}';
       if (!seen.add(key)) continue;
-      final item = ProfessionCatalog.findByName(name);
       results.add(SearchSuggestion(
-        label: name,
+        label: match.item.name,
         kind: SearchSuggestionKind.profession,
         subtitle: 'Oficio',
-        categoryId: item?.categoryId,
+        categoryId: match.item.categoryId,
       ));
     }
 
-    final companyLimit = (limit - results.length).clamp(0, limit);
-    if (companyLimit > 0) {
-      final companies =
-          await _searchCompanyNameSuggestions(term, limit: companyLimit);
-      for (final company in companies) {
-        if (results.length >= limit) break;
-        final key = 'co:${company.name.toLowerCase()}';
-        if (!seen.add(key)) continue;
-        results.add(SearchSuggestion(
-          label: company.name,
-          kind: SearchSuggestionKind.company,
-          subtitle: company.profession,
-        ));
-      }
+    final companies = await _searchCompanyNameSuggestions(
+      term,
+      limit: maxCompanies * 4,
+    );
+    final rankedCompanies = companies
+        .map(
+          (c) => (
+            company: c,
+            score: _scoreCompanySuggestion(term, c.name, c.profession),
+          ),
+        )
+        .where((e) => e.score > 0)
+        .toList()
+      ..sort((a, b) {
+        final byScore = b.score.compareTo(a.score);
+        if (byScore != 0) return byScore;
+        return a.company.name.compareTo(b.company.name);
+      });
+
+    for (final entry in rankedCompanies.take(maxCompanies)) {
+      final key = 'co:${entry.company.name.toLowerCase()}';
+      if (!seen.add(key)) continue;
+      results.add(SearchSuggestion(
+        label: entry.company.name,
+        kind: SearchSuggestionKind.company,
+        subtitle: _matchingProfessionsSubtitle(term, entry.company.profession),
+      ));
     }
 
     return results;
+  }
+
+  int _scoreCompanySuggestion(String query, String name, String profession) {
+    final q = query.toLowerCase().trim();
+    final n = name.toLowerCase();
+    final professions = profession
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    if (n == q) return 100;
+    if (n.startsWith(q)) return 85;
+    if (n.contains(q)) return 70;
+
+    var best = 0;
+    for (final prof in professions) {
+      final words =
+          prof.split(RegExp(r'[\s/()-]+')).where((w) => w.isNotEmpty);
+      if (prof == q) {
+        best = best > 80 ? best : 80;
+      } else if (prof.startsWith(q)) {
+        best = best > 75 ? best : 75;
+      } else if (words.any((w) => w.startsWith(q))) {
+        best = best > 68 ? best : 68;
+      } else if (prof.contains(q)) {
+        best = best > 60 ? best : 60;
+      }
+    }
+
+    if (best > 0) return best;
+    if (profession.toLowerCase().contains(q)) return 45;
+    return 0;
+  }
+
+  String _matchingProfessionsSubtitle(String query, String profession) {
+    final q = query.toLowerCase().trim();
+    final parts = profession
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return profession;
+
+    final matching = parts.where((part) {
+      final lower = part.toLowerCase();
+      final words =
+          lower.split(RegExp(r'[\s/()-]+')).where((w) => w.isNotEmpty);
+      return lower.contains(q) || words.any((w) => w.startsWith(q));
+    }).toList();
+
+    final visible = (matching.isNotEmpty ? matching : parts).take(3).join(', ');
+    final total = matching.isNotEmpty ? matching.length : parts.length;
+    if (total > 3) return '$visible…';
+    return visible;
   }
 
   Future<List<({String name, String profession})>> _searchCompanyNameSuggestions(

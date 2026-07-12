@@ -459,31 +459,80 @@ class ProfessionCatalog {
     String query, {
     int limit = 6,
   }) {
+    return scoredProfessionMatches(query, limit: limit)
+        .map((e) => e.item)
+        .toList();
+  }
+
+  /// Oficios ordenados por relevancia frente a [query].
+  static List<({ProfessionItem item, int score})> scoredProfessionMatches(
+    String query, {
+    int limit = 20,
+  }) {
     final q = query.toLowerCase().trim();
     if (q.length < 2) return [];
 
-    final scored = <({ProfessionItem item, int score})>[];
-    final seen = <String>{};
+    final scores = <String, int>{};
+
+    void bump(ProfessionItem item, int score) {
+      final prev = scores[item.name];
+      if (prev == null || score > prev) scores[item.name] = score;
+    }
+
+    final qWords = q
+        .split(RegExp(r'[\s,;]+'))
+        .where((w) => w.length >= 3)
+        .toList();
 
     for (final p in allProfessions) {
       final name = p.name.toLowerCase();
-      var score = 0;
-      if (name.startsWith(q)) {
-        score = 3;
+      final desc = p.description.toLowerCase();
+      final nameWords =
+          name.split(RegExp(r'[\s/(),-]+')).where((w) => w.isNotEmpty);
+
+      if (name == q) {
+        bump(p, 100);
+      } else if (name.startsWith(q)) {
+        bump(p, 85);
+      } else if (nameWords.any((w) => w.startsWith(q))) {
+        bump(p, 75);
       } else if (name.contains(q)) {
-        score = 2;
-      } else if (p.description.toLowerCase().contains(q)) {
-        score = 1;
-      } else {
-        continue;
+        bump(p, 65);
+      } else if (desc.contains(q)) {
+        bump(p, 35);
       }
-      if (seen.add(p.name)) {
-        scored.add((item: p, score: score));
+
+      for (final word in qWords) {
+        if (name == word) {
+          bump(p, 90);
+        } else if (name.startsWith(word)) {
+          bump(p, 70);
+        } else if (nameWords.any((w) => w.startsWith(word))) {
+          bump(p, 60);
+        } else if (name.contains(word)) {
+          bump(p, 50);
+        } else if (desc.contains(word)) {
+          bump(p, 25);
+        }
       }
     }
 
-    scored.sort((a, b) => b.score.compareTo(a.score));
-    return scored.take(limit).map((e) => e.item).toList();
+    final ranked = scores.entries
+        .map((e) {
+          final item = findByName(e.key);
+          if (item == null) return null;
+          return (item: item, score: e.value);
+        })
+        .whereType<({ProfessionItem item, int score})>()
+        .toList();
+
+    ranked.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      if (byScore != 0) return byScore;
+      return a.item.name.compareTo(b.item.name);
+    });
+
+    return ranked.take(limit).toList();
   }
 
   /// Busca la categoría de un oficio guardado con nombre antiguo.
