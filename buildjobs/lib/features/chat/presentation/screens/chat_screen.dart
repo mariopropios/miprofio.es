@@ -6,12 +6,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/services/chat_attachment_picker.dart';
 import '../../../../core/services/chat_audio_recorder.dart';
 import '../../../../core/services/mic_permission_helper.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -424,13 +423,13 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
   Future<void> _onAttachTap() async {
     if (_sendingImage) return;
 
-    final source = await ChatAttachmentMenu.show(context);
-    if (source == null || !mounted) return;
+    final file = await ChatAttachmentMenu.show(
+      context,
+      onPick: ChatAttachmentPicker.pick,
+    );
+    if (file == null || !mounted) return;
 
     try {
-      final file = await _pickAttachmentFile(source);
-      if (file == null || !mounted) return;
-
       setState(() => _sendingImage = true);
       final bytes = await readXFileBytes(file);
       final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
@@ -458,39 +457,6 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
       }
     } finally {
       if (mounted) setState(() => _sendingImage = false);
-    }
-  }
-
-  Future<XFile?> _pickAttachmentFile(ChatAttachmentSource source) async {
-    final picker = ImagePicker();
-    switch (source) {
-      case ChatAttachmentSource.gallery:
-        return picker.pickImage(
-          source: ImageSource.gallery,
-          imageQuality: 80,
-        );
-      case ChatAttachmentSource.camera:
-        return picker.pickImage(
-          source: ImageSource.camera,
-          imageQuality: 80,
-        );
-      case ChatAttachmentSource.file:
-        final result = await FilePicker.platform.pickFiles(
-          type: FileType.image,
-          withData: true,
-        );
-        if (result == null || result.files.isEmpty) return null;
-        final picked = result.files.first;
-        if (picked.bytes != null && picked.bytes!.isNotEmpty) {
-          return XFile.fromData(
-            picked.bytes!,
-            name: picked.name,
-          );
-        }
-        if (picked.path != null) {
-          return XFile(picked.path!, name: picked.name);
-        }
-        return null;
     }
   }
 

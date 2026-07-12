@@ -1,13 +1,21 @@
+import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 
 enum ChatAttachmentSource { gallery, camera, file }
 
-/// Menú de adjuntos estilo WhatsApp, sin la animación rara del selector nativo.
+typedef ChatAttachmentPickCallback = Future<XFile?> Function(
+  ChatAttachmentSource source,
+);
+
+/// Menú de adjuntos estilo WhatsApp.
 abstract final class ChatAttachmentMenu {
-  static Future<ChatAttachmentSource?> show(BuildContext context) {
+  static Future<XFile?> show(
+    BuildContext context, {
+    required ChatAttachmentPickCallback onPick,
+  }) async {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return showGeneralDialog<ChatAttachmentSource>(
+    final pickFuture = await showGeneralDialog<Future<XFile?>>(
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Cerrar menú de adjuntos',
@@ -41,7 +49,7 @@ abstract final class ChatAttachmentMenu {
                       parent: animation,
                       curve: Curves.easeOutCubic,
                     )),
-                    child: const _MenuCard(),
+                    child: _MenuCard(onPick: onPick),
                   ),
                 ),
               ),
@@ -50,15 +58,26 @@ abstract final class ChatAttachmentMenu {
         );
       },
     );
+
+    if (pickFuture == null) return null;
+    return pickFuture;
   }
 }
 
 class _MenuCard extends StatelessWidget {
-  const _MenuCard();
+  const _MenuCard({required this.onPick});
+
+  final ChatAttachmentPickCallback onPick;
 
   static const _bg = Color(0xFF2A3942);
   static const _text = Color(0xFFE9EDEF);
   static const _icon = Color(0xFF8696A0);
+
+  void _select(BuildContext context, ChatAttachmentSource source) {
+    // Lanzar el selector en el mismo gesto del tap (clave en iOS/Safari).
+    final future = onPick(source);
+    Navigator.pop(context, future);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,22 +104,19 @@ class _MenuCard extends StatelessWidget {
               _MenuItem(
                 icon: Icons.photo_library_outlined,
                 label: 'Fototeca',
-                onTap: () =>
-                    Navigator.pop(context, ChatAttachmentSource.gallery),
+                onTap: () => _select(context, ChatAttachmentSource.gallery),
               ),
               const Divider(height: 1, thickness: 0.5, color: Color(0xFF3B4A54)),
               _MenuItem(
                 icon: Icons.photo_camera_outlined,
                 label: 'Hacer foto',
-                onTap: () =>
-                    Navigator.pop(context, ChatAttachmentSource.camera),
+                onTap: () => _select(context, ChatAttachmentSource.camera),
               ),
               const Divider(height: 1, thickness: 0.5, color: Color(0xFF3B4A54)),
               _MenuItem(
                 icon: Icons.folder_open_outlined,
                 label: 'Seleccionar archivo',
-                onTap: () =>
-                    Navigator.pop(context, ChatAttachmentSource.file),
+                onTap: () => _select(context, ChatAttachmentSource.file),
               ),
             ],
           ),
@@ -123,8 +139,9 @@ class _MenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (_) => onTap(),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: Row(
