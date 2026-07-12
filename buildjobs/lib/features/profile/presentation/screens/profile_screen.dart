@@ -10,6 +10,7 @@ import '../../../../shared/widgets/async_value_widget.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../companies/presentation/widgets/professional_public_profile_body.dart';
 import '../../../saved/providers/saved_professional_providers.dart';
+import '../../../../shared/widgets/pwa_install_prompt.dart';
 import '../widgets/email_verified_welcome_listener.dart';
 import '../widgets/saved_professionals_section.dart';
 
@@ -43,10 +44,12 @@ class _LoggedInProfile extends ConsumerWidget {
 
     return viewAsync.when(
       loading: () => const Scaffold(
+        primary: false,
         appBar: _ProfileAppBar(),
         body: Center(child: CircularProgressIndicator()),
       ),
       error: (e, _) => Scaffold(
+        primary: false,
         appBar: _ProfileAppBar(userId: userId),
         body: Center(
           child: Padding(
@@ -89,6 +92,7 @@ class _LoggedInProfile extends ConsumerWidget {
           final bottomInset =
               MediaQuery.paddingOf(context).bottom + kBottomNavigationBarHeight;
           return Scaffold(
+            primary: false,
             appBar: _ProfileAppBar(userId: userId, isProfessional: true),
             body: ProfessionalPublicProfileBody(
               companyId: view.professionalId,
@@ -110,6 +114,7 @@ class _LoggedOutProfile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      primary: false,
       appBar: AppBar(title: const Text('Mi perfil')),
       body: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -186,6 +191,7 @@ class _ProfileAppBar extends ConsumerWidget implements PreferredSizeWidget {
       title: Text(isProfessional ? 'Mi perfil público' : 'Mi perfil'),
       actions: [
         if (userId != null) ...[
+          const PwaInstallAppBarAction(),
           IconButton(
             tooltip: 'Editar perfil',
             icon: const Icon(Icons.edit_outlined),
@@ -223,6 +229,7 @@ class _IncompleteProfessionalProfile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
+      primary: false,
       appBar: _ProfileAppBar(userId: userId, isProfessional: true),
       body: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -283,6 +290,7 @@ class _ClientProfileView extends ConsumerWidget {
     final profileAsync = ref.watch(currentProfileProvider);
 
     return Scaffold(
+      primary: false,
       appBar: _ProfileAppBar(userId: userId),
       body: AsyncValueWidget<UserProfile?>(
         value: profileAsync,

@@ -1,7 +1,8 @@
 {
   "name": "Profio — Profesionales del hogar",
   "short_name": "Profio",
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#12161A",
   "theme_color": "#00B27A",
@@ -9,7 +10,14 @@
   "lang": "es",
   "orientation": "portrait-primary",
   "prefer_related_applications": false,
+  "gcm_sender_id": "943466556049",
   "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "favicon.png",
       "sizes": "512x512",

@@ -13,6 +13,7 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/services/chat_attachment_picker.dart';
 import '../../../../core/services/chat_audio_recorder.dart';
 import '../../../../core/services/mic_permission_helper.dart';
+import '../../../../core/services/push_notification_clear.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/message.dart';
 import '../../data/chat_repository.dart';
@@ -61,21 +62,31 @@ class _ChatState {
     this.messages = const [],
     this.isLoading = true,
     this.error,
+    this.unreadDividerMessageId,
+    this.unreadCountAtOpen = 0,
   });
 
   final List<ChatMessage> messages;
   final bool isLoading;
   final String? error;
+  /// Primer mensaje no leído al abrir el chat (se mantiene toda la sesión).
+  final String? unreadDividerMessageId;
+  final int unreadCountAtOpen;
 
   _ChatState copyWith({
     List<ChatMessage>? messages,
     bool? isLoading,
     String? error,
+    String? unreadDividerMessageId,
+    int? unreadCountAtOpen,
   }) =>
       _ChatState(
         messages: messages ?? this.messages,
         isLoading: isLoading ?? this.isLoading,
         error: error,
+        unreadDividerMessageId:
+            unreadDividerMessageId ?? this.unreadDividerMessageId,
+        unreadCountAtOpen: unreadCountAtOpen ?? this.unreadCountAtOpen,
       );
 }
 
@@ -100,14 +111,41 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
   Future<void> _load() async {
     try {
       final msgs = await repo.getMessages(conversationId);
-      if (mounted) {
-        state = state.copyWith(messages: msgs, isLoading: false);
+
+      String? dividerId;
+      var unreadCount = 0;
+      for (final m in msgs) {
+        if (m.senderId != currentUserId && !m.isRead) {
+          dividerId ??= m.id;
+          unreadCount++;
+        }
       }
+
+      if (mounted) {
+        state = state.copyWith(
+          messages: msgs,
+          isLoading: false,
+          unreadDividerMessageId: dividerId,
+          unreadCountAtOpen: unreadCount,
+        );
+      }
+
+      await markAsRead();
     } catch (e) {
       if (mounted) {
         state = state.copyWith(isLoading: false, error: e.toString());
       }
     }
+  }
+
+  void _applyMessageUpdate(Map<String, dynamic> record) {
+    final updated = ChatMessage.fromJson(record);
+    final existing = state.messages;
+    final idx = existing.indexWhere((m) => m.id == updated.id);
+    if (idx < 0) return;
+    final newList = [...existing];
+    newList[idx] = updated;
+    state = state.copyWith(messages: newList);
   }
 
   void _subscribeRealtime() {
@@ -149,6 +187,22 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
             } catch (_) {}
           },
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'messages',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'conversation_id',
+            value: conversationId,
+          ),
+          callback: (payload) {
+            if (!mounted) return;
+            try {
+              _applyMessageUpdate(payload.newRecord);
+            } catch (_) {}
+          },
+        )
         .subscribe();
   }
 
@@ -185,8 +239,41 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
   }
 
   Future<void> markAsRead() async {
-    await repo.markAsRead(conversationId);
     onMessagesRead?.call();
+    await clearGroupedChatNotifications(conversationId);
+    await repo.markAsRead(conversationId);
+  }
+
+  /// Recarga mensajes y recalcula no leídos cada vez que se abre el chat.
+  Future<void> prepareForOpen() async {
+    try {
+      final msgs = await repo.getMessages(conversationId);
+
+      String? dividerId;
+      var unreadCount = 0;
+      for (final m in msgs) {
+        if (m.senderId != currentUserId && !m.isRead) {
+          dividerId ??= m.id;
+          unreadCount++;
+        }
+      }
+
+      if (mounted) {
+        state = state.copyWith(
+          messages: msgs,
+          isLoading: false,
+          error: null,
+          unreadDividerMessageId: dividerId,
+          unreadCountAtOpen: unreadCount,
+        );
+      }
+
+      await markAsRead();
+    } catch (e) {
+      if (mounted) {
+        state = state.copyWith(isLoading: false, error: e.toString());
+      }
+    }
   }
 
   @override
@@ -220,17 +307,27 @@ class ChatScreen extends ConsumerWidget {
     required this.professionalName,
     this.professionalPhoto,
     this.conversationId,
+    this.peerUserId,
+    this.viewingAsProfessional = false,
   });
 
   final String professionalId;
   final String professionalName;
   final String? professionalPhoto;
   final String? conversationId;
+  /// Id del cliente cuando el profesional abre el chat desde Mensajes.
+  final String? peerUserId;
+  final bool viewingAsProfessional;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    void openProfile() =>
-        context.push(AppRoutes.companyDetailPath(professionalId));
+    void openProfile() {
+      if (viewingAsProfessional && peerUserId != null) {
+        context.push(AppRoutes.userProfilePath(peerUserId!));
+        return;
+      }
+      context.push(AppRoutes.companyDetailPath(professionalId));
+    }
 
     final appBar = _ChatAppBar(
       name: professionalName,
@@ -240,6 +337,8 @@ class ChatScreen extends ConsumerWidget {
 
     if (conversationId != null) {
       return Scaffold(
+        resizeToAvoidBottomInset: true,
+        backgroundColor: AppTheme.scaffoldBackground,
         appBar: appBar,
         body: _ChatBody(conversationId: conversationId!),
       );
@@ -247,6 +346,8 @@ class ChatScreen extends ConsumerWidget {
 
     final convAsync = ref.watch(_conversationIdProvider(professionalId));
     return Scaffold(
+      resizeToAvoidBottomInset: true,
+      backgroundColor: AppTheme.scaffoldBackground,
       appBar: appBar,
       body: convAsync.when(
         loading: () =>
@@ -345,10 +446,12 @@ class _ChatBody extends ConsumerStatefulWidget {
   ConsumerState<_ChatBody> createState() => _ChatBodyState();
 }
 
-class _ChatBodyState extends ConsumerState<_ChatBody> {
+class _ChatBodyState extends ConsumerState<_ChatBody>
+    with WidgetsBindingObserver {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
+  final _unreadAnchorKey = GlobalKey();
   final _audioRecorder = ChatAudioRecorder();
   bool _hasText = false;
   bool _showEmojiPanel = false;
@@ -357,18 +460,117 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
   bool _sendingAudio = false;
   int _recordingSeconds = 0;
   Timer? _recordingTimer;
+  bool _didInitialScroll = false;
+  bool _isFirstActivation = true;
+  int _openScrollGeneration = 0;
+  double _lastViewInsetBottom = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller.addListener(() {
       final hasText = _controller.text.trim().isNotEmpty;
       if (hasText != _hasText) setState(() => _hasText = hasText);
     });
+    _focusNode.addListener(_onFocusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToBottom();
       _markConversationRead();
+      _onChatOpened();
     });
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    if (_isFirstActivation) {
+      _isFirstActivation = false;
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onChatOpened());
+  }
+
+  Future<void> _onChatOpened() async {
+    _openScrollGeneration++;
+    final generation = _openScrollGeneration;
+    _didInitialScroll = false;
+
+    await clearGroupedChatNotifications(widget.conversationId);
+
+    await ref
+        .read(_chatNotifierProvider(widget.conversationId).notifier)
+        .prepareForOpen();
+
+    if (!mounted || generation != _openScrollGeneration) return;
+    _requestOpenScroll();
+  }
+
+  void _onFocusChanged() {
+    if (_focusNode.hasFocus) {
+      if (_showEmojiPanel) setState(() => _showEmojiPanel = false);
+      _scheduleScrollToBottom();
+    }
+  }
+
+  void _scheduleScrollToBottom() {
+    _scrollToBottom();
+    Future.delayed(const Duration(milliseconds: 120), () {
+      if (mounted) _scrollToBottom();
+    });
+    Future.delayed(const Duration(milliseconds: 320), () {
+      if (mounted) _scrollToBottom();
+    });
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (!mounted) return;
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    if (inset != _lastViewInsetBottom) {
+      _lastViewInsetBottom = inset;
+      if (inset > 0 || _focusNode.hasFocus || _showEmojiPanel) {
+        _scheduleScrollToBottom();
+      }
+    }
+  }
+
+  void _requestOpenScroll() {
+    _attemptOpenScroll(0);
+  }
+
+  void _attemptOpenScroll(int attempt) {
+    if (!mounted || _didInitialScroll || attempt > 8) return;
+
+    final state = ref.read(_chatNotifierProvider(widget.conversationId));
+    if (state.isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _attemptOpenScroll(attempt + 1);
+      });
+      return;
+    }
+
+    if (state.messages.isEmpty) {
+      _didInitialScroll = true;
+      return;
+    }
+
+    if (!_scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _attemptOpenScroll(attempt + 1);
+      });
+      return;
+    }
+
+    _didInitialScroll = true;
+    _scrollToInitialPosition(state);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _markConversationRead();
+    }
   }
 
   Future<void> _markConversationRead() async {
@@ -379,30 +581,83 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _focusNode.removeListener(_onFocusChanged);
     _recordingTimer?.cancel();
     _audioRecorder.dispose();
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    clearGroupedChatNotifications(widget.conversationId);
     super.dispose();
   }
 
   void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+    _scrollToMaxExtent(animated: true);
+  }
+
+  void _scrollToMaxExtent({required bool animated}) {
+    void apply() {
+      if (!_scrollController.hasClients) return;
+      const target = 0.0;
+      if (animated) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+          target,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
+      } else {
+        _scrollController.jumpTo(target);
       }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        apply();
+        WidgetsBinding.instance.addPostFrameCallback((_) => apply());
+      });
+    });
+  }
+
+  void _scrollToInitialPosition(_ChatState chatState) {
+    final hasUnread = chatState.unreadDividerMessageId != null &&
+        chatState.unreadCountAtOpen > 0;
+
+    if (hasUnread) {
+      _scrollToUnreadAnchor();
+      return;
+    }
+    _scrollToMaxExtent(animated: false);
+  }
+
+  void _scrollToUnreadAnchor() {
+    void apply() {
+      final anchorContext = _unreadAnchorKey.currentContext;
+      if (anchorContext != null) {
+        Scrollable.ensureVisible(
+          anchorContext,
+          alignment: 0.05,
+          duration: Duration.zero,
+        );
+        return;
+      }
+      _scrollToMaxExtent(animated: false);
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        apply();
+        WidgetsBinding.instance.addPostFrameCallback((_) => apply());
+      });
     });
   }
 
   void _toggleEmojiPanel() {
-    setState(() => _showEmojiPanel = !_showEmojiPanel);
-    if (_showEmojiPanel) {
+    final next = !_showEmojiPanel;
+    setState(() => _showEmojiPanel = next);
+    if (next) {
       _focusNode.unfocus();
+      _scheduleScrollToBottom();
     } else {
       _focusNode.requestFocus();
     }
@@ -432,6 +687,14 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
     try {
       setState(() => _sendingImage = true);
       final bytes = await readXFileBytes(file);
+      if (bytes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo leer la imagen seleccionada')),
+          );
+        }
+        return;
+      }
       final ext = file.name.contains('.') ? file.name.split('.').last : 'jpg';
       final fileName = '${DateTime.now().millisecondsSinceEpoch}.$ext';
 
@@ -464,10 +727,15 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
     if (await _audioRecorder.hasPermission(request: false)) return true;
     if (!mounted) return false;
 
+    // Android/iOS web: pedir en el gesto del tap del micrófono.
+    var granted = await _audioRecorder.requestPermission();
+    if (granted) return true;
+    if (!mounted) return false;
+
     final proceed = await MicPermissionHelper.showPermissionRationale(context);
     if (!proceed || !mounted) return false;
 
-    final granted = await _audioRecorder.requestPermission();
+    granted = await _audioRecorder.requestPermission();
     if (!granted && mounted) {
       await MicPermissionHelper.showBlockedGuide(context);
     }
@@ -580,10 +848,12 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
         ref.read(supabaseClientProvider).auth.currentUser?.id ?? '';
 
     ref.listen(_chatNotifierProvider(widget.conversationId), (prev, next) {
-      if (prev?.isLoading == true && !next.isLoading) {
-        _scrollToBottom();
+      if (!_didInitialScroll && !next.isLoading && next.messages.isNotEmpty) {
+        _didInitialScroll = true;
+        _scrollToInitialPosition(next);
       }
-      if ((prev?.messages.length ?? 0) < next.messages.length) {
+      if (_didInitialScroll &&
+          (prev?.messages.length ?? 0) < next.messages.length) {
         _scrollToBottom();
       }
     });
@@ -669,28 +939,37 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
       color: const Color(0xFF0D1418),
       child: ListView.builder(
         controller: _scrollController,
+        reverse: true,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         itemCount: chatState.messages.length,
         itemBuilder: (context, index) {
-          final msg = chatState.messages[index];
+          final reverseIndex = chatState.messages.length - 1 - index;
+          final msg = chatState.messages[reverseIndex];
           final isMe = msg.senderId == currentUserId;
           final isPending = msg.id.startsWith('temp-');
 
-          final showDate = index == 0 ||
+          final showUnreadDivider =
+              chatState.unreadDividerMessageId == msg.id &&
+                  chatState.unreadCountAtOpen > 0;
+
+          final showDate = reverseIndex == 0 ||
               !_sameDay(
-                chatState.messages[index - 1].createdAt,
+                chatState.messages[reverseIndex - 1].createdAt,
                 msg.createdAt,
               );
 
-          // Agrupar burbujas consecutivas del mismo remitente
-          final isFirst = index == 0 ||
-              chatState.messages[index - 1].senderId != msg.senderId;
-          final isLast = index == chatState.messages.length - 1 ||
-              chatState.messages[index + 1].senderId != msg.senderId;
+          final isFirst = reverseIndex == 0 ||
+              chatState.messages[reverseIndex - 1].senderId != msg.senderId;
+          final isLast = reverseIndex == chatState.messages.length - 1 ||
+              chatState.messages[reverseIndex + 1].senderId != msg.senderId;
 
           return Column(
+            key: showUnreadDivider ? _unreadAnchorKey : null,
             children: [
               if (showDate) _DateChip(date: msg.createdAt),
+              if (showUnreadDivider)
+                _UnreadDivider(count: chatState.unreadCountAtOpen),
               _MessageBubble(
                 message: msg,
                 isMe: isMe,
@@ -840,7 +1119,7 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-// ── Icono de ticks (doble azul = leído, doble gris = entregado, reloj = enviando)
+// ── Icono de ticks (estilo WhatsApp: 1 gris = enviado, 2 azul = leído)
 
 class _TickIcon extends StatelessWidget {
   const _TickIcon({required this.isPending, required this.isRead});
@@ -851,24 +1130,25 @@ class _TickIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isPending) {
-      return SizedBox(
-        width: 12,
-        height: 12,
-        child: CircularProgressIndicator(
-          strokeWidth: 1.5,
-          color: Colors.white.withValues(alpha: 0.5),
-        ),
+      return Icon(
+        Icons.access_time_rounded,
+        size: 14,
+        color: Colors.white.withValues(alpha: 0.5),
       );
     }
-    // Doble tick azul = leído, doble tick gris = entregado
-    final color = isRead
-        ? const Color(0xFF53BDEB) // azul WhatsApp
-        : Colors.white.withValues(alpha: 0.55);
+
+    if (isRead) {
+      return const Icon(
+        Icons.done_all_rounded,
+        size: 15,
+        color: Color(0xFF53BDEB),
+      );
+    }
 
     return Icon(
-      isRead ? Icons.done_all_rounded : Icons.done_all_rounded,
+      Icons.done_rounded,
       size: 15,
-      color: color,
+      color: Colors.white.withValues(alpha: 0.55),
     );
   }
 }
@@ -888,42 +1168,141 @@ class _ImageContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: radius,
-      child: Stack(
-        children: [
-          CachedNetworkImage(
+    return GestureDetector(
+      onTap: () => _openChatImage(context, url),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Stack(
+          children: [
+            CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.cover,
+              width: 220,
+              placeholder: (_, __) => const SizedBox(
+                width: 220,
+                height: 160,
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+              errorWidget: (_, __, ___) => const SizedBox(
+                width: 220,
+                height: 120,
+                child: Center(
+                  child: Icon(Icons.broken_image_outlined,
+                      color: Colors.white54, size: 40),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 6,
+              right: 8,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black45,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: timestamp,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void _openChatImage(BuildContext context, String url) {
+  Navigator.of(context, rootNavigator: true).push(
+    PageRouteBuilder(
+      opaque: false,
+      barrierColor: Colors.black87,
+      pageBuilder: (_, __, ___) => _ChatImageViewer(url: url),
+      transitionsBuilder: (_, animation, __, child) {
+        return FadeTransition(opacity: animation, child: child);
+      },
+    ),
+  );
+}
+
+class _ChatImageViewer extends StatelessWidget {
+  const _ChatImageViewer({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.black54,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 5,
+          child: CachedNetworkImage(
             imageUrl: url,
-            fit: BoxFit.cover,
-            width: 220,
-            placeholder: (_, __) => const SizedBox(
-              width: 220,
-              height: 160,
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            fit: BoxFit.contain,
+            placeholder: (_, __) => const CircularProgressIndicator(
+              color: Colors.white54,
+              strokeWidth: 2,
             ),
-            errorWidget: (_, __, ___) => const SizedBox(
-              width: 220,
-              height: 120,
-              child: Center(
-                child: Icon(Icons.broken_image_outlined,
-                    color: Colors.white54, size: 40),
-              ),
+            errorWidget: (_, __, ___) => const Icon(
+              Icons.broken_image_outlined,
+              color: Colors.white54,
+              size: 64,
             ),
           ),
-          Positioned(
-            bottom: 6,
-            right: 8,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.black45,
-                borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+    );
+  }
+}
+
+class _UnreadDivider extends StatelessWidget {
+  const _UnreadDivider({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count == 1
+        ? '1 mensaje no leído'
+        : '$count mensajes no leídos';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF182229),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
-              child: timestamp,
+            ],
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF00BFA5),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
             ),
           ),
-        ],
+        ),
       ),
     );
   }

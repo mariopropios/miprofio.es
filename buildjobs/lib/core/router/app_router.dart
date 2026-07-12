@@ -30,10 +30,11 @@ import '../../features/search/presentation/screens/search_screen.dart';
 import '../../features/shell/presentation/screens/main_shell.dart';
 import '../providers/repository_providers.dart';
 import 'routes.dart';
+import 'slide_page.dart';
 
 // ── Navigator keys ─────────────────────────────────────────────────────────────
 
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 // ── Auth notifier ─────────────────────────────────────────────────────────────
@@ -67,7 +68,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   ref.onDispose(authNotifier.dispose);
 
   final router = GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     // La app siempre arranca en Home (pública).
     // Si hay sesión activa, el usuario simplemente verá su estado de logueado.
     // Si no hay sesión, la Home funciona igual de forma anónima.
@@ -89,7 +90,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (!isAuthenticated && _requiresAuth(path)) {
-        return AppRoutes.loginWithRedirect(path);
+        final redirect = state.uri.hasQuery
+            ? '${state.uri.path}?${state.uri.query}'
+            : path;
+        return AppRoutes.loginWithRedirect(redirect);
       }
 
       return null;
@@ -134,7 +138,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: AppRoutes.editProfile,
             pageBuilder: (context, state) {
               final kind = state.uri.queryParameters['kind'];
-              return NoTransitionPage(
+              return slidePage<void>(
+                key: state.pageKey,
                 child: kind == 'professional'
                     ? const EditProfessionalProfileScreen()
                     : const EditClientProfileScreen(),
@@ -147,110 +152,164 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ── Pantallas a pantalla completa (sin shell) ────────────────────────
       GoRoute(
         path: AppRoutes.chat,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) {
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) {
           final professionalId = state.pathParameters['professionalId']!;
           final extra = state.extra as Map<String, dynamic>?;
-          return ChatScreen(
-            professionalId: professionalId,
-            professionalName: extra?['name'] as String? ?? 'Profesional',
-            professionalPhoto: extra?['photo'] as String?,
-            conversationId: extra?['conversationId'] as String?,
+          final qp = state.uri.queryParameters;
+          String? decodeParam(String? value) =>
+              value == null || value.isEmpty ? null : Uri.decodeComponent(value);
+
+          return slidePage<void>(
+            key: state.pageKey,
+            child: ChatScreen(
+              professionalId: professionalId,
+              professionalName: extra?['name'] as String? ??
+                  decodeParam(qp['name']) ??
+                  'Profesional',
+              professionalPhoto:
+                  extra?['photo'] as String? ?? decodeParam(qp['photo']),
+              conversationId: extra?['conversationId'] as String? ??
+                  qp['conversationId'],
+              peerUserId: extra?['peerUserId'] as String?,
+              viewingAsProfessional:
+                  extra?['viewingAsProfessional'] as bool? ?? false,
+            ),
           );
         },
       ),
       GoRoute(
         path: AppRoutes.userProfile,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) {
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) {
           final userId = state.pathParameters['userId']!;
-          return PublicClientProfileScreen(userId: userId);
+          return slidePage<void>(
+            key: state.pageKey,
+            child: PublicClientProfileScreen(userId: userId),
+          );
         },
       ),
       GoRoute(
         path: AppRoutes.savedProfessionals,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const SavedProfessionalsScreen(),
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => slidePage<void>(
+          key: state.pageKey,
+          child: const SavedProfessionalsScreen(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.companyDetail,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) {
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) {
           final id = state.pathParameters['id']!;
-          return CompanyDetailScreen(companyId: id);
+          return slidePage<void>(
+            key: state.pageKey,
+            child: CompanyDetailScreen(companyId: id),
+          );
         },
       ),
       GoRoute(
         path: AppRoutes.writeReview,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) {
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) {
           final id = state.pathParameters['id']!;
-          return WriteReviewScreen(companyId: id);
+          return slidePage<void>(
+            key: state.pageKey,
+            child: WriteReviewScreen(companyId: id),
+          );
         },
       ),
       GoRoute(
         path: AppRoutes.login,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => LoginScreen(
-          redirectTo: state.uri.queryParameters['redirect'],
-          initialEmail: state.uri.queryParameters['email'],
-          existingAccountNotice:
-              state.uri.queryParameters['existing'] == '1',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => slidePage<void>(
+          key: state.pageKey,
+          child: LoginScreen(
+            redirectTo: state.uri.queryParameters['redirect'],
+            initialEmail: state.uri.queryParameters['email'],
+            existingAccountNotice:
+                state.uri.queryParameters['existing'] == '1',
+          ),
         ),
         routes: [
           GoRoute(
             path: 'forgot-password',
-            builder: (context, state) => ForgotPasswordScreen(
-              initialEmail: state.uri.queryParameters['email'],
-              redirectTo: state.uri.queryParameters['redirect'],
+            parentNavigatorKey: rootNavigatorKey,
+            pageBuilder: (context, state) => slidePage<void>(
+              key: state.pageKey,
+              child: ForgotPasswordScreen(
+                initialEmail: state.uri.queryParameters['email'],
+                redirectTo: state.uri.queryParameters['redirect'],
+              ),
             ),
           ),
           GoRoute(
             path: 'reset-password',
-            builder: (context, state) => ResetPasswordScreen(
-              redirectTo: state.uri.queryParameters['redirect'],
+            parentNavigatorKey: rootNavigatorKey,
+            pageBuilder: (context, state) => slidePage<void>(
+              key: state.pageKey,
+              child: ResetPasswordScreen(
+                redirectTo: state.uri.queryParameters['redirect'],
+              ),
             ),
           ),
         ],
       ),
       GoRoute(
         path: AppRoutes.emailVerification,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) {
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) {
           final email = state.uri.queryParameters['email'] ?? '';
-          return EmailVerificationScreen(email: email);
+          return slidePage<void>(
+            key: state.pageKey,
+            child: EmailVerificationScreen(email: email),
+          );
         },
       ),
       GoRoute(
         path: AppRoutes.register,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => RegisterScreen(
-          redirectTo: state.uri.queryParameters['redirect'],
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => slidePage<void>(
+          key: state.pageKey,
+          child: RegisterScreen(
+            redirectTo: state.uri.queryParameters['redirect'],
+          ),
         ),
         routes: [
           GoRoute(
             path: 'client',
-            builder: (context, state) => ClientRegisterScreen(
-              redirectTo: state.uri.queryParameters['redirect'],
+            parentNavigatorKey: rootNavigatorKey,
+            pageBuilder: (context, state) => slidePage<void>(
+              key: state.pageKey,
+              child: ClientRegisterScreen(
+                redirectTo: state.uri.queryParameters['redirect'],
+              ),
             ),
           ),
           GoRoute(
             path: 'professional',
-            builder: (context, state) => ProfessionalRegisterScreen(
-              redirectTo: state.uri.queryParameters['redirect'],
+            parentNavigatorKey: rootNavigatorKey,
+            pageBuilder: (context, state) => slidePage<void>(
+              key: state.pageKey,
+              child: ProfessionalRegisterScreen(
+                redirectTo: state.uri.queryParameters['redirect'],
+              ),
             ),
             routes: [
               GoRoute(
                 path: 'success',
-                builder: (context, state) {
+                parentNavigatorKey: rootNavigatorKey,
+                pageBuilder: (context, state) {
                   final preview =
                       state.extra as RegisteredProfessionalPreview?;
-                  if (preview == null) {
-                    return const Scaffold(
-                      body: Center(child: Text('Perfil no encontrado')),
-                    );
-                  }
-                  return ProfessionalRegisterSuccessScreen(preview: preview);
+                  return slidePage<void>(
+                    key: state.pageKey,
+                    child: preview == null
+                        ? const Scaffold(
+                            body: Center(child: Text('Perfil no encontrado')),
+                          )
+                        : ProfessionalRegisterSuccessScreen(preview: preview),
+                  );
                 },
               ),
             ],
@@ -259,6 +318,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  NotificationService.attachRouter(router);
 
   // ── Listener global de Auth ───────────────────────────────────────────────
   // Reacciona a eventos de sesión para limpiar estado y navegar.

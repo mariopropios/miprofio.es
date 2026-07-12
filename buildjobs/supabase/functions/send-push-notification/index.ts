@@ -3,7 +3,7 @@
 //
 // Secret en Supabase → Edge Functions → Secrets:
 //   FCM_SERVICE_ACCOUNT = JSON completo de la cuenta de servicio de Firebase
-//     (Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada)
+//   SITE_URL (opcional) = https://miprofio.es
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { create, getNumericDate } from 'https://deno.land/x/djwt@v2.8/mod.ts';
@@ -52,16 +52,17 @@ serve(async (req: Request) => {
       return jsonResponse({ error: 'conversation not found' }, 404);
     }
 
+    const professionalId = conv.professional_id as string;
     let recipientUserId: string;
 
     if (sender_id === conv.user_id) {
       const { data: prof } = await supabase
         .from('professionals')
         .select('owner_id')
-        .eq('id', conv.professional_id)
+        .eq('id', professionalId)
         .maybeSingle();
 
-      recipientUserId = prof?.owner_id ?? conv.professional_id;
+      recipientUserId = prof?.owner_id ?? professionalId;
     } else {
       recipientUserId = conv.user_id;
     }
@@ -89,8 +90,7 @@ serve(async (req: Request) => {
     const serviceAccount: ServiceAccount = JSON.parse(serviceAccountJson);
     const accessToken = await getFcmAccessToken(serviceAccount);
 
-    const truncatedBody =
-      body.length > 100 ? `${body.substring(0, 97)}...` : body;
+    const notificationBody = formatNotificationBody(body);
 
     const fcmResponse = await fetch(
       `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`,
@@ -103,18 +103,17 @@ serve(async (req: Request) => {
         body: JSON.stringify({
           message: {
             token: fcmToken,
-            notification: {
-              title: sender_name,
-              body: truncatedBody,
-            },
             data: {
               conversation_id,
+              professional_id: professionalId,
               sender_id,
+              sender_name,
+              body: notificationBody,
+              timestamp: String(Date.now()),
             },
+            // Solo data: el SW agrupa mensajes en una notificación (estilo WhatsApp).
             webpush: {
-              notification: {
-                icon: '/favicon.png',
-              },
+              headers: { Urgency: 'high' },
             },
           },
         }),
@@ -148,6 +147,12 @@ serve(async (req: Request) => {
     return jsonResponse({ error: String(err) }, 500);
   }
 });
+
+function formatNotificationBody(body: string): string {
+  if (body.startsWith('[image]')) return 'Imagen';
+  if (body.startsWith('[audio]')) return 'Audio';
+  return body.length > 100 ? `${body.substring(0, 97)}...` : body;
+}
 
 async function getFcmAccessToken(sa: ServiceAccount): Promise<string> {
   const pemKey = sa.private_key.replace(/\\n/g, '\n');

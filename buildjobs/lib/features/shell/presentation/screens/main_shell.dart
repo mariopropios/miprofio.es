@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/services/push_notification_clear.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../chat/presentation/providers/chat_providers.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
@@ -21,6 +22,10 @@ class MainShell extends ConsumerWidget {
     final location = GoRouterState.of(context).uri.toString();
     final selectedIndex = _indexForLocation(location);
     final unreadCount = ref.watch(totalUnreadMessagesProvider);
+
+    ref.listen<int>(totalUnreadMessagesProvider, (prev, next) {
+      updatePushBadgeCount(next);
+    });
 
     return ResponsiveLayout(
       mobile: _MobileShell(
@@ -124,6 +129,7 @@ class _DesktopShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.scaffoldBackground,
       body: Row(
         children: [
           WebTapGuard(

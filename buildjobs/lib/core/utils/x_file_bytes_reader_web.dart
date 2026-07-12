@@ -7,19 +7,14 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
 Future<Uint8List> readXFileBytesImpl(XFile file) async {
-  final path = file.path;
-
-  if (path.startsWith('blob:') || path.startsWith('data:')) {
-    return _uriToBytes(path);
-  }
-
   try {
     final bytes = await file.readAsBytes().timeout(const Duration(seconds: 15));
     if (bytes.isNotEmpty) return bytes;
   } catch (_) {
-    // Fallback below for blob URLs.
+    // Fallback para blob URLs en web móvil.
   }
 
+  final path = file.path;
   if (path.startsWith('blob:') || path.startsWith('data:')) {
     return _uriToBytes(path);
   }

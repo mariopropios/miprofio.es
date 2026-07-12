@@ -4,15 +4,49 @@
   <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Permissions-Policy" content="geolocation=(self)">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Permissions-Policy" content="geolocation=(self), microphone=(self), camera=(self)">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <script>
-    if ('serviceWorker' in navigator) {
+    // Capturar beforeinstallprompt lo antes posible (antes de que cargue Flutter).
+    window.__deferredPwaPrompt = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.__deferredPwaPrompt = e;
+      window.dispatchEvent(new Event('pwa-install-available'));
+    });
+    window.addEventListener('appinstalled', function () {
+      window.__deferredPwaPrompt = null;
+      window.dispatchEvent(new Event('pwa-install-available'));
+    });
+  </script>
+  <script>
+    (function () {
+      if (!('serviceWorker' in navigator)) return;
+
+      function isFirebaseMessagingSw(url) {
+        return url && url.indexOf('firebase-messaging-sw.js') !== -1;
+      }
+
+      // Solo eliminar el SW de caché de Flutter; conservar Firebase Messaging.
       navigator.serviceWorker.getRegistrations().then(function (regs) {
-        regs.forEach(function (reg) { reg.unregister(); });
+        regs.forEach(function (reg) {
+          var scriptUrl = (reg.active && reg.active.scriptURL) ||
+            (reg.installing && reg.installing.scriptURL) ||
+            (reg.waiting && reg.waiting.scriptURL) || '';
+          if (!isFirebaseMessagingSw(scriptUrl)) {
+            reg.unregister();
+          }
+        });
       });
-    }
+
+      // Navegación desde notificación cuando navigate() no está disponible.
+      navigator.serviceWorker.addEventListener('message', function (event) {
+        if (event.data && event.data.type === 'NOTIFICATION_CLICK' && event.data.url) {
+          window.location.href = event.data.url;
+        }
+      });
+    })();
     if ('caches' in window) {
       caches.keys().then(function (keys) {
         keys.forEach(function (key) { caches.delete(key); });
@@ -20,6 +54,9 @@
     }
   </script>
   <meta name="theme-color" content="#00B27A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Profio">
   <meta name="robots" content="index, follow">
   <meta name="googlebot" content="index, follow">
 
@@ -305,21 +342,20 @@
   </div>
 
   <script>
-    // ── Sin caché agresiva: el móvil debe recibir cada deploy al recargar ───
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.getRegistrations().then(function (regs) {
-          regs.forEach(function (reg) { reg.unregister(); });
-        });
-      });
-    }
-    if ('caches' in window) {
-      window.addEventListener('load', function () {
+    // Limpiar caché de Flutter y registrar SW de push (segundo plano / pestaña cerrada).
+    window.addEventListener('load', function () {
+      if ('caches' in window) {
         caches.keys().then(function (keys) {
           keys.forEach(function (key) { caches.delete(key); });
         });
-      });
-    }
+      }
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: '/' })
+          .catch(function (err) {
+            console.warn('[FCM] No se pudo registrar firebase-messaging-sw.js', err);
+          });
+      }
+    });
 
     // ── Ocultar loader cuando Flutter ha pintado su primer frame ───────────
     window.addEventListener('flutter-first-frame', function () {

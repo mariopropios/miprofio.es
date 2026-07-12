@@ -168,6 +168,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final useCollapsibleHeader = ResponsiveLayout.isMobile(context);
 
     return Scaffold(
+      primary: false,
       appBar: AppBar(title: const Text('Buscar')),
       body: RefreshIndicator(
         onRefresh: () async {

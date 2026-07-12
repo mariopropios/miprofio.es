@@ -27,15 +27,15 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.invalidate(conversationsProvider);
-      _maybeRequestNotifications();
+      _syncNotificationsIfAlreadyGranted();
     });
   }
 
-  Future<void> _maybeRequestNotifications() async {
+  /// Solo sincroniza token si el permiso ya estaba concedido; no muestra diálogo.
+  Future<void> _syncNotificationsIfAlreadyGranted() async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
-    if (await NotificationService.isEnabled) return;
-    await NotificationService.requestIfNeeded();
+    await NotificationService.syncIfAlreadyAuthorized();
   }
 
   @override
@@ -59,6 +59,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
 
     if (user == null) {
       return Scaffold(
+        primary: false,
         appBar: _buildAppBar(context),
         body: Center(
           child: Padding(
@@ -89,9 +90,13 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     final convAsync = ref.watch(conversationsProvider);
 
     return Scaffold(
+      primary: false,
       backgroundColor: AppTheme.scaffoldBackground,
       appBar: _buildAppBar(context),
-      body: convAsync.when(
+      body: Column(
+        children: [
+          Expanded(
+            child: convAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ChatErrorState(
           error: e,
@@ -122,6 +127,9 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
             ),
           );
         },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -227,6 +235,8 @@ class _ConversationTile extends StatelessWidget {
           'name': conversation.peerName,
           'photo': conversation.peerPhoto,
           'conversationId': conversation.id,
+          'peerUserId': conversation.userId,
+          'viewingAsProfessional': conversation.viewingAsProfessional,
         },
       ),
       child: Padding(

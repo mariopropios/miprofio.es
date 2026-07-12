@@ -44,15 +44,16 @@ class SavableCompanyCard extends ConsumerWidget {
     // Aplica el delta optimista al contador de likes
     final deltas = ref.watch(savedCountDeltaProvider);
     final delta = deltas[company.id] ?? 0;
-    final effectiveSavedCount = (company.savedCount + delta).clamp(0, 999999);
+    final effectiveSavedCount =
+        (company.savedCount + delta).clamp(0, 999999);
 
     // Los profesionales no ven el botón de like en las tarjetas
     final showSaveButton = user != null && !isOwnListing && !isProfessional;
 
     return CompanyCard(
       company: company,
-      onTap: onTap,
       savedCountOverride: effectiveSavedCount,
+      onTap: onTap,
       highlightProfession: highlightProfession,
       dense: dense,
       photoOverlay: showSaveButton

@@ -17,6 +17,7 @@ abstract final class ChatAttachmentMenu {
   }) async {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final result = Completer<XFile?>();
+    var pickStarted = false;
 
     await showGeneralDialog<void>(
       context: context,
@@ -54,6 +55,7 @@ abstract final class ChatAttachmentMenu {
                     )),
                     child: _MenuCard(
                       onPick: (source, dialogContext) {
+                        pickStarted = true;
                         // Lanzar el picker en el mismo gesto del tap (iOS/Android web).
                         final pickFuture = onPick(source);
                         if (dialogContext.mounted) {
@@ -75,7 +77,10 @@ abstract final class ChatAttachmentMenu {
       },
     );
 
-    if (!result.isCompleted) return null;
+    // Cerró el menú sin elegir opción.
+    if (!pickStarted) return null;
+
+    // Esperar a que el usuario termine en galería/cámara/archivos.
     return result.future;
   }
 }

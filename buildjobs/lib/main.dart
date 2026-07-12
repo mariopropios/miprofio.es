@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/config/supabase_config.dart';
+import 'core/utils/pwa_setup_helper.dart';
 import 'features/auth/data/auth_repository.dart';
 
 Future<void> main() async {
@@ -57,6 +58,10 @@ Future<void> main() async {
     } catch (e) {
       debugPrint('Firebase no inicializado, push desactivado: $e');
     }
+  }
+
+  if (kIsWeb) {
+    initPwaSetupListener();
   }
 
   runApp(

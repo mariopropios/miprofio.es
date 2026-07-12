@@ -14,6 +14,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../widgets/profile_avatar_picker.dart';
 import '../widgets/register_form_field.dart';
+import '../widgets/register_password_hint.dart';
 
 class ClientRegisterScreen extends ConsumerStatefulWidget {
   const ClientRegisterScreen({super.key, this.redirectTo});
@@ -139,6 +140,7 @@ class _ClientRegisterScreenState extends ConsumerState<ClientRegisterScreen> {
                       validator: (v) =>
                           v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
                     ),
+                    const RegisterPasswordHint(),
                     const SizedBox(height: 24),
                     PremiumButton(
                       label: 'Crear cuenta',

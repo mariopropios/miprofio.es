@@ -22,6 +22,7 @@ import '../../../../shared/widgets/city_autocomplete_field.dart';
 import '../widgets/international_phone_field.dart';
 import '../widgets/profile_avatar_picker.dart';
 import '../widgets/register_form_field.dart';
+import '../widgets/register_password_hint.dart';
 import '../widgets/register_profile_preview.dart';
 import '../widgets/register_step_indicator.dart';
 import '../widgets/work_gallery_upload.dart';
@@ -1493,6 +1494,7 @@ class _AccountStepState extends State<_AccountStep> {
               validator: (v) =>
                   v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
             ),
+            const RegisterPasswordHint(),
           ],
         ),
       ),

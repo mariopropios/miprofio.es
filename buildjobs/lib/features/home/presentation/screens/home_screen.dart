@@ -28,6 +28,7 @@ class HomeScreen extends ConsumerWidget {
     final isDesktop = ResponsiveLayout.isDesktop(context);
 
     return Scaffold(
+      primary: false,
       appBar: AppBar(
         // En escritorio el NavigationRail ya muestra el logo; en móvil lo mostramos aquí.
         title: isDesktop

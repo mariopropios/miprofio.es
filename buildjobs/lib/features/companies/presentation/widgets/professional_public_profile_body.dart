@@ -22,6 +22,7 @@ import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../shared/widgets/resilient_network_image.dart';
 import '../../../../shared/widgets/spring_pressable.dart';
 import '../../../../shared/widgets/work_gallery_strip.dart';
+import '../../../saved/providers/saved_professional_providers.dart';
 
 /// Vista pública del perfil profesional (la misma que ven los clientes).
 class ProfessionalPublicProfileBody extends ConsumerWidget {
@@ -40,6 +41,7 @@ class ProfessionalPublicProfileBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final companyAsync = ref.watch(professionalDetailProvider(companyId));
     final reviewsAsync = ref.watch(professionalReviewsProvider(companyId));
+    ref.watch(professionalSavedCountRealtimeProvider(companyId));
     final dateFormat = DateFormat('d MMM yyyy', 'es');
 
     return companyAsync.when(
@@ -71,6 +73,11 @@ class ProfessionalPublicProfileBody extends ConsumerWidget {
 
         return RefreshIndicator(
           onRefresh: () async {
+            ref.read(savedCountDeltaProvider.notifier).update((d) {
+              final next = Map<String, int>.from(d);
+              next.remove(companyId);
+              return next;
+            });
             ref.invalidate(professionalDetailProvider(companyId));
             ref.invalidate(professionalReviewsProvider(companyId));
             await Future.wait([
@@ -98,7 +105,49 @@ class ProfessionalPublicProfileBody extends ConsumerWidget {
   }
 }
 
-class _ProfessionalProfileContent extends StatelessWidget {
+class _SavedCountChip extends StatelessWidget {
+  const _SavedCountChip({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count == 1 ? '1 guardado' : '$count guardados';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.redAccent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.favorite_rounded, size: 14, color: Colors.redAccent),
+          const SizedBox(width: 6),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (child, animation) => ScaleTransition(
+              scale: animation,
+              child: child,
+            ),
+            child: Text(
+              label,
+              key: ValueKey<int>(count),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfessionalProfileContent extends ConsumerWidget {
   const _ProfessionalProfileContent({
     required this.company,
     required this.reviewsAsync,
@@ -114,7 +163,9 @@ class _ProfessionalProfileContent extends StatelessWidget {
   final bool isOwnerView;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final savedCount = ref.watch(effectiveSavedCountProvider(companyId));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -139,21 +190,8 @@ class _ProfessionalProfileContent extends StatelessWidget {
                     color: AppTheme.textSecondary,
                   ),
             ),
-            if (company.savedCount > 0)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.favorite_rounded,
-                      size: 14, color: Colors.redAccent),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${company.savedCount} ${company.savedCount == 1 ? 'guardado' : 'guardados'}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.textSecondary,
-                        ),
-                  ),
-                ],
-              ),
+            if (savedCount > 0 || isOwnerView)
+              _SavedCountChip(count: savedCount),
           ],
         ),
         const SizedBox(height: 12),
@@ -844,69 +882,79 @@ class _ReviewTileState extends ConsumerState<_ReviewTile> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                InkWell(
-                  onTap: () {
-                    if (review.reviewerIsProfessional) {
-                      // El reviewer tiene perfil profesional → ir a su ficha
-                      context.push(
-                        AppRoutes.companyDetailPath(
-                          review.reviewerProfessionalId!,
-                        ),
-                      );
-                    } else {
-                      // Cliente normal → perfil de usuario
-                      context.push(AppRoutes.userProfilePath(review.userId));
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Row(
-                      children: [
-                        _UserAvatar(
-                          name: review.userName,
-                          avatarUrl: review.userAvatarUrl,
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      if (review.reviewerIsProfessional) {
+                        context.push(
+                          AppRoutes.companyDetailPath(
+                            review.reviewerProfessionalId!,
+                          ),
+                        );
+                      } else {
+                        context.push(AppRoutes.userProfilePath(review.userId));
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Row(
+                        children: [
+                          _UserAvatar(
+                            name: review.userName,
+                            avatarUrl: review.userAvatarUrl,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  review.userName,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.primary,
-                                  ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        review.userName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          color: AppTheme.primary,
+                                        ),
+                                      ),
+                                    ),
+                                    if (review.reviewerIsProfessional) ...[
+                                      const SizedBox(width: 5),
+                                      const Icon(
+                                        Icons.storefront_outlined,
+                                        size: 13,
+                                        color: AppTheme.textSecondary,
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                if (review.reviewerIsProfessional) ...[
-                                  const SizedBox(width: 5),
-                                  const Icon(
-                                    Icons.storefront_outlined,
-                                    size: 13,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                ],
+                                Text(
+                                  widget.dateFormat.format(review.createdAt),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: AppTheme.textSecondary,
+                                      ),
+                                ),
                               ],
                             ),
-                            Text(
-                              widget.dateFormat.format(review.createdAt),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: AppTheme.textSecondary,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                const Spacer(),
-                RatingStars(rating: review.rating.toDouble(), showValue: false),
+                const SizedBox(width: 8),
+                RatingStars(
+                  rating: review.rating.toDouble(),
+                  showValue: false,
+                  size: 16,
+                ),
               ],
             ),
             const SizedBox(height: 12),

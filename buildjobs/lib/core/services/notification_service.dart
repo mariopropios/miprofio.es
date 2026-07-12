@@ -2,7 +2,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../router/routes.dart';
+import 'push_notification_clear.dart';
 
 /// Gestiona permisos de notificaciones push, obtiene el token FCM y
 /// lo guarda en Supabase para que el servidor pueda enviar pushes.
@@ -12,6 +16,7 @@ class NotificationService {
   static FirebaseMessaging get _fcm => FirebaseMessaging.instance;
   static SupabaseClient get _db => Supabase.instance.client;
   static bool _listenersAttached = false;
+  static GoRouter? _router;
 
   static bool get _firebaseReady => Firebase.apps.isNotEmpty;
 
@@ -31,22 +36,35 @@ class NotificationService {
         status == AuthorizationStatus.provisional;
   }
 
+  /// Enlaza el router para abrir el chat al pulsar una notificación.
+  static void attachRouter(GoRouter router) {
+    _router = router;
+    _attachMessageListeners();
+    _handleInitialMessage();
+  }
+
   /// Si el usuario ya concedió permiso antes, sincroniza token sin mostrar diálogo.
   static Future<void> syncIfAlreadyAuthorized() async {
     if (!_firebaseReady) return;
     if (!await isEnabled) return;
-    await _ensureSetup();
+    _scheduleSetup();
   }
 
-  /// Pide permiso solo al entrar en Mensajes si aún no está activo.
+  /// Pide permiso si aún no está activo (p. ej. tras iniciar sesión).
+  /// No bloquea la UI esperando el token FCM: eso se sincroniza en segundo plano.
   static Future<bool> requestIfNeeded() async {
     if (!_firebaseReady) return false;
 
     final current = await permissionStatus();
     if (current == AuthorizationStatus.authorized ||
         current == AuthorizationStatus.provisional) {
-      await _ensureSetup();
+      _scheduleSetup();
       return true;
+    }
+
+    if (current == AuthorizationStatus.denied) {
+      debugPrint('[Push] Permiso denegado previamente');
+      return false;
     }
 
     final settings = await _fcm.requestPermission(
@@ -61,13 +79,31 @@ class NotificationService {
     }
 
     debugPrint('[Push] Permiso: ${settings.authorizationStatus}');
-    await _ensureSetup();
+    _scheduleSetup();
     return settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional;
   }
 
+  static bool _setupScheduled = false;
+
+  static void _scheduleSetup() {
+    if (_setupScheduled) return;
+    _setupScheduled = true;
+    Future<void>(() async {
+      try {
+        await _ensureSetup();
+      } finally {
+        _setupScheduled = false;
+      }
+    });
+  }
+
   static Future<void> _ensureSetup() async {
     await _refreshAndSaveToken();
+    _attachMessageListeners();
+  }
+
+  static void _attachMessageListeners() {
     if (_listenersAttached) return;
     _listenersAttached = true;
 
@@ -76,15 +112,58 @@ class NotificationService {
     FirebaseMessaging.onMessage.listen((RemoteMessage msg) {
       debugPrint('[Push] Mensaje en foreground: ${msg.notification?.title}');
     });
+
+    FirebaseMessaging.onMessageOpenedApp.listen(_navigateFromMessage);
+  }
+
+  static Future<void> _handleInitialMessage() async {
+    if (!_firebaseReady) return;
+    try {
+      final initial = await _fcm.getInitialMessage();
+      if (initial != null) {
+        // Esperar a que Flutter termine de montar el router.
+        await Future.delayed(const Duration(milliseconds: 600));
+        _navigateFromMessage(initial);
+      }
+    } catch (e) {
+      debugPrint('[Push] Error leyendo mensaje inicial: $e');
+    }
+  }
+
+  static void _navigateFromMessage(RemoteMessage msg) {
+    final router = _router;
+    if (router == null) return;
+
+    final professionalId = msg.data['professional_id'];
+    if (professionalId == null || professionalId.isEmpty) return;
+
+    final conversationId = msg.data['conversation_id'];
+    final senderName = msg.data['sender_name'];
+
+    router.push(
+      AppRoutes.chatPath(professionalId),
+      extra: {
+        if (conversationId != null) 'conversationId': conversationId,
+        if (senderName != null && senderName.isNotEmpty) 'name': senderName,
+      },
+    );
   }
 
   // ── Token FCM ────────────────────────────────────────────────────────────
 
   static Future<void> _refreshAndSaveToken() async {
     try {
-      final token = kIsWeb
-          ? await _fcm.getToken(vapidKey: _vapidKey)
-          : await _fcm.getToken();
+      final Future<String?> tokenFuture = kIsWeb
+          ? _fcm.getToken(vapidKey: _vapidKey)
+          : _fcm.getToken();
+
+      final token = await tokenFuture.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          debugPrint('[Push] getToken timeout (la app sigue usable)');
+          return null;
+        },
+      );
 
       if (token != null) await _saveToken(token);
     } catch (e) {
@@ -106,6 +185,9 @@ class NotificationService {
       debugPrint('[Push] Error guardando token: $e');
     }
   }
+
+  static Future<void> clearGroupedChat(String conversationId) =>
+      clearGroupedChatNotifications(conversationId);
 
   /// Borra el token al cerrar sesión para no recibir notificaciones
   /// mientras el usuario está desconectado.
