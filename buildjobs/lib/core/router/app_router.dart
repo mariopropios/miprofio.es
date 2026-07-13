@@ -23,6 +23,8 @@ import '../../features/profile/presentation/screens/public_client_profile_screen
 import '../../features/profile/presentation/screens/saved_professionals_screen.dart';
 import '../../features/profile/presentation/screens/edit_client_profile_screen.dart';
 import '../../features/profile/presentation/screens/edit_professional_profile_screen.dart';
+import '../../features/chat/presentation/models/active_chat_route.dart';
+import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/chat/presentation/screens/conversations_screen.dart';
 import '../../features/reviews/presentation/screens/write_review_screen.dart';
 import '../../features/search/presentation/screens/search_screen.dart';
@@ -36,10 +38,24 @@ import 'slide_page.dart';
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
-Page<void> _buildMessagesHubPage(GoRouterState state) {
-  return const NoTransitionPage(
-    key: ValueKey<String>('messages-hub'),
-    child: ConversationsScreen(),
+NoTransitionPage<void> _buildChatPage(GoRouterState state) {
+  final chat = ActiveChatRoute.fromRouterState(state);
+  if (chat == null) {
+    return const NoTransitionPage(
+      key: ValueKey<String>('messages-list-fallback'),
+      child: ConversationsScreen(),
+    );
+  }
+  return NoTransitionPage(
+    key: ValueKey<String>('messages-chat-${chat.professionalId}'),
+    child: ChatScreen(
+      professionalId: chat.professionalId,
+      professionalName: chat.name ?? 'Profesional',
+      professionalPhoto: chat.photo,
+      conversationId: chat.conversationId,
+      peerUserId: chat.peerUserId,
+      viewingAsProfessional: chat.viewingAsProfessional,
+    ),
   );
 }
 
@@ -136,13 +152,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.conversations,
-            pageBuilder: (context, state) => _buildMessagesHubPage(state),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              key: ValueKey<String>('messages-list'),
+              child: ConversationsScreen(),
+            ),
             routes: [
               GoRoute(
                 path: ':professionalId',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: SizedBox.shrink(),
-                ),
+                pageBuilder: (context, state) => _buildChatPage(state),
               ),
             ],
           ),

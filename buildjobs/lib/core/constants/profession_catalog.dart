@@ -255,6 +255,13 @@ class ProfessionCatalog {
         ),
         ProfessionItem(
           categoryId: 'reformas',
+          name: 'Hormigón impreso',
+          description:
+              'Pavimentos decorativos de hormigón impreso en patios, aceras, '
+              'entradas de garaje y zonas exteriores.',
+        ),
+        ProfessionItem(
+          categoryId: 'reformas',
           name: 'Herrero',
           description:
               'Estructuras metálicas, barandillas, puertas correderas y cerramientos de hierro en obra.',
@@ -583,6 +590,10 @@ class ProfessionCatalog {
       'cocina': 'reformas',
       'baño': 'reformas',
       'bano': 'reformas',
+      'hormigón impreso': 'reformas',
+      'hormigon impreso': 'reformas',
+      'hormigon': 'reformas',
+      'pavimento exterior': 'reformas',
     };
     final mapped = legacyMap[lower];
     if (mapped != null) return categoryById(mapped);

@@ -120,6 +120,11 @@ function showGroupedNotification(data, messages) {
 messaging.onBackgroundMessage(function (payload) {
   console.log('[SW] Push en background:', payload);
 
+  // iOS PWA: si el payload trae notification, el sistema ya la muestra.
+  if (payload.notification && /iphone|ipad|ipod/i.test(navigator.userAgent)) {
+    return Promise.resolve();
+  }
+
   var data = payload.data || {};
   var convId = data.conversation_id;
   if (!convId) return Promise.resolve();

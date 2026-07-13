@@ -6,7 +6,10 @@ class ChatMessage {
     required this.body,
     required this.createdAt,
     this.readAt,
+    this.editedAt,
   });
+
+  static const editWindow = Duration(hours: 1);
 
   final String id;
   final String conversationId;
@@ -14,8 +17,34 @@ class ChatMessage {
   final String body;
   final DateTime createdAt;
   final DateTime? readAt;
+  final DateTime? editedAt;
 
   bool get isRead => readAt != null;
+  bool get isEdited => editedAt != null;
+
+  bool get isTextMessage =>
+      !body.startsWith('[image]') && !body.startsWith('[audio]');
+
+  bool canEdit(String currentUserId) =>
+      senderId == currentUserId &&
+      isTextMessage &&
+      !id.startsWith('temp-') &&
+      DateTime.now().toUtc().difference(createdAt.toUtc()) < editWindow;
+
+  ChatMessage copyWith({
+    String? body,
+    DateTime? readAt,
+    DateTime? editedAt,
+  }) =>
+      ChatMessage(
+        id: id,
+        conversationId: conversationId,
+        senderId: senderId,
+        body: body ?? this.body,
+        createdAt: createdAt,
+        readAt: readAt ?? this.readAt,
+        editedAt: editedAt ?? this.editedAt,
+      );
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
         id: json['id'] as String,
@@ -25,6 +54,9 @@ class ChatMessage {
         createdAt: DateTime.parse(json['created_at'] as String),
         readAt: json['read_at'] != null
             ? DateTime.parse(json['read_at'] as String)
+            : null,
+        editedAt: json['edited_at'] != null
+            ? DateTime.parse(json['edited_at'] as String)
             : null,
       );
 }
@@ -55,6 +87,19 @@ class Conversation {
   final bool viewingAsProfessional;
 
   bool get hasUnread => unreadCount > 0;
+
+  Conversation copyWith({int? unreadCount}) => Conversation(
+        id: id,
+        userId: userId,
+        professionalId: professionalId,
+        peerName: peerName,
+        peerPhoto: peerPhoto,
+        lastMessage: lastMessage,
+        lastMessageAt: lastMessageAt,
+        updatedAt: updatedAt,
+        unreadCount: unreadCount ?? this.unreadCount,
+        viewingAsProfessional: viewingAsProfessional,
+      );
 
   /// Compatibilidad con pantallas que aún usan el nombre anterior.
   String get professionalName => peerName;

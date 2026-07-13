@@ -10,6 +10,7 @@ import '../../../../shared/widgets/async_value_widget.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../companies/presentation/widgets/professional_public_profile_body.dart';
 import '../../../saved/providers/saved_professional_providers.dart';
+import '../../../../shared/widgets/push_notification_setup_card.dart';
 import '../../../../shared/widgets/pwa_install_prompt.dart';
 import '../widgets/email_verified_welcome_listener.dart';
 import '../widgets/saved_professionals_section.dart';
@@ -343,6 +344,8 @@ class _ClientProfileView extends ConsumerWidget {
                             color: AppTheme.textSecondary,
                           ),
                     ),
+                    const SizedBox(height: 16),
+                    const PushNotificationSetupCard(),
                     const SizedBox(height: 16),
                     _StatCard(
                       icon: Icons.rate_review,

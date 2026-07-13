@@ -5,6 +5,15 @@ import 'package:flutter/widgets.dart';
 
 void initPwaSetupListener() => impl.initPwaSetupListener();
 
+bool isIosWeb() => impl.isIosWeb();
+
+bool isAndroidWeb() => impl.isAndroidWeb();
+
+bool isLikelyPrivateBrowsing() => impl.isLikelyPrivateBrowsing();
+
+Future<void> ensureFirebaseMessagingSwReady() =>
+    impl.ensureFirebaseMessagingSwReady();
+
 Stream<void> get onPwaInstallPromptAvailable => impl.onPwaInstallPromptAvailable;
 
 bool canAutoInstallPwa() => impl.canAutoInstallPwa();

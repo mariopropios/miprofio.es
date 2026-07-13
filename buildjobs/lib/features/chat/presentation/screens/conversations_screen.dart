@@ -1,148 +1,30 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
-import '../../../../core/services/notification_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/message.dart';
-import '../models/active_chat_route.dart';
 import '../providers/chat_providers.dart';
+import '../../../../shared/widgets/push_notification_setup_card.dart';
 import '../widgets/chat_message_state.dart';
-import 'chat_screen.dart';
 
-class ConversationsScreen extends ConsumerStatefulWidget {
+/// Lista de conversaciones (solo /messages). El chat abre en ruta hija aparte.
+class ConversationsScreen extends ConsumerWidget {
   const ConversationsScreen({super.key});
 
   @override
-  ConsumerState<ConversationsScreen> createState() =>
-      _ConversationsScreenState();
-}
-
-class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
-    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin,
-        SingleTickerProviderStateMixin {
-  static const _chatSlideDuration = Duration(milliseconds: 280);
-
-  late final AnimationController _chatSlideController;
-  late final Animation<Offset> _chatSlideAnimation;
-
-  ActiveChatRoute? _visibleChat;
-  GoRouterDelegate? _routerDelegate;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _chatSlideController = AnimationController(
-      vsync: this,
-      duration: _chatSlideDuration,
-      reverseDuration: _chatSlideDuration,
-    );
-    _chatSlideAnimation = Tween<Offset>(
-      begin: const Offset(1, 0),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _chatSlideController,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInOutCubic,
-    ));
-
-    WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final cached = ref.read(conversationsProvider);
-      if (!cached.hasValue) {
-        ref.invalidate(conversationsProvider);
-      }
-      _syncNotificationsIfAlreadyGranted();
-      _attachRouteListener();
-      _syncChatFromRoute();
-    });
-  }
-
-  void _attachRouteListener() {
-    final delegate = GoRouter.of(context).routerDelegate;
-    if (_routerDelegate == delegate) return;
-    _routerDelegate?.removeListener(_syncChatFromRoute);
-    _routerDelegate = delegate;
-    _routerDelegate!.addListener(_syncChatFromRoute);
-  }
-
-  void _syncChatFromRoute() {
-    if (!mounted) return;
-    final state = GoRouter.of(context).state;
-    final nextChat = ActiveChatRoute.fromRouterState(state);
-    final currentId = _visibleChat?.professionalId;
-    final nextId = nextChat?.professionalId;
-
-    if (currentId == nextId) {
-      if (nextChat != null) {
-        _visibleChat = nextChat;
-      }
-      return;
-    }
-
-    if (nextChat != null) {
-      setState(() => _visibleChat = nextChat);
-      _chatSlideController.forward();
-      return;
-    }
-
-    if (_visibleChat != null) {
-      _chatSlideController.reverse().then((_) {
-        if (!mounted) return;
-        final stillClosed =
-            ActiveChatRoute.fromRouterState(GoRouter.of(context).state) == null;
-        if (stillClosed) {
-          setState(() => _visibleChat = null);
-        }
-      });
-    }
-  }
-
-  /// Solo sincroniza token si el permiso ya estaba concedido; no muestra diálogo.
-  Future<void> _syncNotificationsIfAlreadyGranted() async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) return;
-    await NotificationService.syncIfAlreadyAuthorized();
-  }
-
-  @override
-  void dispose() {
-    _routerDelegate?.removeListener(_syncChatFromRoute);
-    _chatSlideController.dispose();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _attachRouteListener();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      ref.invalidate(conversationsProvider);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    ref.watch(conversationsRealtimeProvider);
-
+  Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
 
     if (user == null) {
       return Scaffold(
         primary: false,
-        appBar: _buildAppBar(context),
+        backgroundColor: AppTheme.scaffoldBackground,
+        appBar: _buildAppBar(context, ref),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -169,79 +51,62 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
       );
     }
 
-    final convAsync = ref.watch(conversationsProvider);
+    final convAsync = ref.watch(conversationsListProvider);
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Scaffold(
-          primary: false,
-          backgroundColor: AppTheme.scaffoldBackground,
-          appBar: _buildAppBar(context),
-          body: RepaintBoundary(
+    return Scaffold(
+      primary: false,
+      backgroundColor: AppTheme.scaffoldBackground,
+      appBar: _buildAppBar(context, ref),
+      body: SafeArea(
+        top: false,
+        child: convAsync.when(
+          loading: () => const Center(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: convAsync.when(
-                    skipLoadingOnReload: true,
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (e, _) => ChatErrorState(
-                      error: e,
-                      title: 'No se pudieron cargar los mensajes',
-                      onRetry: () => ref.invalidate(conversationsProvider),
-                    ),
-                    data: (conversations) {
-                      if (conversations.isEmpty) {
-                        return const _EmptyState();
-                      }
-                      return RefreshIndicator(
-                        color: AppTheme.primary,
-                        onRefresh: () async =>
-                            ref.invalidate(conversationsProvider),
-                        child: ListView.separated(
-                          itemCount: conversations.length,
-                          separatorBuilder: (_, __) => const Divider(
-                            height: 1,
-                            indent: 78,
-                            color: AppTheme.divider,
-                          ),
-                          itemBuilder: (context, index) {
-                            return RepaintBoundary(
-                              child: _ConversationTile(
-                                conversation: conversations[index],
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  'Cargando mensajes…',
+                  style: TextStyle(color: AppTheme.textSecondary),
                 ),
               ],
             ),
           ),
-        ),
-        if (_visibleChat != null)
-          SlideTransition(
-            position: _chatSlideAnimation,
-            child: Material(
-              color: AppTheme.scaffoldBackground,
-              child: ChatScreen(
-                professionalId: _visibleChat!.professionalId,
-                professionalName: _visibleChat!.name ?? 'Profesional',
-                professionalPhoto: _visibleChat!.photo,
-                conversationId: _visibleChat!.conversationId,
-                peerUserId: _visibleChat!.peerUserId,
-                viewingAsProfessional: _visibleChat!.viewingAsProfessional,
-              ),
-            ),
+          error: (e, _) => ChatErrorState(
+            error: e,
+            title: 'No se pudieron cargar los mensajes',
+            onRetry: () => ref.invalidate(conversationsProvider),
           ),
-      ],
+          data: (conversations) {
+            if (conversations.isEmpty) {
+              return const _EmptyState();
+            }
+            return RefreshIndicator(
+              color: AppTheme.primary,
+              onRefresh: () async => ref.invalidate(conversationsProvider),
+              child: ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                itemCount: conversations.length,
+                separatorBuilder: (_, __) => const Divider(
+                  height: 1,
+                  indent: 78,
+                  color: AppTheme.divider,
+                ),
+                itemBuilder: (context, index) {
+                  return _ConversationTile(
+                    conversation: conversations[index],
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
-  AppBar _buildAppBar(BuildContext context) {
+  PreferredSizeWidget _buildAppBar(BuildContext context, WidgetRef ref) {
     return AppBar(
       backgroundColor: AppTheme.surface,
       elevation: 0,
@@ -256,6 +121,13 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
         ),
       ),
       actions: [
+        if (kIsWeb)
+          IconButton(
+            onPressed: () => showPushNotificationSetupDialog(context),
+            icon: const Icon(Icons.notifications_outlined,
+                color: AppTheme.textSecondary, size: 22),
+            tooltip: 'Notificaciones',
+          ),
         IconButton(
           onPressed: () => ref.invalidate(conversationsProvider),
           icon: const Icon(Icons.refresh_rounded,
@@ -313,7 +185,7 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// ── Tile de conversación (estilo WhatsApp) ─────────────────────────────────────
+// ── Tile de conversación ───────────────────────────────────────────────────────
 
 class _ConversationTile extends StatelessWidget {
   const _ConversationTile({required this.conversation});
@@ -496,8 +368,6 @@ class _UnreadBadge extends StatelessWidget {
     );
   }
 }
-
-// ── Avatar ────────────────────────────────────────────────────────────────────
 
 class _Avatar extends StatelessWidget {
   const _Avatar({

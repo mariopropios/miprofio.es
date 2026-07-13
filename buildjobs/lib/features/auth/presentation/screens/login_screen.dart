@@ -10,6 +10,7 @@ import '../../../../core/router/routes.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../../core/utils/device_form_factor.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/email_typo_helper.dart';
 import '../widgets/password_form_field.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -185,8 +186,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         labelText: 'Email',
                         prefixIcon: Icon(Icons.email_outlined),
                       ),
-                      validator: (v) =>
-                          v == null || !v.contains('@') ? 'Email inválido' : null,
+                      validator: (v) {
+                        final value = v?.trim() ?? '';
+                        if (!EmailTypoHelper.isValidFormat(value)) {
+                          return 'Email inválido';
+                        }
+                        final suggestion = EmailTypoHelper.suggestFix(value);
+                        if (suggestion != null &&
+                            suggestion.toLowerCase() != value.toLowerCase()) {
+                          return '¿Quisiste decir $suggestion?';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     PasswordFormField(

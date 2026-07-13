@@ -37,3 +37,11 @@ Future<bool> isPwaSetupBannerDismissed() async => false;
 Future<void> dismissPwaSetupBanner() async {}
 
 void initPwaSetupListener() {}
+
+bool isIosWeb() => false;
+
+bool isAndroidWeb() => false;
+
+bool isLikelyPrivateBrowsing() => false;
+
+Future<void> ensureFirebaseMessagingSwReady() async {}

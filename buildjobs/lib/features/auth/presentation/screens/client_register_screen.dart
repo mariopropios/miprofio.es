@@ -11,6 +11,7 @@ import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/services/profile_photo_storage.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/email_typo_helper.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../widgets/profile_avatar_picker.dart';
 import '../widgets/register_form_field.dart';
@@ -126,8 +127,18 @@ class _ClientRegisterScreenState extends ConsumerState<ClientRegisterScreen> {
                         AutofillHints.username,
                         AutofillHints.email,
                       ],
-                      validator: (v) =>
-                          v == null || !v.contains('@') ? 'Email inválido' : null,
+                      validator: (v) {
+                        final value = v?.trim() ?? '';
+                        if (!EmailTypoHelper.isValidFormat(value)) {
+                          return 'Email inválido';
+                        }
+                        final suggestion = EmailTypoHelper.suggestFix(value);
+                        if (suggestion != null &&
+                            suggestion.toLowerCase() != value.toLowerCase()) {
+                          return '¿Quisiste decir $suggestion?';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     RegisterFormField(

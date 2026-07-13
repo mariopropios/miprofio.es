@@ -14,6 +14,7 @@ import '../../../../core/services/geo_service.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/services/profile_photo_storage.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/email_typo_helper.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../home/presentation/widgets/profession_multi_select_section.dart';
@@ -1441,9 +1442,6 @@ class _AccountStep extends StatefulWidget {
 }
 
 class _AccountStepState extends State<_AccountStep> {
-  static bool _isValidEmail(String email) =>
-      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim());
-
   @override
   Widget build(BuildContext context) {
     return AutofillGroup(
@@ -1471,7 +1469,15 @@ class _AccountStepState extends State<_AccountStep> {
               autofocus: true,
               autofillHints: const [AutofillHints.email],
               validator: (v) {
-                if (v == null || !_isValidEmail(v)) return 'Email inválido';
+                final value = v?.trim() ?? '';
+                if (!EmailTypoHelper.isValidFormat(value)) {
+                  return 'Email inválido';
+                }
+                final suggestion = EmailTypoHelper.suggestFix(value);
+                if (suggestion != null &&
+                    suggestion.toLowerCase() != value.toLowerCase()) {
+                  return '¿Quisiste decir $suggestion?';
+                }
                 return null;
               },
             ),

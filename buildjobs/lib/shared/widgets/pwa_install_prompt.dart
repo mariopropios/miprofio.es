@@ -184,6 +184,9 @@ abstract final class PwaInstallSheets {
     );
   }
 
+  static Future<void> showManualGuide(BuildContext context) =>
+      _showManualGuide(context);
+
   static Future<void> _showManualGuide(BuildContext context) {
     final isIos = shouldShowIosInstallHint();
 

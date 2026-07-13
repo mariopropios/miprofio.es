@@ -9,6 +9,24 @@
 
   window.__profioPwa = { isStandalone: isStandalonePwa() };
 
+  window.profioRegisterFirebaseMessagingSw = function () {
+    if (!('serviceWorker' in navigator)) return Promise.resolve();
+    if (window.__profioFcmSwRegistered) return Promise.resolve();
+
+    return navigator.serviceWorker.getRegistration('/').then(function (existing) {
+      if (existing && existing.active) {
+        window.__profioFcmSwRegistered = true;
+        return existing;
+      }
+      return navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: '/' });
+    }).then(function (reg) {
+      if (reg) window.__profioFcmSwRegistered = true;
+      return reg;
+    }).catch(function (err) {
+      console.warn('[FCM] No se pudo registrar firebase-messaging-sw.js', err);
+    });
+  };
+
   // Evitar que Flutter registre su SW (compite con Firebase y puede dejar la PWA en blanco).
   (function patchFlutterLoader() {
     var timer = setInterval(function () {
@@ -38,22 +56,11 @@
     });
   }
 
-  window.profioRegisterFirebaseMessagingSw = function () {
-    if (!('serviceWorker' in navigator)) return Promise.resolve();
-    return navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: '/' })
-      .catch(function (err) {
-        console.warn('[FCM] No se pudo registrar firebase-messaging-sw.js', err);
-      });
-  };
-
   window.addEventListener('load', function () {
     if (!window.__profioPwa.isStandalone && 'caches' in window) {
       caches.keys().then(function (keys) {
         keys.forEach(function (key) { caches.delete(key); });
       });
-    }
-    if (window.profioRegisterFirebaseMessagingSw) {
-      window.profioRegisterFirebaseMessagingSw();
     }
   });
 })();

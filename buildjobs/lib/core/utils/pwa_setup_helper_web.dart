@@ -84,6 +84,41 @@ bool _isAndroidDevice() {
   return html.window.navigator.userAgent.toLowerCase().contains('android');
 }
 
+bool isIosWeb() => _isIosDevice();
+
+bool isAndroidWeb() => _isAndroidDevice();
+
+bool isLikelyPrivateBrowsing() {
+  try {
+    html.window.localStorage['__profio_priv_test'] = '1';
+    html.window.localStorage.remove('__profio_priv_test');
+    return false;
+  } catch (_) {
+    return true;
+  }
+}
+
+Future<void> ensureFirebaseMessagingSwReady() async {
+  try {
+    final sw = html.window.navigator.serviceWorker;
+    if (sw == null) return;
+
+    final existing = await sw.getRegistration('/');
+    if (existing?.active != null) return;
+
+    final registerFn = (html.window as dynamic).profioRegisterFirebaseMessagingSw;
+    if (registerFn != null) {
+      await registerFn().timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => null,
+      );
+    }
+    await sw.ready;
+  } catch (e) {
+    debugPrint('[PWA] FCM service worker: $e');
+  }
+}
+
 bool isStandalonePwa() {
   return html.window.matchMedia('(display-mode: standalone)').matches ||
       html.window.matchMedia('(display-mode: fullscreen)').matches ||

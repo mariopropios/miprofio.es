@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../router/routes.dart';
+import '../utils/pwa_setup_helper.dart';
 import 'push_notification_clear.dart';
+import 'push_setup_state.dart';
 
 /// Gestiona permisos de notificaciones push, obtiene el token FCM y
 /// lo guarda en Supabase para que el servidor pueda enviar pushes.
@@ -23,11 +25,18 @@ class NotificationService {
   // ── VAPID key para web push ──────────────────────────────────────────────
   static String get _vapidKey => dotenv.env['FIREBASE_VAPID_KEY'] ?? '';
 
+  static bool _webPushPrepared = false;
+
   /// Estado actual del permiso (sin pedirlo al usuario).
   static Future<AuthorizationStatus> permissionStatus() async {
     if (!_firebaseReady) return AuthorizationStatus.notDetermined;
-    final settings = await _fcm.getNotificationSettings();
-    return settings.authorizationStatus;
+    try {
+      final settings = await _fcm.getNotificationSettings();
+      return settings.authorizationStatus;
+    } catch (e) {
+      debugPrint('[Push] Error leyendo permiso: $e');
+      return AuthorizationStatus.notDetermined;
+    }
   }
 
   static Future<bool> get isEnabled async {
@@ -46,8 +55,66 @@ class NotificationService {
   /// Si el usuario ya concedió permiso antes, sincroniza token sin mostrar diálogo.
   static Future<void> syncIfAlreadyAuthorized() async {
     if (!_firebaseReady) return;
+    if (kIsWeb && isLikelyPrivateBrowsing()) return;
+    if (kIsWeb && isIosWeb() && !isStandalonePwa()) return;
     if (!await isEnabled) return;
     _scheduleSetup();
+  }
+
+  /// Evalúa qué falta para recibir push en este dispositivo.
+  static Future<PushSetupState> evaluateSetupState() async {
+    if (!_firebaseReady) return PushSetupState.firebaseMissing;
+    if (kIsWeb && isLikelyPrivateBrowsing()) {
+      return PushSetupState.privateBrowsing;
+    }
+    if (kIsWeb && isIosWeb() && !isStandalonePwa()) {
+      return PushSetupState.needsHomeScreenInstall;
+    }
+
+    final status = await permissionStatus();
+    if (status == AuthorizationStatus.denied) {
+      return PushSetupState.permissionDenied;
+    }
+    if (status == AuthorizationStatus.authorized ||
+        status == AuthorizationStatus.provisional) {
+      if (await _hasValidTokenInProfile()) {
+        return PushSetupState.ready;
+      }
+      return PushSetupState.tokenSyncFailed;
+    }
+    return PushSetupState.needsPermission;
+  }
+
+  /// Activa push tras comprobar requisitos (gesto del usuario).
+  static Future<PushSetupState> activatePush() async {
+    var state = await evaluateSetupState();
+    if (state == PushSetupState.ready) {
+      await _ensureSetup();
+      return await _hasValidTokenInProfile()
+          ? PushSetupState.ready
+          : PushSetupState.tokenSyncFailed;
+    }
+    if (state != PushSetupState.needsPermission &&
+        state != PushSetupState.tokenSyncFailed) {
+      return state;
+    }
+
+    final granted = await requestIfNeeded();
+    if (!granted) {
+      final after = await permissionStatus();
+      if (after == AuthorizationStatus.denied) {
+        return PushSetupState.permissionDenied;
+      }
+      return PushSetupState.needsPermission;
+    }
+
+    await _ensureSetup();
+    state = await evaluateSetupState();
+    return state == PushSetupState.tokenSyncFailed
+        ? PushSetupState.tokenSyncFailed
+        : (await _hasValidTokenInProfile()
+            ? PushSetupState.ready
+            : PushSetupState.tokenSyncFailed);
   }
 
   /// Pide permiso si aún no está activo (p. ej. tras iniciar sesión).
@@ -99,6 +166,10 @@ class NotificationService {
   }
 
   static Future<void> _ensureSetup() async {
+    if (kIsWeb && !_webPushPrepared) {
+      _webPushPrepared = true;
+      await ensureFirebaseMessagingSwReady();
+    }
     await _refreshAndSaveToken();
     _attachMessageListeners();
   }
@@ -151,6 +222,37 @@ class NotificationService {
 
   // ── Token FCM ────────────────────────────────────────────────────────────
 
+  static String _fcmPlatformLabel() {
+    if (!kIsWeb) return 'native';
+    if (isIosWeb() && isStandalonePwa()) return 'web_ios';
+    if (isAndroidWeb() && isStandalonePwa()) return 'web_android';
+    return 'web';
+  }
+
+  static Future<bool> _hasValidTokenInProfile() async {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) return false;
+
+    try {
+      final row = await _db
+          .from('profiles')
+          .select('fcm_token, fcm_platform')
+          .eq('id', uid)
+          .maybeSingle();
+      final token = row?['fcm_token'] as String?;
+      if (token == null || token.isEmpty) return false;
+
+      if (kIsWeb && isIosWeb() && isStandalonePwa()) {
+        final platform = row?['fcm_platform'] as String?;
+        return platform == 'web_ios';
+      }
+      return true;
+    } catch (e) {
+      debugPrint('[Push] Error leyendo token en perfil: $e');
+      return false;
+    }
+  }
+
   static Future<void> _refreshAndSaveToken() async {
     try {
       final Future<String?> tokenFuture = kIsWeb
@@ -175,14 +277,35 @@ class NotificationService {
     final uid = _db.auth.currentUser?.id;
     if (uid == null) return;
 
+    if (kIsWeb && isLikelyPrivateBrowsing()) {
+      debugPrint('[Push] Modo privado: no guardamos token');
+      return;
+    }
+    if (kIsWeb && isIosWeb() && !isStandalonePwa()) {
+      debugPrint('[Push] iOS sin PWA instalada: no guardamos token');
+      return;
+    }
+
     try {
       await _db
           .from('profiles')
-          .update({'fcm_token': token})
+          .update({
+            'fcm_token': token,
+            'fcm_platform': _fcmPlatformLabel(),
+          })
           .eq('id', uid);
       debugPrint('[Push] Token FCM guardado en Supabase');
     } catch (e) {
-      debugPrint('[Push] Error guardando token: $e');
+      debugPrint('[Push] Error guardando token (con plataforma): $e');
+      try {
+        await _db
+            .from('profiles')
+            .update({'fcm_token': token})
+            .eq('id', uid);
+        debugPrint('[Push] Token FCM guardado (sin plataforma)');
+      } catch (e2) {
+        debugPrint('[Push] Error guardando token: $e2');
+      }
     }
   }
 
@@ -199,7 +322,7 @@ class NotificationService {
       await _fcm.deleteToken();
       await _db
           .from('profiles')
-          .update({'fcm_token': null})
+          .update({'fcm_token': null, 'fcm_platform': null})
           .eq('id', uid);
       debugPrint('[Push] Token FCM eliminado');
     } catch (e) {

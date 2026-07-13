@@ -19,11 +19,14 @@ class ActiveChatRoute {
   final bool viewingAsProfessional;
 
   static ActiveChatRoute? fromRouterState(GoRouterState state) {
-    final segments = state.uri.pathSegments;
-    if (segments.length != 2 || segments.first != 'messages') return null;
-
-    final professionalId = segments[1];
-    if (professionalId.isEmpty) return null;
+    var professionalId = state.pathParameters['professionalId'];
+    if (professionalId == null || professionalId.isEmpty) {
+      final segments = state.uri.pathSegments;
+      if (segments.length == 2 && segments.first == 'messages') {
+        professionalId = segments[1];
+      }
+    }
+    if (professionalId == null || professionalId.isEmpty) return null;
 
     final extra = state.extra as Map<String, dynamic>?;
     final qp = state.uri.queryParameters;

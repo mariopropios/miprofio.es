@@ -207,17 +207,53 @@ class ChatRepository {
     }
   }
 
+  /// Editar un mensaje de texto propio (ventana de 1 hora, validada también en RLS).
+  Future<void> editMessage({
+    required String messageId,
+    required String conversationId,
+    required String newBody,
+  }) async {
+    final uid = _uid;
+    if (uid == null) throw Exception('Usuario no autenticado');
+
+    final trimmed = newBody.trim();
+    if (trimmed.isEmpty) throw Exception('El mensaje no puede estar vacío');
+
+    await _client
+        .from('messages')
+        .update({
+          'body': trimmed,
+          'edited_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', messageId)
+        .eq('conversation_id', conversationId)
+        .eq('sender_id', uid);
+  }
+
   /// Marcar mensajes de la otra parte como leídos.
   Future<void> markAsRead(String conversationId) async {
     final uid = _uid;
     if (uid == null) return;
 
-    await _client
-        .from('messages')
-        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
-        .eq('conversation_id', conversationId)
-        .neq('sender_id', uid)
-        .isFilter('read_at', null);
+    try {
+      await _client.rpc(
+        'mark_conversation_messages_read',
+        params: {'p_conversation_id': conversationId},
+      );
+    } catch (e, st) {
+      debugPrint('[Chat] markAsRead RPC failed for $conversationId: $e\n$st');
+      try {
+        await _client
+            .from('messages')
+            .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+            .eq('conversation_id', conversationId)
+            .neq('sender_id', uid)
+            .isFilter('read_at', null);
+      } catch (e2, st2) {
+        debugPrint('[Chat] markAsRead fallback failed: $e2\n$st2');
+        rethrow;
+      }
+    }
   }
 
   // ── Imágenes ─────────────────────────────────────────────────────────────────

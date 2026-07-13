@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+
+import '../utils/web_blob_bytes_reader.dart';
 
 class RecordedAudio {
   const RecordedAudio({
@@ -66,7 +67,7 @@ class ChatAudioRecorder {
         : DateTime.now().difference(startedAt).inSeconds.clamp(1, 599);
 
     final bytes = kIsWeb
-        ? (await http.get(Uri.parse(outputPath))).bodyBytes
+        ? await readWebBlobBytes(outputPath)
         : await XFile(outputPath).readAsBytes();
     if (bytes.isEmpty) return null;
 
