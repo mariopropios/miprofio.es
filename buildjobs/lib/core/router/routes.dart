@@ -18,11 +18,35 @@ class AppRoutes {
   static String chatPath(String professionalId) =>
       '/messages/$professionalId';
 
+  static String chatPathWith({
+    required String professionalId,
+    String? conversationId,
+    String? name,
+    String? photo,
+    String? peerUserId,
+    bool viewingAsProfessional = false,
+  }) {
+    final params = <String, String>{};
+    if (conversationId != null && conversationId.isNotEmpty) {
+      params['conversationId'] = conversationId;
+    }
+    if (name != null && name.isNotEmpty) params['name'] = name;
+    if (photo != null && photo.isNotEmpty) params['photo'] = photo;
+    if (peerUserId != null && peerUserId.isNotEmpty) {
+      params['peerUserId'] = peerUserId;
+    }
+    if (viewingAsProfessional) params['asProf'] = '1';
+    if (params.isEmpty) return chatPath(professionalId);
+    return Uri(path: chatPath(professionalId), queryParameters: params)
+        .toString();
+  }
+
   /// `/messages/:id` — chat abierto encima de la lista.
   static bool isChatDetailLocation(String location) {
     final segments = Uri.parse(location).pathSegments;
     return segments.length == 2 && segments.first == 'messages';
   }
+
   static const register = '/register';
   static const clientRegister = '/register/client';
   static const professionalRegister = '/register/professional';

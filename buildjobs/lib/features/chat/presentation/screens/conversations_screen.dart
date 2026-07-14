@@ -6,25 +6,69 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/message.dart';
 import '../providers/chat_providers.dart';
 import '../../../../shared/widgets/push_notification_setup_card.dart';
 import '../widgets/chat_message_state.dart';
 
-/// Lista de conversaciones (solo /messages). El chat abre en ruta hija aparte.
-class ConversationsScreen extends ConsumerWidget {
+class ConversationsScreen extends ConsumerStatefulWidget {
   const ConversationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ConversationsScreen> createState() =>
+      _ConversationsScreenState();
+}
+
+class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
+    with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cached = ref.read(conversationsProvider);
+      if (!cached.hasValue) {
+        ref.invalidate(conversationsProvider);
+      }
+      _syncNotificationsIfAlreadyGranted();
+    });
+  }
+
+  Future<void> _syncNotificationsIfAlreadyGranted() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+    await NotificationService.syncIfAlreadyAuthorized();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(conversationsProvider);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    ref.watch(conversationsRealtimeProvider);
+
     final user = ref.watch(currentUserProvider);
 
     if (user == null) {
       return Scaffold(
         primary: false,
-        backgroundColor: AppTheme.scaffoldBackground,
-        appBar: _buildAppBar(context, ref),
+        appBar: _buildAppBar(context),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -56,57 +100,83 @@ class ConversationsScreen extends ConsumerWidget {
     return Scaffold(
       primary: false,
       backgroundColor: AppTheme.scaffoldBackground,
-      appBar: _buildAppBar(context, ref),
-      body: SafeArea(
-        top: false,
-        child: convAsync.when(
-          loading: () => const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text(
-                  'Cargando mensajes…',
-                  style: TextStyle(color: AppTheme.textSecondary),
+      appBar: _buildAppBar(context),
+      body: RepaintBoundary(
+        child: Column(
+          children: [
+            Expanded(
+              child: convAsync.when(
+                skipLoadingOnReload: true,
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (e, _) => ChatErrorState(
+                  error: e,
+                  title: 'No se pudieron cargar los mensajes',
+                  onRetry: () => ref.invalidate(conversationsProvider),
                 ),
-              ],
-            ),
-          ),
-          error: (e, _) => ChatErrorState(
-            error: e,
-            title: 'No se pudieron cargar los mensajes',
-            onRetry: () => ref.invalidate(conversationsProvider),
-          ),
-          data: (conversations) {
-            if (conversations.isEmpty) {
-              return const _EmptyState();
-            }
-            return RefreshIndicator(
-              color: AppTheme.primary,
-              onRefresh: () async => ref.invalidate(conversationsProvider),
-              child: ListView.separated(
-                physics: const AlwaysScrollableScrollPhysics(),
-                itemCount: conversations.length,
-                separatorBuilder: (_, __) => const Divider(
-                  height: 1,
-                  indent: 78,
-                  color: AppTheme.divider,
-                ),
-                itemBuilder: (context, index) {
-                  return _ConversationTile(
-                    conversation: conversations[index],
+                data: (conversations) {
+                  if (conversations.isEmpty) {
+                    return const _EmptyState();
+                  }
+                  return RefreshIndicator(
+                    color: AppTheme.primary,
+                    onRefresh: () async =>
+                        ref.invalidate(conversationsProvider),
+                    child: ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: conversations.length,
+                      separatorBuilder: (_, __) => const Divider(
+                        height: 1,
+                        indent: 78,
+                        color: AppTheme.divider,
+                      ),
+                          itemBuilder: (context, index) {
+                            final conversation = conversations[index];
+                            return RepaintBoundary(
+                              child: _ConversationTile(
+                                conversation: conversation,
+                                onOpen: () {
+                                  ref
+                                      .read(locallyReadConversationIdsProvider
+                                          .notifier)
+                                      .update(
+                                        (s) => {...s, conversation.id},
+                                      );
+                                  context.push(
+                                    AppRoutes.chatPathWith(
+                                      professionalId: conversation.professionalId,
+                                      conversationId: conversation.id,
+                                      name: conversation.peerName,
+                                      photo: conversation.peerPhoto,
+                                      peerUserId: conversation.userId,
+                                      viewingAsProfessional:
+                                          conversation.viewingAsProfessional,
+                                    ),
+                                    extra: {
+                                      'name': conversation.peerName,
+                                      'photo': conversation.peerPhoto,
+                                      'conversationId': conversation.id,
+                                      'peerUserId': conversation.userId,
+                                      'viewingAsProfessional':
+                                          conversation.viewingAsProfessional,
+                                    },
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                    ),
                   );
                 },
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context, WidgetRef ref) {
+  AppBar _buildAppBar(BuildContext context) {
     return AppBar(
       backgroundColor: AppTheme.surface,
       elevation: 0,
@@ -139,8 +209,6 @@ class ConversationsScreen extends ConsumerWidget {
     );
   }
 }
-
-// ── Estado vacío ───────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
@@ -185,12 +253,14 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// ── Tile de conversación ───────────────────────────────────────────────────────
-
 class _ConversationTile extends StatelessWidget {
-  const _ConversationTile({required this.conversation});
+  const _ConversationTile({
+    required this.conversation,
+    required this.onOpen,
+  });
 
   final Conversation conversation;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -208,16 +278,7 @@ class _ConversationTile extends StatelessWidget {
             : raw ?? 'Conversación iniciada';
 
     return InkWell(
-      onTap: () => context.push(
-        AppRoutes.chatPath(conversation.professionalId),
-        extra: {
-          'name': conversation.peerName,
-          'photo': conversation.peerPhoto,
-          'conversationId': conversation.id,
-          'peerUserId': conversation.userId,
-          'viewingAsProfessional': conversation.viewingAsProfessional,
-        },
-      ),
+      onTap: onOpen,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(

@@ -294,6 +294,9 @@ class MotherCategoryChip extends StatelessWidget {
           children: [
             Text(
               label,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              softWrap: true,
               style: TextStyle(
                 color: selected ? Colors.white : const Color(0xFFECECF0),
                 fontWeight: FontWeight.w600,

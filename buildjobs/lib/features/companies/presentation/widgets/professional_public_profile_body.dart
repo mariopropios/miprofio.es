@@ -17,6 +17,8 @@ import '../../../../shared/widgets/premium_button.dart';
 import '../../../../shared/widgets/save_professional_button.dart';
 import 'professional_owner_gallery_section.dart';
 import '../../../../shared/widgets/profession_tags_row.dart';
+import '../../../../shared/widgets/message_email_notification_card.dart';
+import '../../../../shared/widgets/push_notification_setup_card.dart';
 import '../../../../shared/widgets/rating_stars.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../shared/widgets/resilient_network_image.dart';
@@ -169,6 +171,12 @@ class _ProfessionalProfileContent extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (isOwnerView) ...[
+          const MessageEmailNotificationCard(),
+          const SizedBox(height: 12),
+          const PushNotificationSetupCard(),
+          const SizedBox(height: 16),
+        ],
         _HeaderImage(imageUrl: company.profilePhoto),
         const SizedBox(height: 16),
         Text(

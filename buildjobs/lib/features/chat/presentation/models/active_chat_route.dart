@@ -20,8 +20,9 @@ class ActiveChatRoute {
 
   static ActiveChatRoute? fromRouterState(GoRouterState state) {
     var professionalId = state.pathParameters['professionalId'];
+    final segments = state.uri.pathSegments;
+
     if (professionalId == null || professionalId.isEmpty) {
-      final segments = state.uri.pathSegments;
       if (segments.length == 2 && segments.first == 'messages') {
         professionalId = segments[1];
       }
@@ -39,9 +40,9 @@ class ActiveChatRoute {
       photo: extra?['photo'] as String? ?? decodeParam(qp['photo']),
       conversationId:
           extra?['conversationId'] as String? ?? qp['conversationId'],
-      peerUserId: extra?['peerUserId'] as String?,
+      peerUserId: extra?['peerUserId'] as String? ?? qp['peerUserId'],
       viewingAsProfessional:
-          extra?['viewingAsProfessional'] as bool? ?? false,
+          extra?['viewingAsProfessional'] as bool? ?? qp['asProf'] == '1',
     );
   }
 }

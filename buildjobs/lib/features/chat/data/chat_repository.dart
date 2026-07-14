@@ -170,7 +170,7 @@ class ChatRepository {
       'body': body.trim(),
     });
 
-    // ── Push notification al destinatario ─────────────────────────────────
+    // ── Push + email al destinatario ──────────────────────────────────────
     // Se lanza en background; si falla no afecta al envío del mensaje.
     _sendPushNotification(
       conversationId: conversationId,
@@ -231,28 +231,35 @@ class ChatRepository {
   }
 
   /// Marcar mensajes de la otra parte como leídos.
-  Future<void> markAsRead(String conversationId) async {
+  /// Devuelve true si el servidor confirmó la operación (o ya estaban leídos).
+  Future<bool> markAsRead(String conversationId) async {
     final uid = _uid;
-    if (uid == null) return;
+    if (uid == null) return false;
 
     try {
-      await _client.rpc(
+      final updated = await _client.rpc(
         'mark_conversation_messages_read',
         params: {'p_conversation_id': conversationId},
       );
+      if (updated is int) return true;
+      if (updated is num) return true;
+      return true;
     } catch (e, st) {
       debugPrint('[Chat] markAsRead RPC failed for $conversationId: $e\n$st');
-      try {
-        await _client
-            .from('messages')
-            .update({'read_at': DateTime.now().toUtc().toIso8601String()})
-            .eq('conversation_id', conversationId)
-            .neq('sender_id', uid)
-            .isFilter('read_at', null);
-      } catch (e2, st2) {
-        debugPrint('[Chat] markAsRead fallback failed: $e2\n$st2');
-        rethrow;
-      }
+    }
+
+    try {
+      await _client
+          .from('messages')
+          .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+          .eq('conversation_id', conversationId)
+          .neq('sender_id', uid)
+          .isFilter('read_at', null)
+          .select('id');
+      return true;
+    } catch (e2, st2) {
+      debugPrint('[Chat] markAsRead fallback failed: $e2\n$st2');
+      return false;
     }
   }
 

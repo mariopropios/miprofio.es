@@ -57,4 +57,13 @@ class ProfileRepository {
     if (payload.isEmpty) return;
     await _client.from('profiles').update(payload).eq('id', userId);
   }
+
+  Future<void> updateMessageEmailNotifications({
+    required String userId,
+    required bool enabled,
+  }) async {
+    await _client.from('profiles').update({
+      'message_email_notifications': enabled,
+    }).eq('id', userId);
+  }
 }

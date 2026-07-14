@@ -17,12 +17,13 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // Necesario para que Chrome considere la PWA instalable.
-self.addEventListener('install', function (event) {
-  self.skipWaiting();
+self.addEventListener('install', function () {
+  // No usar skipWaiting: en iOS PWA puede dejar la app sin respuesta a toques.
 });
 
 self.addEventListener('activate', function (event) {
-  event.waitUntil(self.clients.claim());
+  // No usar clients.claim(): evita bloquear la UI al activar el SW.
+  event.waitUntil(Promise.resolve());
 });
 
 const DB_NAME = 'profio-push';

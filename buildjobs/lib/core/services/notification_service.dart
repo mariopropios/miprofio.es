@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -31,7 +33,12 @@ class NotificationService {
   static Future<AuthorizationStatus> permissionStatus() async {
     if (!_firebaseReady) return AuthorizationStatus.notDetermined;
     try {
-      final settings = await _fcm.getNotificationSettings();
+      final settings = await _fcm.getNotificationSettings().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          throw TimeoutException('getNotificationSettings');
+        },
+      );
       return settings.authorizationStatus;
     } catch (e) {
       debugPrint('[Push] Error leyendo permiso: $e');
@@ -58,11 +65,43 @@ class NotificationService {
     if (kIsWeb && isLikelyPrivateBrowsing()) return;
     if (kIsWeb && isIosWeb() && !isStandalonePwa()) return;
     if (!await isEnabled) return;
+
+    // iOS PWA: no registrar SW al arrancar (puede dejar la UI sin toques).
+    if (kIsWeb && isIosWeb() && isStandalonePwa()) {
+      if (await _hasValidTokenInProfile()) {
+        Future<void>(() => _refreshAndSaveToken());
+      }
+      return;
+    }
+
     _scheduleSetup();
   }
 
   /// Evalúa qué falta para recibir push en este dispositivo.
   static Future<PushSetupState> evaluateSetupState() async {
+    try {
+      return await _evaluateSetupStateImpl().timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => _fallbackSetupState(),
+      );
+    } catch (e) {
+      debugPrint('[Push] evaluateSetupState: $e');
+      return _fallbackSetupState();
+    }
+  }
+
+  static PushSetupState _fallbackSetupState() {
+    if (!_firebaseReady) return PushSetupState.firebaseMissing;
+    if (kIsWeb && isLikelyPrivateBrowsing()) {
+      return PushSetupState.privateBrowsing;
+    }
+    if (kIsWeb && isIosWeb() && !isStandalonePwa()) {
+      return PushSetupState.needsHomeScreenInstall;
+    }
+    return PushSetupState.needsPermission;
+  }
+
+  static Future<PushSetupState> _evaluateSetupStateImpl() async {
     if (!_firebaseReady) return PushSetupState.firebaseMissing;
     if (kIsWeb && isLikelyPrivateBrowsing()) {
       return PushSetupState.privateBrowsing;
@@ -125,6 +164,10 @@ class NotificationService {
     final current = await permissionStatus();
     if (current == AuthorizationStatus.authorized ||
         current == AuthorizationStatus.provisional) {
+      if (kIsWeb && isIosWeb() && isStandalonePwa()) {
+        Future<void>(() => _refreshAndSaveToken());
+        return true;
+      }
       _scheduleSetup();
       return true;
     }
@@ -212,7 +255,11 @@ class NotificationService {
     final senderName = msg.data['sender_name'];
 
     router.push(
-      AppRoutes.chatPath(professionalId),
+      AppRoutes.chatPathWith(
+        professionalId: professionalId,
+        conversationId: conversationId,
+        name: senderName,
+      ),
       extra: {
         if (conversationId != null) 'conversationId': conversationId,
         if (senderName != null && senderName.isNotEmpty) 'name': senderName,
@@ -295,6 +342,10 @@ class NotificationService {
           })
           .eq('id', uid);
       debugPrint('[Push] Token FCM guardado en Supabase');
+      if (kIsWeb && isIosWeb() && isStandalonePwa() &&
+          _fcmPlatformLabel() == 'web_ios') {
+        setPushServiceWorkerActive(true);
+      }
     } catch (e) {
       debugPrint('[Push] Error guardando token (con plataforma): $e');
       try {
@@ -324,6 +375,10 @@ class NotificationService {
           .from('profiles')
           .update({'fcm_token': null, 'fcm_platform': null})
           .eq('id', uid);
+      if (kIsWeb) {
+        setPushServiceWorkerActive(false);
+        await unregisterPushServiceWorker();
+      }
       debugPrint('[Push] Token FCM eliminado');
     } catch (e) {
       debugPrint('[Push] Error eliminando token: $e');

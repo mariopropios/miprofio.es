@@ -14,6 +14,12 @@ bool isLikelyPrivateBrowsing() => impl.isLikelyPrivateBrowsing();
 Future<void> ensureFirebaseMessagingSwReady() =>
     impl.ensureFirebaseMessagingSwReady();
 
+void setPushServiceWorkerActive(bool active) =>
+    impl.setPushServiceWorkerActive(active);
+
+Future<void> unregisterPushServiceWorker() =>
+    impl.unregisterPushServiceWorker();
+
 Stream<void> get onPwaInstallPromptAvailable => impl.onPwaInstallPromptAvailable;
 
 bool canAutoInstallPwa() => impl.canAutoInstallPwa();

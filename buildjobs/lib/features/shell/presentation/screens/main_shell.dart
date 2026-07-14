@@ -78,39 +78,37 @@ class _MobileBottomNav extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final unreadCount = ref.watch(totalUnreadMessagesProvider);
 
-    return WebTapGuard(
-      child: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) => _navigateShell(context, index),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Inicio',
+    return NavigationBar(
+      selectedIndex: selectedIndex,
+      onDestinationSelected: (index) => _navigateShell(context, index),
+      destinations: [
+        const NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: 'Inicio',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.search),
+          selectedIcon: Icon(Icons.search),
+          label: 'Buscar',
+        ),
+        NavigationDestination(
+          icon: _BadgedChatIcon(
+            count: unreadCount,
+            outlined: true,
           ),
-          const NavigationDestination(
-            icon: Icon(Icons.search),
-            selectedIcon: Icon(Icons.search),
-            label: 'Buscar',
+          selectedIcon: _BadgedChatIcon(
+            count: unreadCount,
+            outlined: false,
           ),
-          NavigationDestination(
-            icon: _BadgedChatIcon(
-              count: unreadCount,
-              outlined: true,
-            ),
-            selectedIcon: _BadgedChatIcon(
-              count: unreadCount,
-              outlined: false,
-            ),
-            label: 'Mensajes',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
-        ],
-      ),
+          label: 'Mensajes',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person),
+          label: 'Perfil',
+        ),
+      ],
     );
   }
 }

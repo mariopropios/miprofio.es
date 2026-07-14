@@ -71,10 +71,7 @@ class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
 
     final state = _state;
     if (state == null) {
-      return const SizedBox(
-        height: 72,
-        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      );
+      return const SizedBox.shrink();
     }
 
     if (state == PushSetupState.ready) {

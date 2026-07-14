@@ -104,7 +104,10 @@ Future<void> ensureFirebaseMessagingSwReady() async {
     if (sw == null) return;
 
     final existing = await sw.getRegistration('/');
-    if (existing?.active != null) return;
+    if (existing?.active != null) {
+      setPushServiceWorkerActive(true);
+      return;
+    }
 
     final registerFn = (html.window as dynamic).profioRegisterFirebaseMessagingSw;
     if (registerFn != null) {
@@ -116,6 +119,22 @@ Future<void> ensureFirebaseMessagingSwReady() async {
     await sw.ready;
   } catch (e) {
     debugPrint('[PWA] FCM service worker: $e');
+  }
+}
+
+void setPushServiceWorkerActive(bool active) {
+  try {
+    final fn = (html.window as dynamic).profioSetPushServiceWorkerActive;
+    if (fn != null) fn(active);
+  } catch (_) {}
+}
+
+Future<void> unregisterPushServiceWorker() async {
+  try {
+    final fn = (html.window as dynamic).profioUnregisterFirebaseMessagingSw;
+    if (fn != null) await fn();
+  } catch (e) {
+    debugPrint('[PWA] unregister push SW: $e');
   }
 }
 

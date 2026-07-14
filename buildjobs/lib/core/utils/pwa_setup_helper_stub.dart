@@ -45,3 +45,7 @@ bool isAndroidWeb() => false;
 bool isLikelyPrivateBrowsing() => false;
 
 Future<void> ensureFirebaseMessagingSwReady() async {}
+
+void setPushServiceWorkerActive(bool active) {}
+
+Future<void> unregisterPushServiceWorker() async {}

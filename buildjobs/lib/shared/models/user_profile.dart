@@ -7,6 +7,7 @@ class UserProfile {
     this.role = 'client',
     this.city,
     this.reviewCount = 0,
+    this.messageEmailNotifications = true,
   });
 
   final String id;
@@ -16,6 +17,7 @@ class UserProfile {
   final String role;
   final String? city;
   final int reviewCount;
+  final bool messageEmailNotifications;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
@@ -26,6 +28,8 @@ class UserProfile {
       role: json['role'] as String? ?? 'client',
       city: json['city'] as String?,
       reviewCount: json['review_count'] as int? ?? 0,
+      messageEmailNotifications:
+          json['message_email_notifications'] as bool? ?? true,
     );
   }
 

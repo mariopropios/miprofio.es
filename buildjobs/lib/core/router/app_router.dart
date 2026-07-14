@@ -23,9 +23,9 @@ import '../../features/profile/presentation/screens/public_client_profile_screen
 import '../../features/profile/presentation/screens/saved_professionals_screen.dart';
 import '../../features/profile/presentation/screens/edit_client_profile_screen.dart';
 import '../../features/profile/presentation/screens/edit_professional_profile_screen.dart';
-import '../../features/chat/presentation/models/active_chat_route.dart';
-import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/chat/presentation/screens/conversations_screen.dart';
+import '../../features/chat/presentation/screens/chat_screen.dart';
+import '../../features/chat/presentation/models/active_chat_route.dart';
 import '../../features/reviews/presentation/screens/write_review_screen.dart';
 import '../../features/search/presentation/screens/search_screen.dart';
 import '../../features/shell/presentation/screens/main_shell.dart';
@@ -38,25 +38,42 @@ import 'slide_page.dart';
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
-NoTransitionPage<void> _buildChatPage(GoRouterState state) {
-  final chat = ActiveChatRoute.fromRouterState(state);
-  if (chat == null) {
-    return const NoTransitionPage(
-      key: ValueKey<String>('messages-list-fallback'),
-      child: ConversationsScreen(),
-    );
+Page<void> _buildMessagesHubPage(GoRouterState state) {
+  return const NoTransitionPage(
+    key: ValueKey<String>('messages-hub'),
+    child: ConversationsScreen(),
+  );
+}
+
+Page<void> _buildChatPage(GoRouterState state) {
+  final active = ActiveChatRoute.fromRouterState(state);
+  if (active == null) {
+    return const NoTransitionPage(child: SizedBox.shrink());
   }
-  return NoTransitionPage(
-    key: ValueKey<String>('messages-chat-${chat.professionalId}'),
+  return slidePage<void>(
+    key: state.pageKey,
     child: ChatScreen(
-      professionalId: chat.professionalId,
-      professionalName: chat.name ?? 'Profesional',
-      professionalPhoto: chat.photo,
-      conversationId: chat.conversationId,
-      peerUserId: chat.peerUserId,
-      viewingAsProfessional: chat.viewingAsProfessional,
+      professionalId: active.professionalId,
+      professionalName: active.name ?? 'Profesional',
+      professionalPhoto: active.photo,
+      conversationId: active.conversationId,
+      peerUserId: active.peerUserId,
+      viewingAsProfessional: active.viewingAsProfessional,
     ),
   );
+}
+
+String? _legacyChatPathRedirect(GoRouterState state) {
+  final segments = state.uri.pathSegments;
+  if (segments.length == 3 &&
+      segments[0] == 'messages' &&
+      segments[1] == 'chat') {
+    return Uri(
+      path: '/messages/${segments[2]}',
+      queryParameters: state.uri.queryParameters,
+    ).toString();
+  }
+  return null;
 }
 
 // ── Auth notifier ─────────────────────────────────────────────────────────────
@@ -79,7 +96,6 @@ bool _requiresAuth(String path) {
       path.startsWith(AppRoutes.editProfile) ||
       path == AppRoutes.savedProfessionals ||
       path.startsWith(AppRoutes.writeReview) ||
-      // Chat individual: /messages/:professionalId
       (path.startsWith('/messages/') && path.length > '/messages/'.length);
 }
 
@@ -101,6 +117,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
     // ── Gatekeeper ──────────────────────────────────────────────────────────
     redirect: (context, state) {
+      final legacyChat = _legacyChatPathRedirect(state);
+      if (legacyChat != null) return legacyChat;
+
       final session = Supabase.instance.client.auth.currentSession;
       final isAuthenticated = session != null;
       final path = state.matchedLocation;
@@ -152,16 +171,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.conversations,
-            pageBuilder: (context, state) => const NoTransitionPage(
-              key: ValueKey<String>('messages-list'),
-              child: ConversationsScreen(),
-            ),
-            routes: [
-              GoRoute(
-                path: ':professionalId',
-                pageBuilder: (context, state) => _buildChatPage(state),
-              ),
-            ],
+            pageBuilder: (context, state) => _buildMessagesHubPage(state),
           ),
           GoRoute(
             path: AppRoutes.editProfile,
@@ -176,6 +186,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             },
           ),
         ],
+      ),
+
+      GoRoute(
+        path: AppRoutes.chat,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => _buildChatPage(state),
       ),
 
       // ── Pantallas a pantalla completa (sin shell) ────────────────────────

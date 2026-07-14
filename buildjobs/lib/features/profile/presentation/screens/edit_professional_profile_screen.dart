@@ -280,16 +280,20 @@ class _EditProfessionalProfileScreenState
 
   @override
   Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width < 400;
+    final appBarTitle =
+        narrow ? 'Editar ficha' : 'Editar ficha profesional';
+
     if (!_loaded) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Editar ficha profesional')),
+        appBar: AppBar(title: Text(appBarTitle)),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Editar ficha profesional'),
+        title: Text(appBarTitle),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,

@@ -24,7 +24,7 @@
   <meta name="theme-color" content="#00B27A">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="miProfio.es">
   <meta name="robots" content="index, follow">
   <meta name="googlebot" content="index, follow">
@@ -96,8 +96,25 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <!-- Corbado Passkeys SDK requerido por supabase_flutter (flutter_passkeys 2.4.0) -->
-  <script src="bundle.js"></script>
+  <!-- Corbado Passkeys SDK: en iOS PWA se carga tras el primer frame (evita bloquear toques) -->
+  <script>
+    (function () {
+      var iosPwa = window.__profioPwa && window.__profioPwa.isIos && window.__profioPwa.isStandalone;
+      function loadBundle() {
+        if (document.querySelector('script[data-profio-bundle]')) return;
+        var s = document.createElement('script');
+        s.src = 'bundle.js';
+        s.setAttribute('data-profio-bundle', '1');
+        document.head.appendChild(s);
+      }
+      if (iosPwa) {
+        window.addEventListener('flutter-first-frame', loadBundle, { once: true });
+        setTimeout(loadBundle, 12000);
+      } else {
+        loadBundle();
+      }
+    })();
+  </script>
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -105,11 +122,40 @@
     html, body {
       -webkit-tap-highlight-color: transparent;
       -webkit-touch-callout: none;
+      touch-action: manipulation;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    html {
+      height: -webkit-fill-available;
     }
 
     body {
       background: #12161A;
-      overflow: hidden;
+      min-height: 100%;
+      min-height: -webkit-fill-available;
+    }
+
+    /* Flutter web: evita que formularios de texto desplacen toques (issue #151292) */
+    form {
+      margin: 0 !important;
+    }
+
+    flt-glass-pane,
+    flutter-view,
+    flt-scene-host,
+    flt-text-editing-host,
+    #hc-loader {
+      touch-action: manipulation;
+    }
+
+    /* iOS PWA: sin position:fixed en body (desalinea toques con CanvasKit) */
+    html.profio-ios-pwa {
+      overscroll-behavior: none;
     }
 
     /* Contenido estático para crawlers (oculto visualmente, legible en HTML) */
@@ -142,6 +188,7 @@
     #hc-loader.fade-out {
       opacity: 0;
       visibility: hidden;
+      pointer-events: none;
     }
 
     /* ── Anillos hipnóticos ──────────────────────────────────────────────── */
@@ -311,18 +358,24 @@
   </div>
 
   <script>
-    // ── Ocultar loader cuando Flutter ha pintado su primer frame ───────────
-    window.addEventListener('flutter-first-frame', function () {
+    function profioDismissLoader() {
       var loader = document.getElementById('hc-loader');
-      if (loader) {
-        loader.classList.add('fade-out');
-        setTimeout(function () { loader.remove(); }, 600);
-      }
+      if (!loader) return;
+      loader.style.pointerEvents = 'none';
+      loader.classList.add('fade-out');
+      loader.remove();
       var seo = document.getElementById('seo-static');
       if (seo) seo.remove();
-    });
+    }
 
-    // ── Fallback: si Flutter no arranca (p.ej. error en main), no dejar colgado ─
+    window.addEventListener('flutter-first-frame', profioDismissLoader);
+
+    // iOS PWA: el loader invisible puede quedarse encima y bloquear TODOS los toques.
+    if (window.__profioPwa && window.__profioPwa.isIos && window.__profioPwa.isStandalone) {
+      setTimeout(profioDismissLoader, 6000);
+    }
+
+    // Fallback si Flutter tarda
     setTimeout(function () {
       var loader = document.getElementById('hc-loader');
       if (!loader || loader.classList.contains('fade-out')) return;
@@ -340,6 +393,12 @@
     }, 10000);
   </script>
 
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    (window.__profioBootReady || Promise.resolve()).then(function () {
+      var s = document.createElement('script');
+      s.src = 'flutter_bootstrap.js';
+      document.body.appendChild(s);
+    });
+  </script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -269,24 +270,23 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
 
   Future<void> markAsRead() async {
     await clearGroupedChatNotifications(conversationId);
-    try {
-      await repo.markAsRead(conversationId);
-      if (mounted) {
-        final now = DateTime.now().toUtc();
-        state = state.copyWith(
-          unreadDividerMessageId: null,
-          unreadCountAtOpen: 0,
-          messages: [
-            for (final m in state.messages)
-              m.senderId != currentUserId && !m.isRead
-                  ? m.copyWith(readAt: now)
-                  : m,
-          ],
-        );
-      }
+    final ok = await repo.markAsRead(conversationId);
+    if (!mounted) return;
+    if (ok) {
+      final now = DateTime.now().toUtc();
+      state = state.copyWith(
+        unreadDividerMessageId: null,
+        unreadCountAtOpen: 0,
+        messages: [
+          for (final m in state.messages)
+            m.senderId != currentUserId && !m.isRead
+                ? m.copyWith(readAt: now)
+                : m,
+        ],
+      );
       onMessagesRead?.call();
-    } catch (e) {
-      debugPrint('[Chat] markAsRead: $e');
+    } else {
+      debugPrint('[Chat] markAsRead no persistió en servidor para $conversationId');
     }
   }
 
@@ -541,10 +541,6 @@ class _ChatBodyState extends ConsumerState<_ChatBody>
     final generation = _openScrollGeneration;
     _didInitialScroll = false;
 
-    ref.read(locallyReadConversationIdsProvider.notifier).update(
-          (s) => {...s, widget.conversationId},
-        );
-
     await clearGroupedChatNotifications(widget.conversationId);
 
     await ref
@@ -632,11 +628,14 @@ class _ChatBodyState extends ConsumerState<_ChatBody>
   Future<void> _finalizeReadOnClose() async {
     final conversationId = widget.conversationId;
     await clearGroupedChatNotifications(conversationId);
-    await ref.read(chatRepositoryProvider).markAsRead(conversationId);
-    ref.read(locallyReadConversationIdsProvider.notifier).update(
-          (s) => {...s, conversationId},
-        );
-    ref.invalidate(conversationsProvider);
+    final ok = await ref.read(chatRepositoryProvider).markAsRead(conversationId);
+    if (!mounted) return;
+    if (ok) {
+      ref.read(locallyReadConversationIdsProvider.notifier).update(
+            (s) => {...s, conversationId},
+          );
+      ref.invalidate(conversationsProvider);
+    }
   }
 
   @override
