@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/repository_providers.dart';
 import '../../core/theme/app_theme.dart';
 
-/// Activa avisos por email cuando llega un mensaje (útil en iPhone sin PWA).
+/// Activa avisos por email (mensajes, reseñas y respuestas).
 class MessageEmailNotificationCard extends ConsumerStatefulWidget {
   const MessageEmailNotificationCard({super.key});
 
@@ -82,13 +82,13 @@ class _MessageEmailNotificationCardState
         onChanged: _busy ? null : _toggle,
         activeThumbColor: AppTheme.primary,
         title: const Text(
-          'Avisos por email de mensajes',
+          'Avisos por email',
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
         ),
         subtitle: Text(
           enabled
-              ? 'Te enviaremos un email con enlace al chat (ideal en iPhone sin acceso directo).'
-              : 'No recibirás emails cuando te escriban.',
+              ? 'Te avisamos por email de mensajes nuevos, reseñas y respuestas (ideal en iPhone).'
+              : 'No recibirás emails de mensajes, reseñas ni respuestas.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppTheme.textSecondary,
                 height: 1.35,

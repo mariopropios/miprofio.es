@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -21,7 +22,6 @@ class ReviewRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('Usuario no autenticado');
 
-    // Subir fotos si las hay (ruta: profile-photos/{userId}/{timestamp}.ext)
     final photoUrls = <String>[];
     if (photos.isNotEmpty) {
       final storage = ProfilePhotoStorage(_client);
@@ -37,32 +37,51 @@ class ReviewRepository {
       'body': body,
     };
 
-    Future<void> tryInsert(Map<String, dynamic> payload) async {
+    Future<Map<String, dynamic>> tryInsert(Map<String, dynamic> payload) async {
       try {
-        await _client.from('reviews').insert(payload);
+        return await _client
+            .from('reviews')
+            .insert(payload)
+            .select('id')
+            .single();
       } on PostgrestException catch (e) {
-        // Restricción única pendiente de eliminar → usar upsert como fallback
         if (e.code == '23505') {
-          await _client.from('reviews').upsert(
-            payload,
-            onConflict: 'professional_id,user_id',
-          );
-        }
-        // Columna photo_urls pendiente de migración → reintentar sin fotos
-        else if (e.message.toLowerCase().contains('photo_urls')) {
-          await _client.from('reviews').insert(
-            payload..remove('photo_urls'),
-          );
+          return await _client
+              .from('reviews')
+              .upsert(
+                payload,
+                onConflict: 'professional_id,user_id',
+              )
+              .select('id')
+              .single();
+        } else if (e.message.toLowerCase().contains('photo_urls')) {
+          return await _client
+              .from('reviews')
+              .insert(payload..remove('photo_urls'))
+              .select('id')
+              .single();
         } else {
           rethrow;
         }
       }
     }
 
-    await tryInsert({
+    final inserted = await tryInsert({
       ...basePayload,
       if (photoUrls.isNotEmpty) 'photo_urls': photoUrls,
     });
+
+    final reviewId = inserted['id'] as String?;
+    if (reviewId != null) {
+      _notifyReviewCreated(
+        reviewId: reviewId,
+        professionalId: professionalId,
+        reviewerId: userId,
+        rating: rating,
+        title: title,
+        body: body,
+      );
+    }
   }
 
   /// El profesional responde a una reseña sobre su perfil.
@@ -73,10 +92,26 @@ class ReviewRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) throw Exception('Usuario no autenticado');
 
-    await _client.from('reviews').update({
-      'owner_reply': reply.trim(),
-      'owner_reply_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', reviewId);
+    final updated = await _client
+        .from('reviews')
+        .update({
+          'owner_reply': reply.trim(),
+          'owner_reply_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', reviewId)
+        .select('id, professional_id, user_id, rating, title')
+        .maybeSingle();
+
+    if (updated != null) {
+      _notifyReviewReply(
+        reviewId: reviewId,
+        professionalId: updated['professional_id'] as String,
+        reviewerId: updated['user_id'] as String,
+        reply: reply.trim(),
+        rating: updated['rating'] as int? ?? 0,
+        title: updated['title'] as String? ?? '',
+      );
+    }
   }
 
   /// Elimina la respuesta del profesional a una reseña.
@@ -85,6 +120,78 @@ class ReviewRepository {
       'owner_reply': null,
       'owner_reply_at': null,
     }).eq('id', reviewId);
+  }
+
+  Future<void> _notifyReviewCreated({
+    required String reviewId,
+    required String professionalId,
+    required String reviewerId,
+    required int rating,
+    required String title,
+    required String body,
+  }) async {
+    try {
+      final reviewer = await _client
+          .from('profiles')
+          .select('full_name')
+          .eq('id', reviewerId)
+          .maybeSingle();
+      final prof = await _client
+          .from('professionals')
+          .select('name')
+          .eq('id', professionalId)
+          .maybeSingle();
+
+      await _client.functions.invoke(
+        'send-push-notification',
+        body: {
+          'type': 'review',
+          'review_id': reviewId,
+          'professional_id': professionalId,
+          'reviewer_id': reviewerId,
+          'reviewer_name': reviewer?['full_name'] ?? 'Un cliente',
+          'professional_name': prof?['name'] ?? 'tu perfil',
+          'rating': rating,
+          'title': title,
+          'body': body,
+        },
+      );
+    } catch (e) {
+      debugPrint('[Email] Error notificando reseña: $e');
+    }
+  }
+
+  Future<void> _notifyReviewReply({
+    required String reviewId,
+    required String professionalId,
+    required String reviewerId,
+    required String reply,
+    required int rating,
+    required String title,
+  }) async {
+    try {
+      final prof = await _client
+          .from('professionals')
+          .select('name')
+          .eq('id', professionalId)
+          .maybeSingle();
+
+      await _client.functions.invoke(
+        'send-push-notification',
+        body: {
+          'type': 'review_reply',
+          'review_id': reviewId,
+          'professional_id': professionalId,
+          'reviewer_id': reviewerId,
+          'professional_name': prof?['name'] ?? 'Un profesional',
+          'reply': reply,
+          'rating': rating,
+          'title': title,
+        },
+      );
+    } catch (e) {
+      debugPrint('[Email] Error notificando respuesta: $e');
+    }
   }
 
   Future<List<Review>> getReviewsByProfessional(String professionalId) async {
@@ -96,13 +203,9 @@ class ReviewRepository {
 
     final rows = data as List;
 
-    // Obtener los IDs únicos de los reviewers para buscar sus perfiles profesionales
-    final userIds = rows
-        .map((e) => e['user_id'] as String)
-        .toSet()
-        .toList();
+    final userIds =
+        rows.map((e) => e['user_id'] as String).toSet().toList();
 
-    // Mapa userId → {id, profile_photo} para reviewers que son profesionales
     final Map<String, Map<String, dynamic>> profMap = {};
     if (userIds.isNotEmpty) {
       final profData = await _client
@@ -120,7 +223,6 @@ class ReviewRepository {
       return Review.fromJson({
         ...e,
         'user_name': profile?['full_name'] ?? 'Usuario',
-        // Si el reviewer es profesional, preferimos su foto de perfil profesional
         'user_avatar_url': prof?['profile_photo'] ?? profile?['avatar_url'],
         'reviewer_professional_id': prof?['id'],
       });

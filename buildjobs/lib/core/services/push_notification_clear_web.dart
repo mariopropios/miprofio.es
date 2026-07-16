@@ -3,6 +3,8 @@
 import 'dart:async';
 import 'dart:html' as html;
 
+const _swTimeout = Duration(seconds: 2);
+
 Future<void> clearGroupedChatNotifications(String conversationId) async {
   final tag = 'chat-$conversationId';
 
@@ -34,12 +36,21 @@ Future<void> updatePushBadgeCount(int unreadCount) async {
   } catch (_) {}
 }
 
-Future<void> _closeNotificationsWithTag(String tag) async {
+Future<html.ServiceWorkerRegistration?> _serviceWorkerReady() async {
   final sw = html.window.navigator.serviceWorker;
-  if (sw == null) return;
+  if (sw == null) return null;
+  try {
+    return await sw.ready.timeout(_swTimeout);
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<void> _closeNotificationsWithTag(String tag) async {
+  final reg = await _serviceWorkerReady();
+  if (reg == null) return;
 
   try {
-    final reg = await sw.ready;
     final notifications = await reg.getNotifications({'tag': tag});
     for (final notification in notifications) {
       notification.close();
@@ -63,8 +74,8 @@ Future<void> _postClearToServiceWorker(String conversationId) async {
   };
 
   try {
-    final reg = await sw.ready;
-    reg.active?.postMessage(payload);
+    final reg = await _serviceWorkerReady();
+    reg?.active?.postMessage(payload);
     sw.controller?.postMessage(payload);
   } catch (_) {}
 }

@@ -9,6 +9,10 @@ bool isIosWeb() => impl.isIosWeb();
 
 bool isAndroidWeb() => impl.isAndroidWeb();
 
+/// Navegador embebido (WhatsApp, Gmail, Instagram…): en iOS no se puede
+/// «Añadir a inicio»; hay que abrir en Safari.
+bool isInAppBrowser() => impl.isInAppBrowser();
+
 bool isLikelyPrivateBrowsing() => impl.isLikelyPrivateBrowsing();
 
 Future<void> ensureFirebaseMessagingSwReady() =>

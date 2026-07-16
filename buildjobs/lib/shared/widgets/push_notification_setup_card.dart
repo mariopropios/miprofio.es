@@ -5,7 +5,7 @@ import '../../core/services/notification_service.dart';
 import '../../core/services/push_setup_state.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/pwa_setup_helper.dart';
-import 'pwa_install_prompt.dart';
+import 'pwa_home_guide_dialog.dart';
 
 /// Tarjeta en Perfil para configurar notificaciones de mensajes (iOS PWA).
 class PushNotificationSetupCard extends StatefulWidget {
@@ -36,7 +36,7 @@ class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
     setState(() => _busy = true);
     try {
       if (_state == PushSetupState.needsHomeScreenInstall) {
-        await PwaInstallSheets.showManualGuide(context);
+        await showPwaHomeGuideDialog(context);
         await _refresh();
         return;
       }
@@ -189,22 +189,7 @@ class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
   }
 }
 
-/// Diálogo rápido (desde icono en Mensajes).
-Future<void> showPushNotificationSetupDialog(BuildContext context) async {
-  await showDialog<void>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: AppTheme.surface,
-      title: const Text('Notificaciones de mensajes'),
-      content: const SingleChildScrollView(
-        child: PushNotificationSetupCard(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cerrar'),
-        ),
-      ],
-    ),
-  );
+/// Campanita en Mensajes → guía de acceso directo / PWA.
+Future<void> showPushNotificationSetupDialog(BuildContext context) {
+  return showPwaHomeGuideDialog(context);
 }

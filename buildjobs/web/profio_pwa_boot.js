@@ -118,10 +118,9 @@
       var originalLoad = proto.load;
       proto.load = function (opts) {
         var options = opts || {};
-        var iosStandalone = isIos() && isStandalonePwa();
-        if (iosStandalone && options.serviceWorkerSettings) {
-          delete options.serviceWorkerSettings;
-        } else if (window.profioIsPushServiceWorkerActive() && options.serviceWorkerSettings) {
+        // Nunca usar el SW de Flutter: cachea main.dart.js y deja la app
+        // en versiones viejas (p. ej. campanita que no abre la guía).
+        if (options.serviceWorkerSettings) {
           delete options.serviceWorkerSettings;
         }
         return originalLoad.call(this, options);
@@ -140,9 +139,27 @@
   if (isStandalonePwa() && isIos()) {
     window.__profioBootReady = prepareIosPwaRuntime().then(installIosPwaTouchWorkaround);
   } else {
-    window.__profioBootReady = Promise.resolve();
-    if (!isStandalonePwa() && 'caches' in window) {
-      clearAllCaches();
-    }
+    window.__profioBootReady = unregisterFlutterServiceWorkers()
+      .then(function () {
+        if (!isStandalonePwa()) return clearAllCaches();
+      });
+  }
+
+  function unregisterFlutterServiceWorkers() {
+    if (!('serviceWorker' in navigator)) return Promise.resolve();
+    return navigator.serviceWorker.getRegistrations().then(function (regs) {
+      return Promise.all(regs.map(function (r) {
+        var url = '';
+        try {
+          url = (r.active && r.active.scriptURL) ||
+            (r.installing && r.installing.scriptURL) ||
+            (r.waiting && r.waiting.scriptURL) || '';
+        } catch (_) {}
+        if (url.indexOf('flutter_service_worker') !== -1) {
+          return r.unregister();
+        }
+        return Promise.resolve();
+      }));
+    });
   }
 })();

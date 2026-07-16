@@ -42,6 +42,8 @@ bool isIosWeb() => false;
 
 bool isAndroidWeb() => false;
 
+bool isInAppBrowser() => false;
+
 bool isLikelyPrivateBrowsing() => false;
 
 Future<void> ensureFirebaseMessagingSwReady() async {}

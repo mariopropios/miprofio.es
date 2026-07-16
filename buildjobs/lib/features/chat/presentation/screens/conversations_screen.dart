@@ -10,7 +10,7 @@ import '../../../../core/services/notification_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/message.dart';
 import '../providers/chat_providers.dart';
-import '../../../../shared/widgets/push_notification_setup_card.dart';
+import '../../../../shared/widgets/pwa_home_guide_dialog.dart';
 import '../widgets/chat_message_state.dart';
 
 class ConversationsScreen extends ConsumerStatefulWidget {
@@ -23,6 +23,9 @@ class ConversationsScreen extends ConsumerStatefulWidget {
 
 class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
+  bool _refreshing = false;
+  bool _showHomeGuide = false;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -45,6 +48,27 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     await NotificationService.syncIfAlreadyAuthorized();
   }
 
+  Future<void> _refreshConversations() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      ref.invalidate(conversationsProvider);
+      await ref.read(conversationsProvider.future);
+    } catch (_) {
+      // El error se refleja en conversationsListProvider.
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  void _openHomeGuide() {
+    setState(() => _showHomeGuide = true);
+  }
+
+  void _closeHomeGuide() {
+    setState(() => _showHomeGuide = false);
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -65,10 +89,11 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
 
     final user = ref.watch(currentUserProvider);
 
+    final Widget scaffold;
     if (user == null) {
-      return Scaffold(
+      scaffold = Scaffold(
         primary: false,
-        appBar: _buildAppBar(context),
+        appBar: _buildAppBar(),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -93,90 +118,100 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
           ),
         ),
       );
+    } else {
+      final convAsync = ref.watch(conversationsListProvider);
+      scaffold = Scaffold(
+        primary: false,
+        backgroundColor: AppTheme.scaffoldBackground,
+        appBar: _buildAppBar(),
+        body: RepaintBoundary(
+          child: Column(
+            children: [
+              Expanded(
+                child: convAsync.when(
+                  skipLoadingOnReload: true,
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => ChatErrorState(
+                    error: e,
+                    title: 'No se pudieron cargar los mensajes',
+                    onRetry: () => ref.invalidate(conversationsProvider),
+                  ),
+                  data: (conversations) {
+                    if (conversations.isEmpty) {
+                      return const _EmptyState();
+                    }
+                    return RefreshIndicator(
+                      color: AppTheme.primary,
+                      onRefresh: _refreshConversations,
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount: conversations.length,
+                        separatorBuilder: (_, __) => const Divider(
+                          height: 1,
+                          indent: 78,
+                          color: AppTheme.divider,
+                        ),
+                        itemBuilder: (context, index) {
+                          final conversation = conversations[index];
+                          return RepaintBoundary(
+                            child: _ConversationTile(
+                              conversation: conversation,
+                              onOpen: () {
+                                ref
+                                    .read(locallyReadConversationIdsProvider
+                                        .notifier)
+                                    .update(
+                                      (s) => {...s, conversation.id},
+                                    );
+                                context.push(
+                                  AppRoutes.chatPathWith(
+                                    professionalId:
+                                        conversation.professionalId,
+                                    conversationId: conversation.id,
+                                    name: conversation.peerName,
+                                    photo: conversation.peerPhoto,
+                                    peerUserId: conversation.userId,
+                                    viewingAsProfessional:
+                                        conversation.viewingAsProfessional,
+                                  ),
+                                  extra: {
+                                    'name': conversation.peerName,
+                                    'photo': conversation.peerPhoto,
+                                    'conversationId': conversation.id,
+                                    'peerUserId': conversation.userId,
+                                    'viewingAsProfessional':
+                                        conversation.viewingAsProfessional,
+                                  },
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
-    final convAsync = ref.watch(conversationsListProvider);
-
-    return Scaffold(
-      primary: false,
-      backgroundColor: AppTheme.scaffoldBackground,
-      appBar: _buildAppBar(context),
-      body: RepaintBoundary(
-        child: Column(
-          children: [
-            Expanded(
-              child: convAsync.when(
-                skipLoadingOnReload: true,
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (e, _) => ChatErrorState(
-                  error: e,
-                  title: 'No se pudieron cargar los mensajes',
-                  onRetry: () => ref.invalidate(conversationsProvider),
-                ),
-                data: (conversations) {
-                  if (conversations.isEmpty) {
-                    return const _EmptyState();
-                  }
-                  return RefreshIndicator(
-                    color: AppTheme.primary,
-                    onRefresh: () async =>
-                        ref.invalidate(conversationsProvider),
-                    child: ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: conversations.length,
-                      separatorBuilder: (_, __) => const Divider(
-                        height: 1,
-                        indent: 78,
-                        color: AppTheme.divider,
-                      ),
-                          itemBuilder: (context, index) {
-                            final conversation = conversations[index];
-                            return RepaintBoundary(
-                              child: _ConversationTile(
-                                conversation: conversation,
-                                onOpen: () {
-                                  ref
-                                      .read(locallyReadConversationIdsProvider
-                                          .notifier)
-                                      .update(
-                                        (s) => {...s, conversation.id},
-                                      );
-                                  context.push(
-                                    AppRoutes.chatPathWith(
-                                      professionalId: conversation.professionalId,
-                                      conversationId: conversation.id,
-                                      name: conversation.peerName,
-                                      photo: conversation.peerPhoto,
-                                      peerUserId: conversation.userId,
-                                      viewingAsProfessional:
-                                          conversation.viewingAsProfessional,
-                                    ),
-                                    extra: {
-                                      'name': conversation.peerName,
-                                      'photo': conversation.peerPhoto,
-                                      'conversationId': conversation.id,
-                                      'peerUserId': conversation.userId,
-                                      'viewingAsProfessional':
-                                          conversation.viewingAsProfessional,
-                                    },
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
+    // Overlay in-page: no depende de showDialog / Navigator (falla en iOS web).
+    return Stack(
+      children: [
+        scaffold,
+        if (_showHomeGuide)
+          Positioned.fill(
+            child: PwaHomeGuideOverlay(onClose: _closeHomeGuide),
+          ),
+      ],
     );
   }
 
-  AppBar _buildAppBar(BuildContext context) {
+  AppBar _buildAppBar() {
     return AppBar(
       backgroundColor: AppTheme.surface,
       elevation: 0,
@@ -193,15 +228,24 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
       actions: [
         if (kIsWeb)
           IconButton(
-            onPressed: () => showPushNotificationSetupDialog(context),
+            onPressed: _openHomeGuide,
             icon: const Icon(Icons.notifications_outlined,
                 color: AppTheme.textSecondary, size: 22),
-            tooltip: 'Notificaciones',
+            tooltip: 'Añadir a pantalla de inicio',
           ),
         IconButton(
-          onPressed: () => ref.invalidate(conversationsProvider),
-          icon: const Icon(Icons.refresh_rounded,
-              color: AppTheme.textSecondary, size: 22),
+          onPressed: _refreshing ? null : _refreshConversations,
+          icon: _refreshing
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppTheme.textSecondary,
+                  ),
+                )
+              : const Icon(Icons.refresh_rounded,
+                  color: AppTheme.textSecondary, size: 22),
           tooltip: 'Actualizar',
         ),
         const SizedBox(width: 4),

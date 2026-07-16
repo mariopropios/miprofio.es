@@ -88,6 +88,37 @@ bool isIosWeb() => _isIosDevice();
 
 bool isAndroidWeb() => _isAndroidDevice();
 
+/// Chrome Custom Tabs / WebViews de apps (WhatsApp, Gmail, Instagram, etc.).
+bool isInAppBrowser() {
+  final ua = html.window.navigator.userAgent.toLowerCase();
+  const markers = [
+    'wv', // Android WebView
+    'fbav',
+    'fban',
+    'instagram',
+    'line/',
+    'whatsapp',
+    'twitter',
+    'linkedin',
+    'gsa/', // Google Search App
+    'gmail',
+    'yahoo',
+    'micromessenger', // WeChat
+  ];
+  for (final m in markers) {
+    if (ua.contains(m)) return true;
+  }
+  // iOS: Safari tiene "safari" en UA; muchos in-apps no.
+  if (_isIosDevice() &&
+      !ua.contains('safari') &&
+      !ua.contains('crios') &&
+      !ua.contains('fxios') &&
+      !ua.contains('edgios')) {
+    return true;
+  }
+  return false;
+}
+
 bool isLikelyPrivateBrowsing() {
   try {
     html.window.localStorage['__profio_priv_test'] = '1';

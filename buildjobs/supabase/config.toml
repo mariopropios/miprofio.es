@@ -1,3 +1,7 @@
 # phone-otp se llama ANTES de crear cuenta → no exige JWT
 [functions.phone-otp]
 verify_jwt = false
+
+# Notificaciones: cliente (JWT usuario) + triggers DB (Bearer anon/service vía Vault)
+[functions.send-push-notification]
+verify_jwt = true

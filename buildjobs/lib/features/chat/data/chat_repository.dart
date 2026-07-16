@@ -196,6 +196,7 @@ class ChatRepository {
       await _client.functions.invoke(
         'send-push-notification',
         body: {
+          'type': 'message',
           'conversation_id': conversationId,
           'sender_id': senderId,
           'sender_name': senderName,
@@ -234,29 +235,47 @@ class ChatRepository {
   /// Devuelve true si el servidor confirmó la operación (o ya estaban leídos).
   Future<bool> markAsRead(String conversationId) async {
     final uid = _uid;
-    if (uid == null) return false;
+    if (uid == null || conversationId.isEmpty) return false;
 
     try {
-      final updated = await _client.rpc(
+      await _client.rpc(
         'mark_conversation_messages_read',
         params: {'p_conversation_id': conversationId},
       );
-      if (updated is int) return true;
-      if (updated is num) return true;
-      return true;
+      // Confirmar en BD: no deben quedar no leídos de la otra parte.
+      final remaining = await _client
+          .from('messages')
+          .select('id')
+          .eq('conversation_id', conversationId)
+          .neq('sender_id', uid)
+          .isFilter('read_at', null);
+      if ((remaining as List).isEmpty) return true;
+      debugPrint(
+        '[Chat] markAsRead RPC ok pero siguen unread en $conversationId',
+      );
     } catch (e, st) {
       debugPrint('[Chat] markAsRead RPC failed for $conversationId: $e\n$st');
     }
 
     try {
-      await _client
+      final rows = await _client
           .from('messages')
           .update({'read_at': DateTime.now().toUtc().toIso8601String()})
           .eq('conversation_id', conversationId)
           .neq('sender_id', uid)
           .isFilter('read_at', null)
           .select('id');
-      return true;
+      final updatedCount = (rows as List).length;
+      if (updatedCount > 0) return true;
+
+      // Comprobar si ya no quedan no leídos (éxito idempotente).
+      final remaining = await _client
+          .from('messages')
+          .select('id')
+          .eq('conversation_id', conversationId)
+          .neq('sender_id', uid)
+          .isFilter('read_at', null);
+      return (remaining as List).isEmpty;
     } catch (e2, st2) {
       debugPrint('[Chat] markAsRead fallback failed: $e2\n$st2');
       return false;

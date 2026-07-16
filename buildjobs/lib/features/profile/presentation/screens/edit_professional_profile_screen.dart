@@ -13,7 +13,6 @@ import '../../../../core/services/profile_photo_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/x_file_preview_image.dart';
 import '../../../../shared/models/professional.dart';
-import '../../../../shared/widgets/address_autocomplete_field.dart';
 import '../../../../shared/widgets/city_autocomplete_field.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../../shared/widgets/spring_pressable.dart';
@@ -35,7 +34,6 @@ class _EditProfessionalProfileScreenState
   final _cityCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _websiteCtrl = TextEditingController();
-  final _addressCtrl = TextEditingController();
   final _bioCtrl = TextEditingController();
 
   Set<String> _selectedProfessions = {};
@@ -58,27 +56,14 @@ class _EditProfessionalProfileScreenState
   @override
   void initState() {
     super.initState();
-    _cityCtrl.addListener(_onAddressOrCityChanged);
-    _addressCtrl.addListener(_onAddressOrCityChanged);
+    _cityCtrl.addListener(_onCityChanged);
     _loadData();
   }
 
-  void _onAddressOrCityChanged() {
+  void _onCityChanged() {
     if (_skipGeoClear) return;
     _latitude = null;
     _longitude = null;
-  }
-
-  void _applyAddressSelection(AddressSuggestion suggestion) {
-    _skipGeoClear = true;
-    if (suggestion.latitude != null && suggestion.longitude != null) {
-      _latitude = suggestion.latitude;
-      _longitude = suggestion.longitude;
-    } else {
-      _latitude = null;
-      _longitude = null;
-    }
-    _skipGeoClear = false;
   }
 
   Future<void> _loadData() async {
@@ -92,17 +77,19 @@ class _EditProfessionalProfileScreenState
   }
 
   void _applyProfessional(Professional p) {
+    // Una sola ubicación: priorizar city; si está vacía, usar address.
+    final unifiedLocation = p.city.trim().isNotEmpty
+        ? p.city.trim()
+        : p.address.trim();
     setState(() {
       _professionalId = p.id;
       _nameCtrl.text = p.name;
-      _cityCtrl.text = p.city;
+      _cityCtrl.text = unifiedLocation;
       _phoneCtrl.text = p.phone ?? '';
       _websiteCtrl.text = p.website ?? '';
-      _addressCtrl.text = p.address;
       _latitude = p.latitude;
       _longitude = p.longitude;
       _bioCtrl.text = p.description ?? '';
-      // Parse comma-separated professions into a Set
       _selectedProfessions = p.professions.toSet();
       _currentProfilePhotoUrl = p.profilePhoto;
       _existingGallery = List<String>.from(p.galleryPhotos);
@@ -118,7 +105,6 @@ class _EditProfessionalProfileScreenState
     _cityCtrl.dispose();
     _phoneCtrl.dispose();
     _websiteCtrl.dispose();
-    _addressCtrl.dispose();
     _bioCtrl.dispose();
     super.dispose();
   }
@@ -134,8 +120,10 @@ class _EditProfessionalProfileScreenState
       final location = await detection;
       if (mounted) {
         _skipGeoClear = true;
-        _cityFieldKey.currentState?.applyCity(location.city);
-        _addressCtrl.text = location.address;
+        final city = location.city.trim().isNotEmpty
+            ? location.city.trim()
+            : location.address.trim();
+        _cityFieldKey.currentState?.applyCity(city);
         _latitude = location.latitude;
         _longitude = location.longitude;
         _skipGeoClear = false;
@@ -187,37 +175,27 @@ class _EditProfessionalProfileScreenState
     setState(() => _saving = true);
     try {
       final city = _cityCtrl.text.trim();
-      final addressInput = _addressCtrl.text.trim();
+      // Una sola ubicación: city y address siempre iguales.
+      final address = city;
 
       double? latitude = _latitude;
       double? longitude = _longitude;
-      String address = addressInput;
 
       // Geocodificamos solo si no tenemos coordenadas previas.
-      // Si falla (red, límite de API, dirección no encontrada) continuamos igual:
-      // el guardado no debe bloquearse por un error de geocodificación.
+      // Si falla, el guardado no se bloquea.
       if (latitude == null || longitude == null) {
         try {
           final geocoded = await GeoService.resolveCoordinates(
             city: city,
-            address: addressInput,
+            address: city,
             latitude: latitude,
             longitude: longitude,
           );
           latitude = geocoded.latitude;
           longitude = geocoded.longitude;
-          if (addressInput.isNotEmpty &&
-              geocoded.formattedAddress != null &&
-              geocoded.formattedAddress!.isNotEmpty) {
-            address = geocoded.formattedAddress!;
-          } else if (addressInput.isEmpty) {
-            address = city;
-          }
         } catch (geoErr) {
-          // No bloqueamos el guardado por fallo en geocodificación.
-          // Las coordenadas quedarán nulas en BD hasta que el usuario
-          // detecte su ubicación manualmente.
-          debugPrint('[GeoService] Geocodificación fallida (no bloqueante): $geoErr');
+          debugPrint(
+              '[GeoService] Geocodificación fallida (no bloqueante): $geoErr');
         }
       }
 
@@ -438,15 +416,6 @@ class _EditProfessionalProfileScreenState
                         hint: 'Ej: +34 600 000 000',
                         icon: Icons.phone_outlined,
                         keyboardType: TextInputType.phone,
-                      ),
-                      const SizedBox(height: 14),
-                      AddressAutocompleteField(
-                        controller: _addressCtrl,
-                        cityController: _cityCtrl,
-                        label: 'Dirección (opcional)',
-                        hint: 'Solo si quieres afinar tu ubicación en el mapa',
-                        validator: GeoService.optionalStreetInputError,
-                        onAddressSelected: _applyAddressSelection,
                       ),
                       const SizedBox(height: 14),
                       RegisterFormField(

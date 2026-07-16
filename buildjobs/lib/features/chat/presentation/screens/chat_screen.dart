@@ -269,8 +269,10 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
   }
 
   Future<void> markAsRead() async {
-    await clearGroupedChatNotifications(conversationId);
+    // Persistir primero: en iOS el Service Worker puede colgarse y
+    // bloquear clearGroupedChatNotifications si se await antes.
     final ok = await repo.markAsRead(conversationId);
+    unawaited(clearGroupedChatNotifications(conversationId));
     if (!mounted) return;
     if (ok) {
       final now = DateTime.now().toUtc();
@@ -541,7 +543,7 @@ class _ChatBodyState extends ConsumerState<_ChatBody>
     final generation = _openScrollGeneration;
     _didInitialScroll = false;
 
-    await clearGroupedChatNotifications(widget.conversationId);
+    unawaited(clearGroupedChatNotifications(widget.conversationId));
 
     await ref
         .read(_chatNotifierProvider(widget.conversationId).notifier)
@@ -627,8 +629,8 @@ class _ChatBodyState extends ConsumerState<_ChatBody>
 
   Future<void> _finalizeReadOnClose() async {
     final conversationId = widget.conversationId;
-    await clearGroupedChatNotifications(conversationId);
     final ok = await ref.read(chatRepositoryProvider).markAsRead(conversationId);
+    unawaited(clearGroupedChatNotifications(conversationId));
     if (!mounted) return;
     if (ok) {
       ref.read(locallyReadConversationIdsProvider.notifier).update(
