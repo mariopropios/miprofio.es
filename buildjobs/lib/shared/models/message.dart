@@ -61,6 +61,15 @@ class ChatMessage {
       );
 }
 
+/// Filtro de lista de conversaciones (por estado del usuario actual).
+enum ConversationListFilter {
+  /// Lista principal: no archivados y no eliminados (ocultos).
+  active,
+
+  /// Solo archivados (no eliminados).
+  archived,
+}
+
 class Conversation {
   const Conversation({
     required this.id,
@@ -73,6 +82,7 @@ class Conversation {
     required this.updatedAt,
     this.unreadCount = 0,
     this.viewingAsProfessional = false,
+    this.isArchived = false,
   });
 
   final String id;
@@ -85,10 +95,11 @@ class Conversation {
   final DateTime updatedAt;
   final int unreadCount;
   final bool viewingAsProfessional;
+  final bool isArchived;
 
   bool get hasUnread => unreadCount > 0;
 
-  Conversation copyWith({int? unreadCount}) => Conversation(
+  Conversation copyWith({int? unreadCount, bool? isArchived}) => Conversation(
         id: id,
         userId: userId,
         professionalId: professionalId,
@@ -99,6 +110,7 @@ class Conversation {
         updatedAt: updatedAt,
         unreadCount: unreadCount ?? this.unreadCount,
         viewingAsProfessional: viewingAsProfessional,
+        isArchived: isArchived ?? this.isArchived,
       );
 
   /// Compatibilidad con pantallas que aún usan el nombre anterior.
@@ -110,6 +122,7 @@ class Conversation {
     required String currentUserId,
     required Set<String> ownedProfessionalIds,
     int unreadCount = 0,
+    bool isArchived = false,
   }) {
     final prof = json['professionals'] as Map<String, dynamic>?;
     final client = json['client'] as Map<String, dynamic>?;
@@ -137,6 +150,7 @@ class Conversation {
       updatedAt: DateTime.parse(json['updated_at'] as String),
       unreadCount: unreadCount,
       viewingAsProfessional: viewingAsProfessional,
+      isArchived: isArchived,
     );
   }
 }

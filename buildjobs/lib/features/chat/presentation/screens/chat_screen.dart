@@ -344,6 +344,7 @@ final _chatNotifierProvider = StateNotifierProvider.autoDispose
       onMessagesRead: () {
         markConversationReadLocally(ref, conversationId);
         ref.invalidate(conversationsProvider);
+        ref.invalidate(archivedConversationsProvider);
       },
     );
   },
@@ -637,6 +638,7 @@ class _ChatBodyState extends ConsumerState<_ChatBody>
             (s) => {...s, conversationId},
           );
       ref.invalidate(conversationsProvider);
+      ref.invalidate(archivedConversationsProvider);
     }
   }
 
@@ -796,6 +798,7 @@ class _ChatBodyState extends ConsumerState<_ChatBody>
             .read(_chatNotifierProvider(widget.conversationId).notifier)
             .editMessage(messageId, text);
         ref.invalidate(conversationsProvider);
+        ref.invalidate(archivedConversationsProvider);
       } catch (e) {
         if (mounted) {
           _startEdit(messageId, originalBody);

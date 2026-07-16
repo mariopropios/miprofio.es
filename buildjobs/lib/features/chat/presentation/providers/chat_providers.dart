@@ -12,6 +12,14 @@ final conversationsProvider = FutureProvider<List<Conversation>>((ref) {
   return ref.read(chatRepositoryProvider).getConversations();
 });
 
+final archivedConversationsProvider =
+    FutureProvider<List<Conversation>>((ref) {
+  ref.watch(currentUserProvider);
+  return ref.read(chatRepositoryProvider).getConversations(
+        filter: ConversationListFilter.archived,
+      );
+});
+
 /// Conversaciones marcadas como leídas en cliente hasta que el servidor confirme.
 final locallyReadConversationIdsProvider =
     StateProvider<Set<String>>((ref) => {});
@@ -30,25 +38,45 @@ List<Conversation> _applyLocalReadOverrides(
       .toList();
 }
 
-/// Lista de conversaciones con no-leídos optimistas aplicados (sin flash al volver).
-final conversationsListProvider = Provider<AsyncValue<List<Conversation>>>((ref) {
+void _pruneConfirmedLocalReads(
+  Ref ref,
+  AsyncValue<List<Conversation>> next,
+) {
+  next.whenData((list) {
+    final local = ref.read(locallyReadConversationIdsProvider);
+    if (local.isEmpty) return;
+    final confirmedRead = local.where((id) {
+      final conv = list.where((c) => c.id == id).firstOrNull;
+      return conv != null && conv.unreadCount == 0;
+    }).toSet();
+    if (confirmedRead.isNotEmpty) {
+      ref.read(locallyReadConversationIdsProvider.notifier).update(
+            (s) => s.difference(confirmedRead),
+          );
+    }
+  });
+}
+
+/// Lista principal con no-leídos optimistas aplicados.
+final conversationsListProvider =
+    Provider<AsyncValue<List<Conversation>>>((ref) {
   ref.listen(conversationsProvider, (previous, next) {
-    next.whenData((list) {
-      final local = ref.read(locallyReadConversationIdsProvider);
-      if (local.isEmpty) return;
-      final confirmedRead = local.where((id) {
-        final conv = list.where((c) => c.id == id).firstOrNull;
-        return conv != null && conv.unreadCount == 0;
-      }).toSet();
-      if (confirmedRead.isNotEmpty) {
-        ref.read(locallyReadConversationIdsProvider.notifier).update(
-              (s) => s.difference(confirmedRead),
-            );
-      }
-    });
+    _pruneConfirmedLocalReads(ref, next);
   });
 
   final base = ref.watch(conversationsProvider);
+  final locallyRead = ref.watch(locallyReadConversationIdsProvider);
+  return base.whenData((list) => _applyLocalReadOverrides(list, locallyRead));
+});
+
+/// Lista de archivados con no-leídos optimistas.
+final archivedConversationsListProvider =
+    Provider<AsyncValue<List<Conversation>>>((ref) {
+  ref.listen(archivedConversationsProvider, (previous, next) {
+    _pruneConfirmedLocalReads(ref, next);
+  });
+
+  final base = ref.watch(archivedConversationsProvider);
   final locallyRead = ref.watch(locallyReadConversationIdsProvider);
   return base.whenData((list) => _applyLocalReadOverrides(list, locallyRead));
 });
@@ -59,13 +87,24 @@ void markConversationReadLocally(Ref ref, String conversationId) {
       );
 }
 
-/// Total de mensajes sin leer (para badge en la barra de navegación).
+void invalidateConversationLists(WidgetRef ref) {
+  ref.invalidate(conversationsProvider);
+  ref.invalidate(archivedConversationsProvider);
+}
+
+/// Total de mensajes sin leer (lista principal + archivados) para badge nav.
 final totalUnreadMessagesProvider = Provider<int>((ref) {
-  final conversations = ref.watch(conversationsListProvider);
-  return conversations.maybeWhen(
+  final active = ref.watch(conversationsListProvider);
+  final archived = ref.watch(archivedConversationsListProvider);
+  final activeCount = active.maybeWhen(
     data: (list) => list.fold<int>(0, (sum, c) => sum + c.unreadCount),
     orElse: () => 0,
   );
+  final archivedCount = archived.maybeWhen(
+    data: (list) => list.fold<int>(0, (sum, c) => sum + c.unreadCount),
+    orElse: () => 0,
+  );
+  return activeCount + archivedCount;
 });
 
 /// Suscripción Realtime que mantiene la lista de conversaciones al día.
@@ -73,25 +112,36 @@ final conversationsRealtimeProvider = Provider<void>((ref) {
   final uid = Supabase.instance.client.auth.currentUser?.id;
   if (uid == null) return;
 
+  void refresh() {
+    ref.invalidate(conversationsProvider);
+    ref.invalidate(archivedConversationsProvider);
+  }
+
   final channel = Supabase.instance.client
       .channel('conversations_list_$uid')
       .onPostgresChanges(
         event: PostgresChangeEvent.insert,
         schema: 'public',
         table: 'messages',
-        callback: (_) => ref.invalidate(conversationsProvider),
+        callback: (_) => refresh(),
       )
       .onPostgresChanges(
         event: PostgresChangeEvent.update,
         schema: 'public',
         table: 'messages',
-        callback: (_) => ref.invalidate(conversationsProvider),
+        callback: (_) => refresh(),
       )
       .onPostgresChanges(
         event: PostgresChangeEvent.update,
         schema: 'public',
         table: 'conversations',
-        callback: (_) => ref.invalidate(conversationsProvider),
+        callback: (_) => refresh(),
+      )
+      .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'conversation_user_state',
+        callback: (_) => refresh(),
       )
       .subscribe();
 

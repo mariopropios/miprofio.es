@@ -52,7 +52,14 @@ class ChatRepository {
   }
 
   /// Lista de conversaciones del usuario actual (como cliente o como profesional).
-  Future<List<Conversation>> getConversations() async {
+  ///
+  /// [filter]:
+  /// - [ConversationListFilter.active]: no archivados ni eliminados (ocultos).
+  /// - [ConversationListFilter.archived]: solo archivados.
+  /// Los chats con `hidden_at` (eliminados para mí) no aparecen en ninguna lista.
+  Future<List<Conversation>> getConversations({
+    ConversationListFilter filter = ConversationListFilter.active,
+  }) async {
     final uid = _uid;
     if (uid == null) return [];
 
@@ -94,23 +101,86 @@ class ChatRepository {
     if (rows.isEmpty) return [];
 
     final convIds = rows.map((r) => r['id'] as String).toList();
+    final states = await _userStatesForConversations(convIds);
     final unreadByConversation = await _unreadCountsForConversations(
       conversationIds: convIds,
       currentUserId: uid,
     );
 
-    final all = rows
-        .map(
-          (row) => Conversation.fromRow(
-            row,
-            currentUserId: uid,
-            ownedProfessionalIds: ownedProfessionalIds,
-            unreadCount: unreadByConversation[row['id'] as String] ?? 0,
-          ),
-        )
-        .toList();
+    final all = <Conversation>[];
+    for (final row in rows) {
+      final id = row['id'] as String;
+      final state = states[id];
+      if (state?.isHidden == true) continue;
+      final isArchived = state?.isArchived == true;
+      if (filter == ConversationListFilter.active && isArchived) continue;
+      if (filter == ConversationListFilter.archived && !isArchived) continue;
+
+      all.add(
+        Conversation.fromRow(
+          row,
+          currentUserId: uid,
+          ownedProfessionalIds: ownedProfessionalIds,
+          unreadCount: unreadByConversation[id] ?? 0,
+          isArchived: isArchived,
+        ),
+      );
+    }
     all.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return all;
+  }
+
+  Future<Map<String, _ConversationUserState>> _userStatesForConversations(
+    List<String> conversationIds,
+  ) async {
+    if (conversationIds.isEmpty) return {};
+    final uid = _uid;
+    if (uid == null) return {};
+
+    try {
+      final data = await _client
+          .from('conversation_user_state')
+          .select('conversation_id, archived_at, hidden_at')
+          .eq('user_id', uid)
+          .inFilter('conversation_id', conversationIds);
+
+      final map = <String, _ConversationUserState>{};
+      for (final row in data as List) {
+        final id = row['conversation_id'] as String;
+        map[id] = _ConversationUserState(
+          isArchived: row['archived_at'] != null,
+          isHidden: row['hidden_at'] != null,
+        );
+      }
+      return map;
+    } catch (e) {
+      // Tabla/migración aún no aplicada: no filtrar por estado.
+      debugPrint('[Chat] conversation_user_state no disponible: $e');
+      return {};
+    }
+  }
+
+  /// Archivar o desarchivar (solo para el usuario actual).
+  Future<void> setConversationArchived({
+    required String conversationId,
+    required bool archived,
+  }) async {
+    await _client.rpc(
+      'set_conversation_archived',
+      params: {
+        'p_conversation_id': conversationId,
+        'p_archived': archived,
+      },
+    );
+  }
+
+  /// Ocultar conversación para mí (soft-delete). El otro interlocutor la sigue viendo.
+  /// Si el otro escribe de nuevo, un trigger la reactiva.
+  Future<void> hideConversation(String conversationId) async {
+    await _client.rpc(
+      'set_conversation_hidden',
+      params: {'p_conversation_id': conversationId},
+    );
   }
 
   Future<Map<String, int>> _unreadCountsForConversations({
@@ -323,9 +393,24 @@ class ChatRepository {
     return _client.storage.from(bucket).getPublicUrl(path);
   }
 
-  /// Número de mensajes no leídos del usuario actual en todas sus conversaciones.
+  /// Número de mensajes no leídos del usuario actual en conversaciones visibles
+  /// (lista principal + archivados). Los ocultos no cuentan.
   Future<int> unreadCount() async {
-    final conversations = await getConversations();
-    return conversations.fold<int>(0, (sum, c) => sum + c.unreadCount);
+    final active = await getConversations();
+    final archived = await getConversations(
+      filter: ConversationListFilter.archived,
+    );
+    return [...active, ...archived]
+        .fold<int>(0, (sum, c) => sum + c.unreadCount);
   }
+}
+
+class _ConversationUserState {
+  const _ConversationUserState({
+    required this.isArchived,
+    required this.isHidden,
+  });
+
+  final bool isArchived;
+  final bool isHidden;
 }

@@ -365,19 +365,17 @@
       if (!loader) return;
       loader.style.pointerEvents = 'none';
       loader.classList.add('fade-out');
-      loader.remove();
+      setTimeout(function () {
+        if (loader.parentNode) loader.remove();
+      }, 520);
       var seo = document.getElementById('seo-static');
       if (seo) seo.remove();
     }
 
+    // Igual en browser y acceso directo: solo quitar splash cuando Flutter pinta.
     window.addEventListener('flutter-first-frame', profioDismissLoader);
 
-    // iOS PWA: quitar loader pronto para no tapar toques si Flutter tarda.
-    if (window.__profioPwa && window.__profioPwa.isIos && window.__profioPwa.isStandalone) {
-      setTimeout(profioDismissLoader, 4000);
-    }
-
-    // Fallback si Flutter tarda
+    // Fallback: no dejar pantalla negra; ofrecer recarga.
     setTimeout(function () {
       var loader = document.getElementById('hc-loader');
       if (!loader || loader.classList.contains('fade-out')) return;
@@ -386,19 +384,21 @@
       hint.style.cssText =
         'margin-top:20px;font-family:system-ui,sans-serif;font-size:13px;color:#9ba3af;text-align:center;max-width:260px;line-height:1.5';
       hint.innerHTML =
-        'La app tarda más de lo normal.<br><a href="#" style="color:#00B27A">Recargar página</a>';
+        'La app tarda más de lo normal.<br><a href="#" style="color:#00B27A">Recargar</a>';
       hint.querySelector('a').addEventListener('click', function (e) {
         e.preventDefault();
         location.reload();
       });
       loader.appendChild(hint);
-    }, 10000);
+    }, 12000);
   </script>
 
   <script>
+    // Arranque idéntico standalone/browser: no esperar limpiezas de SW.
     (window.__profioBootReady || Promise.resolve()).then(function () {
       var s = document.createElement('script');
-      s.src = 'flutter_bootstrap.js?v=pwa-ios-20260716j';
+      s.src = 'flutter_bootstrap.js?v=pwa-boot-20260717a';
+      s.async = true;
       document.body.appendChild(s);
     });
   </script>

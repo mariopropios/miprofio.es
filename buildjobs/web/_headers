@@ -7,8 +7,17 @@
 /flutter_bootstrap.js
   Cache-Control: no-cache, no-store, must-revalidate, max-age=0
 
+/profio_pwa_boot.js
+  Cache-Control: no-cache, no-store, must-revalidate, max-age=0
+
+/manifest.json
+  Cache-Control: no-cache, no-store, must-revalidate, max-age=0
+
 /flutter_service_worker.js
   Cache-Control: no-cache, no-store, must-revalidate, max-age=0
 
 /version.json
+  Cache-Control: no-cache, no-store, must-revalidate, max-age=0
+
+/firebase-messaging-sw.js
   Cache-Control: no-cache, no-store, must-revalidate, max-age=0

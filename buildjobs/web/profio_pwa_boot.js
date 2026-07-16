@@ -22,31 +22,47 @@
     }
   }
 
+  // Misma detección para browser y acceso directo; no cambiar el arranque.
   window.__profioPwa = { isStandalone: isStandalonePwa(), isIos: isIos() };
 
-  function unregisterAllServiceWorkers() {
-    if (!('serviceWorker' in navigator)) return Promise.resolve();
-    return navigator.serviceWorker.getRegistrations().then(function (regs) {
-      return Promise.all(regs.map(function (r) { return r.unregister(); }));
-    });
+  function swScriptUrl(reg) {
+    try {
+      return (reg.active && reg.active.scriptURL) ||
+        (reg.installing && reg.installing.scriptURL) ||
+        (reg.waiting && reg.waiting.scriptURL) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function isFlutterServiceWorker(reg) {
+    return swScriptUrl(reg).indexOf('flutter_service_worker') !== -1;
+  }
+
+  function isFirebaseMessagingSw(reg) {
+    return swScriptUrl(reg).indexOf('firebase-messaging-sw.js') !== -1;
   }
 
   function unregisterFlutterServiceWorkers() {
     if (!('serviceWorker' in navigator)) return Promise.resolve();
     return navigator.serviceWorker.getRegistrations().then(function (regs) {
       return Promise.all(regs.map(function (r) {
-        var url = '';
-        try {
-          url = (r.active && r.active.scriptURL) ||
-            (r.installing && r.installing.scriptURL) ||
-            (r.waiting && r.waiting.scriptURL) || '';
-        } catch (_) {}
-        if (url.indexOf('flutter_service_worker') !== -1) {
-          return r.unregister();
+        return isFlutterServiceWorker(r) ? r.unregister() : Promise.resolve();
+      }));
+    });
+  }
+
+  function clearFlutterCaches() {
+    if (!('caches' in window)) return Promise.resolve();
+    return caches.keys().then(function (keys) {
+      return Promise.all(keys.map(function (key) {
+        // Solo caches del SW de Flutter (nombres típicos flutter-*).
+        if (key.indexOf('flutter') !== -1) {
+          return caches.delete(key);
         }
         return Promise.resolve();
       }));
-    });
+    }).catch(function () {});
   }
 
   window.profioIsPushServiceWorkerActive = function () {
@@ -67,15 +83,31 @@
   window.profioUnregisterFirebaseMessagingSw = function () {
     window.__profioFcmSwRegistered = false;
     window.profioSetPushServiceWorkerActive(false);
-    return unregisterAllServiceWorkers();
+    if (!('serviceWorker' in navigator)) return Promise.resolve();
+    return navigator.serviceWorker.getRegistrations().then(function (regs) {
+      return Promise.all(regs.map(function (r) {
+        return isFirebaseMessagingSw(r) ? r.unregister() : Promise.resolve();
+      }));
+    });
   };
 
   window.profioRegisterFirebaseMessagingSw = function () {
     if (!('serviceWorker' in navigator)) return Promise.resolve();
     if (window.__profioFcmSwRegistered) return Promise.resolve();
 
-    return unregisterAllServiceWorkers().then(function () {
-      return navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: '/' });
+    // No hacer unregisterAll: en iOS PWA eso rompe el arranque.
+    // Solo quitar SW de Flutter y registrar (o reutilizar) el de FCM.
+    return unregisterFlutterServiceWorkers().then(function () {
+      return navigator.serviceWorker.getRegistration('/');
+    }).then(function (existing) {
+      if (existing && isFirebaseMessagingSw(existing) && existing.active) {
+        window.__profioFcmSwRegistered = true;
+        window.profioSetPushServiceWorkerActive(true);
+        return existing;
+      }
+      return navigator.serviceWorker.register('firebase-messaging-sw.js', {
+        scope: '/',
+      });
     }).then(function (reg) {
       window.__profioFcmSwRegistered = true;
       window.profioSetPushServiceWorkerActive(true);
@@ -92,52 +124,20 @@
 
     var resetViewportScroll = function () {
       requestAnimationFrame(function () {
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
+        try {
+          window.scrollTo(0, 0);
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+        } catch (_) {}
       });
     };
 
     window.profioResetIosViewport = resetViewportScroll;
-
-    var noop = function () {};
-    window.addEventListener('touchstart', noop, { capture: true, passive: true });
-    document.addEventListener('touchstart', noop, { capture: true, passive: true });
-
     resetViewportScroll();
     window.addEventListener('pageshow', resetViewportScroll);
-    window.addEventListener('resize', resetViewportScroll);
     window.addEventListener('orientationchange', resetViewportScroll);
-    window.addEventListener('focusout', resetViewportScroll, true);
-    document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) resetViewportScroll();
-    });
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', resetViewportScroll);
-    }
     window.addEventListener('flutter-first-frame', resetViewportScroll);
   }
-
-  // Nunca usar el SW de Flutter (cachea main.dart.js y deja versiones viejas).
-  (function patchFlutterLoader() {
-    var timer = setInterval(function () {
-      if (!window._flutter || !window._flutter.loader) return;
-      clearInterval(timer);
-
-      var proto = Object.getPrototypeOf(window._flutter.loader);
-      if (!proto || proto.__profioPatched) return;
-      proto.__profioPatched = true;
-
-      var originalLoad = proto.load;
-      proto.load = function (opts) {
-        var options = opts || {};
-        if (options.serviceWorkerSettings) {
-          delete options.serviceWorkerSettings;
-        }
-        return originalLoad.call(this, options);
-      };
-    }, 0);
-  })();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', function (event) {
@@ -147,21 +147,23 @@
     });
   }
 
-  // Nunca bloquear el arranque de Flutter.
+  // Arranque idéntico en browser y standalone: nunca bloquear Flutter.
   window.__profioBootReady = Promise.resolve();
 
-  // iOS standalone: NO borrar caches ni unregister todos los SW en cada apertura
-  // (eso dejaba el icono de inicio en splash/blanco). Solo quitar SW de Flutter.
-  if (isStandalonePwa() && isIos()) {
-    installIosPwaTouchWorkaround();
-    Promise.race([
+  installIosPwaTouchWorkaround();
+
+  // Limpieza de SW/caches de Flutter DESPUÉS del primer frame (no al boot).
+  // Evita races que dejan el icono de inicio en splash/blanco.
+  function cleanupFlutterSwAfterBoot() {
+    Promise.all([
       unregisterFlutterServiceWorkers(),
-      new Promise(function (resolve) { setTimeout(resolve, 1500); }),
-    ]).catch(function () {});
-  } else {
-    Promise.race([
-      unregisterFlutterServiceWorkers(),
-      new Promise(function (resolve) { setTimeout(resolve, 1500); }),
+      clearFlutterCaches(),
     ]).catch(function () {});
   }
+
+  window.addEventListener('flutter-first-frame', cleanupFlutterSwAfterBoot, {
+    once: true,
+  });
+  // Por si first-frame no llega (icono viejo / caché rota).
+  setTimeout(cleanupFlutterSwAfterBoot, 8000);
 })();

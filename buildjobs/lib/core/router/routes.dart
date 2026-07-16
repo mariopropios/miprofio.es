@@ -10,6 +10,7 @@ class AppRoutes {
   static const editProfile = '/profile/edit';
   static const userProfile = '/users/:userId';
   static const conversations = '/messages';
+  static const archivedMessages = '/archived-messages';
   static const chat = '/messages/:professionalId';
   static const login = '/login';
   static const forgotPassword = '/login/forgot-password';

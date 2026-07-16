@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +11,7 @@ import '../../../../shared/models/message.dart';
 import '../providers/chat_providers.dart';
 import '../../../../shared/widgets/pwa_home_guide_dialog.dart';
 import '../widgets/chat_message_state.dart';
+import '../widgets/conversation_list_tile.dart';
 
 class ConversationsScreen extends ConsumerStatefulWidget {
   const ConversationsScreen({super.key});
@@ -25,6 +25,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   bool _refreshing = false;
   bool _showHomeGuide = false;
+  final Set<String> _removingIds = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -52,8 +53,11 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     if (_refreshing) return;
     setState(() => _refreshing = true);
     try {
-      ref.invalidate(conversationsProvider);
-      await ref.read(conversationsProvider.future);
+      invalidateConversationLists(ref);
+      await Future.wait([
+        ref.read(conversationsProvider.future),
+        ref.read(archivedConversationsProvider.future),
+      ]);
     } catch (_) {
       // El error se refleja en conversationsListProvider.
     } finally {
@@ -69,6 +73,103 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     setState(() => _showHomeGuide = false);
   }
 
+  void _openArchived() {
+    context.push(AppRoutes.archivedMessages);
+  }
+
+  Future<void> _archive(Conversation conversation) async {
+    setState(() => _removingIds.add(conversation.id));
+    try {
+      await ref.read(chatRepositoryProvider).setConversationArchived(
+            conversationId: conversation.id,
+            archived: true,
+          );
+      invalidateConversationLists(ref);
+      if (!mounted) return;
+      setState(() => _removingIds.remove(conversation.id));
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Chat archivado'),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'Deshacer',
+            onPressed: () async {
+              try {
+                await ref.read(chatRepositoryProvider).setConversationArchived(
+                      conversationId: conversation.id,
+                      archived: false,
+                    );
+                invalidateConversationLists(ref);
+              } catch (_) {}
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _removingIds.remove(conversation.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo archivar: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _delete(Conversation conversation) async {
+    final ok = await confirmDeleteConversation(
+      context,
+      peerName: conversation.peerName,
+    );
+    if (!ok || !mounted) return;
+
+    setState(() => _removingIds.add(conversation.id));
+    try {
+      await ref
+          .read(chatRepositoryProvider)
+          .hideConversation(conversation.id);
+      invalidateConversationLists(ref);
+      if (!mounted) return;
+      setState(() => _removingIds.remove(conversation.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chat eliminado'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _removingIds.remove(conversation.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo eliminar: $e')),
+        );
+      }
+    }
+  }
+
+  void _openChat(Conversation conversation) {
+    ref.read(locallyReadConversationIdsProvider.notifier).update(
+          (s) => {...s, conversation.id},
+        );
+    context.push(
+      AppRoutes.chatPathWith(
+        professionalId: conversation.professionalId,
+        conversationId: conversation.id,
+        name: conversation.peerName,
+        photo: conversation.peerPhoto,
+        peerUserId: conversation.userId,
+        viewingAsProfessional: conversation.viewingAsProfessional,
+      ),
+      extra: {
+        'name': conversation.peerName,
+        'photo': conversation.peerPhoto,
+        'conversationId': conversation.id,
+        'peerUserId': conversation.userId,
+        'viewingAsProfessional': conversation.viewingAsProfessional,
+      },
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -78,7 +179,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      ref.invalidate(conversationsProvider);
+      invalidateConversationLists(ref);
     }
   }
 
@@ -92,7 +193,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     if (user == null) {
       return Scaffold(
         primary: false,
-        appBar: _buildAppBar(),
+        appBar: _buildAppBar(showArchive: false),
         body: Column(
           children: [
             if (_showHomeGuide) PwaHomeGuidePanel(onClose: _closeHomeGuide),
@@ -127,10 +228,20 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     }
 
     final convAsync = ref.watch(conversationsListProvider);
+    final archivedAsync = ref.watch(archivedConversationsListProvider);
+    final archivedCount = archivedAsync.maybeWhen(
+      data: (list) => list.length,
+      orElse: () => 0,
+    );
+    final archivedUnread = archivedAsync.maybeWhen(
+      data: (list) => list.fold<int>(0, (s, c) => s + c.unreadCount),
+      orElse: () => 0,
+    );
+
     return Scaffold(
       primary: false,
       backgroundColor: AppTheme.scaffoldBackground,
-      appBar: _buildAppBar(),
+      appBar: _buildAppBar(showArchive: true),
       body: RepaintBoundary(
         child: Column(
           children: [
@@ -143,10 +254,14 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
                 error: (e, _) => ChatErrorState(
                   error: e,
                   title: 'No se pudieron cargar los mensajes',
-                  onRetry: () => ref.invalidate(conversationsProvider),
+                  onRetry: () => invalidateConversationLists(ref),
                 ),
                 data: (conversations) {
-                  if (conversations.isEmpty) {
+                  final visible = conversations
+                      .where((c) => !_removingIds.contains(c.id))
+                      .toList();
+                  final showArchivedRow = archivedCount > 0;
+                  if (visible.isEmpty && !showArchivedRow) {
                     return const _EmptyState();
                   }
                   return RefreshIndicator(
@@ -154,44 +269,30 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
                     onRefresh: _refreshConversations,
                     child: ListView.separated(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: conversations.length,
+                      itemCount: visible.length + (showArchivedRow ? 1 : 0),
                       separatorBuilder: (_, __) => const Divider(
                         height: 1,
                         indent: 78,
                         color: AppTheme.divider,
                       ),
                       itemBuilder: (context, index) {
-                        final conversation = conversations[index];
-                        return RepaintBoundary(
-                          child: _ConversationTile(
+                        if (showArchivedRow && index == visible.length) {
+                          return _ArchivedEntryRow(
+                            count: archivedCount,
+                            unread: archivedUnread,
+                            onTap: _openArchived,
+                          );
+                        }
+                        final conversation = visible[index];
+                        return AnimatedSize(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOut,
+                          child: ConversationListTile(
+                            key: ValueKey(conversation.id),
                             conversation: conversation,
-                            onOpen: () {
-                              ref
-                                  .read(locallyReadConversationIdsProvider
-                                      .notifier)
-                                  .update(
-                                    (s) => {...s, conversation.id},
-                                  );
-                              context.push(
-                                AppRoutes.chatPathWith(
-                                  professionalId: conversation.professionalId,
-                                  conversationId: conversation.id,
-                                  name: conversation.peerName,
-                                  photo: conversation.peerPhoto,
-                                  peerUserId: conversation.userId,
-                                  viewingAsProfessional:
-                                      conversation.viewingAsProfessional,
-                                ),
-                                extra: {
-                                  'name': conversation.peerName,
-                                  'photo': conversation.peerPhoto,
-                                  'conversationId': conversation.id,
-                                  'peerUserId': conversation.userId,
-                                  'viewingAsProfessional':
-                                      conversation.viewingAsProfessional,
-                                },
-                              );
-                            },
+                            onOpen: () => _openChat(conversation),
+                            onArchive: () => _archive(conversation),
+                            onDelete: () => _delete(conversation),
                           ),
                         );
                       },
@@ -206,7 +307,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     );
   }
 
-  AppBar _buildAppBar() {
+  AppBar _buildAppBar({required bool showArchive}) {
     return AppBar(
       backgroundColor: AppTheme.surface,
       elevation: 0,
@@ -221,6 +322,13 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
         ),
       ),
       actions: [
+        if (showArchive)
+          IconButton(
+            onPressed: _openArchived,
+            icon: const Icon(Icons.archive_outlined,
+                color: AppTheme.textSecondary, size: 22),
+            tooltip: 'Archivados',
+          ),
         if (kIsWeb)
           IconButton(
             onPressed: _openHomeGuide,
@@ -245,6 +353,68 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
         ),
         const SizedBox(width: 4),
       ],
+    );
+  }
+}
+
+class _ArchivedEntryRow extends StatelessWidget {
+  const _ArchivedEntryRow({
+    required this.count,
+    required this.unread,
+    required this.onTap,
+  });
+
+  final int count;
+  final int unread;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: const BoxDecoration(
+                color: AppTheme.surfaceElevated,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.archive_outlined,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Text(
+                'Archivados',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            Text(
+              '$count',
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+            if (unread > 0) ...[
+              const SizedBox(width: 8),
+              ConversationUnreadBadge(count: unread),
+            ],
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -287,247 +457,6 @@ class _EmptyState extends StatelessWidget {
             style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ConversationTile extends StatelessWidget {
-  const _ConversationTile({
-    required this.conversation,
-    required this.onOpen,
-  });
-
-  final Conversation conversation;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasUnread = conversation.hasUnread;
-    final time = conversation.lastMessageAt != null
-        ? _formatDate(conversation.lastMessageAt!)
-        : '';
-    final raw = conversation.lastMessage;
-    final isImage = raw != null && raw.startsWith('[image]');
-    final isAudio = raw != null && raw.startsWith('[audio]');
-    final preview = isImage
-        ? 'Imagen'
-        : isAudio
-            ? 'Audio'
-            : raw ?? 'Conversación iniciada';
-
-    return InkWell(
-      onTap: onOpen,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Avatar(
-              name: conversation.peerName,
-              photoUrl: conversation.peerPhoto,
-              radius: 28,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          conversation.peerName,
-                          style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontWeight:
-                                hasUnread ? FontWeight.w700 : FontWeight.w600,
-                            fontSize: 16,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (time.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          time,
-                          style: TextStyle(
-                            color: hasUnread
-                                ? AppTheme.primary
-                                : AppTheme.textSecondary,
-                            fontSize: 12,
-                            fontWeight: hasUnread
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (isImage) ...[
-                        Icon(
-                          Icons.photo_camera_outlined,
-                          size: 14,
-                          color: hasUnread
-                              ? AppTheme.textPrimary.withValues(alpha: 0.85)
-                              : AppTheme.textSecondary,
-                        ),
-                        const SizedBox(width: 4),
-                      ],
-                      if (isAudio) ...[
-                        Icon(
-                          Icons.mic_rounded,
-                          size: 14,
-                          color: hasUnread
-                              ? AppTheme.textPrimary.withValues(alpha: 0.85)
-                              : AppTheme.textSecondary,
-                        ),
-                        const SizedBox(width: 4),
-                      ],
-                      Expanded(
-                        child: Text(
-                          preview,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: hasUnread
-                                ? AppTheme.textPrimary.withValues(alpha: 0.9)
-                                : AppTheme.textSecondary,
-                            fontSize: 14,
-                            fontWeight:
-                                hasUnread ? FontWeight.w500 : FontWeight.w400,
-                            fontStyle: raw == null
-                                ? FontStyle.italic
-                                : FontStyle.normal,
-                          ),
-                        ),
-                      ),
-                      if (hasUnread) ...[
-                        const SizedBox(width: 8),
-                        _UnreadBadge(count: conversation.unreadCount),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static String _formatDate(DateTime dt) {
-    final now = DateTime.now();
-    final local = dt.toLocal();
-    final today = DateTime(now.year, now.month, now.day);
-    final msgDay = DateTime(local.year, local.month, local.day);
-    final diff = today.difference(msgDay).inDays;
-
-    if (diff == 0) {
-      return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
-    }
-    if (diff == 1) return 'Ayer';
-    if (diff < 7) {
-      const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-      return days[(local.weekday - 1) % 7];
-    }
-    return '${local.day}/${local.month}/${local.year % 100}';
-  }
-}
-
-class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = count > 99 ? '99+' : '$count';
-    return Container(
-      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.primary,
-        borderRadius: BorderRadius.circular(11),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          height: 1.1,
-        ),
-      ),
-    );
-  }
-}
-
-class _Avatar extends StatelessWidget {
-  const _Avatar({
-    required this.name,
-    this.photoUrl,
-    this.radius = 24,
-  });
-
-  final String name;
-  final String? photoUrl;
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final diameter = radius * 2;
-    if (photoUrl != null && photoUrl!.isNotEmpty) {
-      final cacheWidth =
-          (diameter * MediaQuery.devicePixelRatioOf(context)).ceil();
-      return ClipOval(
-        child: CachedNetworkImage(
-          imageUrl: photoUrl!,
-          width: diameter,
-          height: diameter,
-          fit: BoxFit.cover,
-          memCacheWidth: cacheWidth,
-          maxWidthDiskCache: cacheWidth,
-          fadeInDuration: const Duration(milliseconds: 120),
-          placeholder: (_, __) => CircleAvatar(
-            radius: radius,
-            backgroundColor: AppTheme.surfaceElevated,
-          ),
-          errorWidget: (_, __, ___) => _initialsAvatar(),
-        ),
-      );
-    }
-    return _initialsAvatar();
-  }
-
-  Widget _initialsAvatar() {
-    final colors = [
-      const Color(0xFF1A7F64),
-      const Color(0xFF0063CB),
-      const Color(0xFF8B4E96),
-      const Color(0xFFD14343),
-      const Color(0xFFE07B39),
-      const Color(0xFF2D8A72),
-    ];
-    final color = colors[name.codeUnitAt(0) % colors.length];
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: color,
-      child: Text(
-        initial,
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          fontSize: radius * 0.85,
-        ),
       ),
     );
   }

@@ -24,6 +24,7 @@ import '../../features/profile/presentation/screens/saved_professionals_screen.d
 import '../../features/profile/presentation/screens/edit_client_profile_screen.dart';
 import '../../features/profile/presentation/screens/edit_professional_profile_screen.dart';
 import '../../features/chat/presentation/screens/conversations_screen.dart';
+import '../../features/chat/presentation/screens/archived_conversations_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/chat/presentation/models/active_chat_route.dart';
 import '../../features/reviews/presentation/screens/write_review_screen.dart';
@@ -212,6 +213,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => slidePage<void>(
           key: state.pageKey,
           child: const SavedProfessionalsScreen(),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.archivedMessages,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => slidePage<void>(
+          key: state.pageKey,
+          child: const ArchivedConversationsScreen(),
         ),
       ),
       GoRoute(
