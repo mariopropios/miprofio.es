@@ -7,7 +7,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/pwa_setup_helper.dart';
 import 'pwa_home_guide_dialog.dart';
 
-/// Tarjeta en Perfil para configurar notificaciones de mensajes (iOS PWA).
+/// Tarjeta de push en Perfil. Nunca debe tumbar el layout del perfil
+/// (en release un ErrorWidget es un bloque gris enorme).
 class PushNotificationSetupCard extends StatefulWidget {
   const PushNotificationSetupCard({super.key});
 
@@ -17,22 +18,58 @@ class PushNotificationSetupCard extends StatefulWidget {
 }
 
 class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
-  PushSetupState? _state;
+  PushSetupState _state = PushSetupState.needsHomeScreenInstall;
   bool _busy = false;
+  bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
-    _refresh();
+    // Valor inicial seguro sin tocar JS helpers en el primer frame.
+    if (kIsWeb) {
+      _state = PushSetupState.needsHomeScreenInstall;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
   }
 
   Future<void> _refresh() async {
-    final state = await NotificationService.evaluateSetupState();
-    if (mounted) setState(() => _state = state);
+    if (!kIsWeb || !mounted) return;
+    try {
+      final needsInstall = isIosWeb() && !isStandalonePwa();
+      if (needsInstall) {
+        if (mounted) {
+          setState(() {
+            _state = PushSetupState.needsHomeScreenInstall;
+            _loaded = true;
+          });
+        }
+        return;
+      }
+      final state = await NotificationService.evaluateSetupState()
+          .timeout(const Duration(seconds: 3), onTimeout: () {
+        return isIosWeb()
+            ? PushSetupState.needsHomeScreenInstall
+            : PushSetupState.needsPermission;
+      });
+      if (mounted) {
+        setState(() {
+          _state = state;
+          _loaded = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('[PushCard] refresh: $e');
+      if (mounted) {
+        setState(() {
+          _state = PushSetupState.needsHomeScreenInstall;
+          _loaded = true;
+        });
+      }
+    }
   }
 
   Future<void> _onPrimary() async {
-    if (_busy || _state == null) return;
+    if (_busy) return;
     setState(() => _busy = true);
     try {
       if (_state == PushSetupState.needsHomeScreenInstall) {
@@ -40,11 +77,9 @@ class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
         await _refresh();
         return;
       }
-
       final result = await NotificationService.activatePush();
       if (!mounted) return;
       setState(() => _state = result);
-
       final message = switch (result) {
         PushSetupState.ready => 'Notificaciones activadas correctamente',
         PushSetupState.permissionDenied =>
@@ -60,6 +95,13 @@ class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
+    } catch (e) {
+      debugPrint('[PushCard] onPrimary: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo completar la acción')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -69,20 +111,17 @@ class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
   Widget build(BuildContext context) {
     if (!kIsWeb) return const SizedBox.shrink();
 
-    final state = _state;
-    if (state == null) {
-      return const SizedBox.shrink();
+    try {
+      return _buildBody();
+    } catch (e, st) {
+      debugPrint('[PushCard] build failed: $e\n$st');
+      return _fallbackCard();
     }
+  }
 
-    if (state == PushSetupState.ready) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.primary.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.35)),
-        ),
+  Widget _buildBody() {
+    if (_state == PushSetupState.ready) {
+      return _box(
         child: const Row(
           children: [
             Icon(Icons.notifications_active, color: AppTheme.primary),
@@ -101,28 +140,26 @@ class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
       );
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: state == PushSetupState.privateBrowsing
-              ? Colors.orange.withValues(alpha: 0.5)
-              : AppTheme.primary.withValues(alpha: 0.35),
-        ),
-      ),
+    final title = _state.title;
+    final description = _state.description;
+    final needsInstall = _state == PushSetupState.needsHomeScreenInstall;
+    final showButton = _state.showActivateButton ||
+        _state == PushSetupState.needsPermission ||
+        !_loaded;
+
+    return _box(
+      warn: _state == PushSetupState.privateBrowsing,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Icon(
-                state == PushSetupState.privateBrowsing
+                _state == PushSetupState.privateBrowsing
                     ? Icons.lock_outline
                     : Icons.notifications_outlined,
-                color: state == PushSetupState.privateBrowsing
+                color: _state == PushSetupState.privateBrowsing
                     ? Colors.orange
                     : AppTheme.primary,
                 size: 22,
@@ -130,10 +167,11 @@ class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  state.title,
+                  title,
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
               ),
@@ -141,14 +179,14 @@ class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
           ),
           const SizedBox(height: 8),
           Text(
-            state.description,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSecondary,
-                  height: 1.4,
-                ),
+            description,
+            style: const TextStyle(
+              color: AppTheme.textSecondary,
+              height: 1.4,
+              fontSize: 14,
+            ),
           ),
-          if (state.showActivateButton ||
-              state == PushSetupState.needsPermission) ...[
+          if (showButton) ...[
             const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: _busy ? null : _onPrimary,
@@ -162,34 +200,78 @@ class _PushNotificationSetupCardState extends State<PushNotificationSetupCard> {
                       ),
                     )
                   : Icon(
-                      state == PushSetupState.needsHomeScreenInstall
+                      needsInstall
                           ? Icons.add_to_home_screen
                           : Icons.notifications_active,
                     ),
               label: Text(
-                state == PushSetupState.needsHomeScreenInstall
+                needsInstall
                     ? 'Ver cómo añadir al inicio'
                     : 'Activar notificaciones',
               ),
-            ),
-          ],
-          if (isIosWeb() && state == PushSetupState.privateBrowsing) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Requisitos iPhone: iOS 16.4+, app en pantalla de inicio, '
-              'sin modo privado.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
             ),
           ],
         ],
       ),
     );
   }
+
+  Widget _fallbackCard() {
+    return _box(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Añade la app al inicio',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'En iPhone abre miProfio desde el icono de inicio para activar '
+            'las notificaciones push (distinto de avisos por email).',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              height: 1.4,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: () => showPwaHomeGuideDialog(context),
+            icon: const Icon(Icons.add_to_home_screen),
+            label: const Text('Ver cómo añadir al inicio'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _box({required Widget child, bool warn = false}) {
+    return Material(
+      color: AppTheme.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: warn
+                ? Colors.orange.withValues(alpha: 0.5)
+                : AppTheme.primary.withValues(alpha: 0.35),
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
 }
 
-/// Campanita en Mensajes → guía de acceso directo / PWA.
 Future<void> showPushNotificationSetupDialog(BuildContext context) {
   return showPwaHomeGuideDialog(context);
 }

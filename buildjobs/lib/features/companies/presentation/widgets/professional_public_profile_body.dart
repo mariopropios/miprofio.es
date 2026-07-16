@@ -171,12 +171,8 @@ class _ProfessionalProfileContent extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (isOwnerView) ...[
-          const MessageEmailNotificationCard(),
-          const SizedBox(height: 12),
-          const PushNotificationSetupCard(),
-          const SizedBox(height: 16),
-        ],
+        // Identidad del perfil PRIMERO: si la tarjeta push falla en release
+        // (ErrorWidget gris enorme), foto y nombre siguen visibles arriba.
         _HeaderImage(imageUrl: company.profilePhoto),
         const SizedBox(height: 16),
         Text(
@@ -251,6 +247,12 @@ class _ProfessionalProfileContent extends ConsumerWidget {
               ),
             ],
           ),
+        ],
+        if (isOwnerView) ...[
+          const SizedBox(height: 16),
+          const MessageEmailNotificationCard(),
+          const SizedBox(height: 12),
+          const PushNotificationSetupCard(),
         ],
         if (company.description != null && _cleanDescription(company.description!).isNotEmpty) ...[
           const SizedBox(height: 16),

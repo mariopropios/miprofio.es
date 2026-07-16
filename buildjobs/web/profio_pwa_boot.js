@@ -4,14 +4,22 @@
   var PUSH_SW_KEY = 'profio_push_sw_active';
 
   function isStandalonePwa() {
-    return window.matchMedia('(display-mode: standalone)').matches ||
-      window.matchMedia('(display-mode: fullscreen)').matches ||
-      window.navigator.standalone === true;
+    try {
+      return window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: fullscreen)').matches ||
+        window.navigator.standalone === true;
+    } catch (_) {
+      return false;
+    }
   }
 
   function isIos() {
-    return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    try {
+      return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    } catch (_) {
+      return false;
+    }
   }
 
   window.__profioPwa = { isStandalone: isStandalonePwa(), isIos: isIos() };
@@ -23,10 +31,21 @@
     });
   }
 
-  function clearAllCaches() {
-    if (!('caches' in window)) return Promise.resolve();
-    return caches.keys().then(function (keys) {
-      return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+  function unregisterFlutterServiceWorkers() {
+    if (!('serviceWorker' in navigator)) return Promise.resolve();
+    return navigator.serviceWorker.getRegistrations().then(function (regs) {
+      return Promise.all(regs.map(function (r) {
+        var url = '';
+        try {
+          url = (r.active && r.active.scriptURL) ||
+            (r.installing && r.installing.scriptURL) ||
+            (r.waiting && r.waiting.scriptURL) || '';
+        } catch (_) {}
+        if (url.indexOf('flutter_service_worker') !== -1) {
+          return r.unregister();
+        }
+        return Promise.resolve();
+      }));
     });
   }
 
@@ -66,12 +85,6 @@
     });
   };
 
-  function prepareIosPwaRuntime() {
-    if (!isIos() || !isStandalonePwa()) return Promise.resolve();
-    window.__profioFcmSwRegistered = false;
-    return unregisterAllServiceWorkers().then(clearAllCaches);
-  }
-
   function installIosPwaTouchWorkaround() {
     if (!isIos() || !isStandalonePwa()) return;
 
@@ -105,7 +118,7 @@
     window.addEventListener('flutter-first-frame', resetViewportScroll);
   }
 
-  // iOS PWA: sin service worker de Flutter (evita estados rotos con caché).
+  // Nunca usar el SW de Flutter (cachea main.dart.js y deja versiones viejas).
   (function patchFlutterLoader() {
     var timer = setInterval(function () {
       if (!window._flutter || !window._flutter.loader) return;
@@ -118,8 +131,6 @@
       var originalLoad = proto.load;
       proto.load = function (opts) {
         var options = opts || {};
-        // Nunca usar el SW de Flutter: cachea main.dart.js y deja la app
-        // en versiones viejas (p. ej. campanita que no abre la guía).
         if (options.serviceWorkerSettings) {
           delete options.serviceWorkerSettings;
         }
@@ -136,30 +147,21 @@
     });
   }
 
-  if (isStandalonePwa() && isIos()) {
-    window.__profioBootReady = prepareIosPwaRuntime().then(installIosPwaTouchWorkaround);
-  } else {
-    window.__profioBootReady = unregisterFlutterServiceWorkers()
-      .then(function () {
-        if (!isStandalonePwa()) return clearAllCaches();
-      });
-  }
+  // Nunca bloquear el arranque de Flutter.
+  window.__profioBootReady = Promise.resolve();
 
-  function unregisterFlutterServiceWorkers() {
-    if (!('serviceWorker' in navigator)) return Promise.resolve();
-    return navigator.serviceWorker.getRegistrations().then(function (regs) {
-      return Promise.all(regs.map(function (r) {
-        var url = '';
-        try {
-          url = (r.active && r.active.scriptURL) ||
-            (r.installing && r.installing.scriptURL) ||
-            (r.waiting && r.waiting.scriptURL) || '';
-        } catch (_) {}
-        if (url.indexOf('flutter_service_worker') !== -1) {
-          return r.unregister();
-        }
-        return Promise.resolve();
-      }));
-    });
+  // iOS standalone: NO borrar caches ni unregister todos los SW en cada apertura
+  // (eso dejaba el icono de inicio en splash/blanco). Solo quitar SW de Flutter.
+  if (isStandalonePwa() && isIos()) {
+    installIosPwaTouchWorkaround();
+    Promise.race([
+      unregisterFlutterServiceWorkers(),
+      new Promise(function (resolve) { setTimeout(resolve, 1500); }),
+    ]).catch(function () {});
+  } else {
+    Promise.race([
+      unregisterFlutterServiceWorkers(),
+      new Promise(function (resolve) { setTimeout(resolve, 1500); }),
+    ]).catch(function () {});
   }
 })();

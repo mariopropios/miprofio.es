@@ -84,39 +84,54 @@ bool _isAndroidDevice() {
   return html.window.navigator.userAgent.toLowerCase().contains('android');
 }
 
-bool isIosWeb() => _isIosDevice();
+bool isIosWeb() {
+  try {
+    return _isIosDevice();
+  } catch (_) {
+    return false;
+  }
+}
 
-bool isAndroidWeb() => _isAndroidDevice();
+bool isAndroidWeb() {
+  try {
+    return _isAndroidDevice();
+  } catch (_) {
+    return false;
+  }
+}
 
 /// Chrome Custom Tabs / WebViews de apps (WhatsApp, Gmail, Instagram, etc.).
 bool isInAppBrowser() {
-  final ua = html.window.navigator.userAgent.toLowerCase();
-  const markers = [
-    'wv', // Android WebView
-    'fbav',
-    'fban',
-    'instagram',
-    'line/',
-    'whatsapp',
-    'twitter',
-    'linkedin',
-    'gsa/', // Google Search App
-    'gmail',
-    'yahoo',
-    'micromessenger', // WeChat
-  ];
-  for (final m in markers) {
-    if (ua.contains(m)) return true;
+  try {
+    final ua = html.window.navigator.userAgent.toLowerCase();
+    const markers = [
+      'wv',
+      'fbav',
+      'fban',
+      'instagram',
+      'line/',
+      'whatsapp',
+      'twitter',
+      'linkedin',
+      'gsa/',
+      'gmail',
+      'yahoo',
+      'micromessenger',
+    ];
+    for (final m in markers) {
+      if (ua.contains(m)) return true;
+    }
+    if (_isIosDevice() &&
+        !ua.contains('safari') &&
+        !ua.contains('crios') &&
+        !ua.contains('fxios') &&
+        !ua.contains('edgios')) {
+      return true;
+    }
+    return false;
+  } catch (_) {
+    return false;
   }
-  // iOS: Safari tiene "safari" en UA; muchos in-apps no.
-  if (_isIosDevice() &&
-      !ua.contains('safari') &&
-      !ua.contains('crios') &&
-      !ua.contains('fxios') &&
-      !ua.contains('edgios')) {
-    return true;
-  }
-  return false;
 }
 
 bool isLikelyPrivateBrowsing() {
@@ -170,9 +185,13 @@ Future<void> unregisterPushServiceWorker() async {
 }
 
 bool isStandalonePwa() {
-  return html.window.matchMedia('(display-mode: standalone)').matches ||
-      html.window.matchMedia('(display-mode: fullscreen)').matches ||
-      (html.window.navigator as dynamic).standalone == true;
+  try {
+    return html.window.matchMedia('(display-mode: standalone)').matches ||
+        html.window.matchMedia('(display-mode: fullscreen)').matches ||
+        (html.window.navigator as dynamic).standalone == true;
+  } catch (_) {
+    return false;
+  }
 }
 
 /// True si el usuario aún no abre Profio como acceso directo / PWA instalada.

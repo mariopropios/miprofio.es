@@ -3,193 +3,245 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/pwa_setup_helper.dart';
 
-/// Panel in-page (sin Navigator/showDialog) — fiable en iOS Safari / ShellRoute.
-class PwaHomeGuideOverlay extends StatelessWidget {
-  const PwaHomeGuideOverlay({super.key, required this.onClose});
+class _GuideStep {
+  const _GuideStep(this.title, this.subtitle);
+  final String title;
+  final String subtitle;
+}
+
+/// Panel visible debajo del AppBar de Mensajes (sin Overlay frágil).
+class PwaHomeGuidePanel extends StatelessWidget {
+  const PwaHomeGuidePanel({super.key, required this.onClose});
 
   final VoidCallback onClose;
 
-  @override
-  Widget build(BuildContext context) {
-    final isIos = isIosWeb();
-    final isAndroid = isAndroidWeb();
-    final inApp = isInAppBrowser();
-    final alreadyIn = !lacksPwaDirectAccess();
-    final canInstall = canAutoInstallPwa();
-
-    final steps = <(String, String)>[
-      if (isIos) ...[
-        (
-          '1. Pulsa Compartir',
-          'El icono del cuadrado con flecha ↑, abajo en Safari.',
+  List<_GuideStep> _steps() {
+    if (isIosWeb()) {
+      return const [
+        _GuideStep(
+          'Pulsa Compartir',
+          'Icono del cuadrado con flecha ↑, abajo en Safari.',
         ),
-        (
-          '2. Añadir a pantalla de inicio',
+        _GuideStep(
+          'Añadir a pantalla de inicio',
           'Desplázate en el menú y elige esa opción.',
         ),
-        (
-          '3. Pulsa Añadir',
-          'Confirma. Luego abre miProfio desde el icono nuevo.',
+        _GuideStep(
+          'Pulsa Añadir',
+          'Confirma y abre miProfio desde el icono nuevo.',
         ),
-      ] else if (isAndroid) ...[
-        if (canInstall)
-          (
-            '1. Pulsa Instalar abajo',
-            'El navegador te pedirá confirmar el acceso directo.',
-          )
-        else ...[
-          (
-            '1. Abre el menú ⋮',
-            'Arriba a la derecha en Chrome.',
+      ];
+    }
+    if (isAndroidWeb()) {
+      if (canAutoInstallPwa()) {
+        return const [
+          _GuideStep(
+            'Pulsa Instalar',
+            'Usa el botón de abajo; el navegador pedirá confirmar.',
           ),
-          (
-            '2. Instalar app',
-            'Elige «Instalar app» o «Añadir a pantalla de inicio».',
+          _GuideStep(
+            'Ábrela desde el inicio',
+            'Usa el icono de miProfio, no la pestaña del navegador.',
           ),
-        ],
-        (
-          canInstall ? '2. Ábrela desde el inicio' : '3. Ábrela desde el inicio',
+        ];
+      }
+      return const [
+        _GuideStep(
+          'Abre el menú ⋮',
+          'Arriba a la derecha en Chrome.',
+        ),
+        _GuideStep(
+          'Instalar app',
+          'Elige «Instalar app» o «Añadir a pantalla de inicio».',
+        ),
+        _GuideStep(
+          'Ábrela desde el inicio',
           'Usa el icono de miProfio, no la pestaña del navegador.',
         ),
-      ] else ...[
-        (
-          '1. Icono de instalar',
-          'En la barra de direcciones (Chrome / Edge) pulsa el icono de instalar.',
-        ),
-        (
-          '2. O desde el menú',
-          'Menú → «Instalar miProfio.es».',
-        ),
-        (
-          '3. Ábrela instalada',
-          'Así los avisos funcionan mejor.',
-        ),
-      ],
+      ];
+    }
+    return const [
+      _GuideStep(
+        'Icono de instalar',
+        'En la barra de direcciones (Chrome / Edge).',
+      ),
+      _GuideStep(
+        'O desde el menú',
+        'Menú → «Instalar miProfio.es».',
+      ),
+      _GuideStep(
+        'Ábrela instalada',
+        'Así los avisos funcionan mejor.',
+      ),
     ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = _steps();
+    final inApp = isIosWeb() && isInAppBrowser();
+    final canInstall = canAutoInstallPwa();
 
     return Material(
-      color: Colors.black54,
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Material(
-                color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                clipBehavior: Clip.antiAlias,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        alreadyIn
-                            ? 'Ya tienes el acceso directo'
-                            : 'Añade miProfio a tu inicio',
-                        style: const TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        alreadyIn
-                            ? 'Abre la app desde el icono del inicio para recibir avisos.'
-                            : 'Con el icono en el inicio, las notificaciones funcionan mucho mejor.',
-                        style: const TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 14,
-                          height: 1.4,
-                        ),
-                      ),
-                      if (isIos && inApp && !alreadyIn) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.orange.withValues(alpha: 0.45),
-                            ),
-                          ),
-                          child: const Text(
-                            'Si estás en Gmail o WhatsApp, abre este enlace en Safari '
-                            'para poder añadir a inicio.',
-                            style: TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontSize: 13,
-                              height: 1.35,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (!alreadyIn) ...[
-                        const SizedBox(height: 16),
-                        for (final step in steps) ...[
-                          Text(
-                            step.$1,
-                            style: const TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            step.$2,
-                            style: const TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 14,
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                      ],
-                      if (!alreadyIn && canInstall) ...[
-                        FilledButton(
-                          onPressed: () async {
-                            final ok = await triggerAutoInstallPwa();
-                            if (ok) await dismissPwaInstallPrompt();
-                            onClose();
-                          },
-                          child: const Text('Instalar / Añadir a inicio'),
-                        ),
-                        const SizedBox(height: 4),
-                      ],
-                      TextButton(
-                        onPressed: onClose,
-                        child: Text(
-                          alreadyIn || canInstall ? 'Cerrar' : 'Entendido',
-                        ),
-                      ),
-                    ],
+      color: AppTheme.surfaceElevated,
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.add_to_home_screen_rounded,
+                  color: AppTheme.primary,
+                  size: 28,
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Añade miProfio a tu inicio',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      height: 1.25,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: onClose,
+                  tooltip: 'Cerrar',
+                  icon: const Icon(Icons.close, color: Colors.white70),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Con el icono en el inicio, las notificaciones push funcionan '
+              'mucho mejor (distinto de avisos por email).',
+              style: TextStyle(
+                color: Color(0xFFC8CDD2),
+                fontSize: 14,
+                height: 1.35,
+              ),
+            ),
+            if (inApp) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0x33FF9800),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0x99FF9800)),
+                ),
+                child: const Text(
+                  'Si estás en Gmail o WhatsApp, abre este enlace en Safari '
+                  'para poder añadir a inicio.',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.35,
                   ),
                 ),
               ),
+            ],
+            const SizedBox(height: 14),
+            for (var i = 0; i < steps.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: AppTheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${i + 1}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          steps[i].title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          steps[i].subtitle,
+                          style: const TextStyle(
+                            color: Color(0xFFC8CDD2),
+                            fontSize: 13,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 14),
+            if (canInstall) ...[
+              FilledButton(
+                onPressed: () async {
+                  final ok = await triggerAutoInstallPwa();
+                  if (ok) await dismissPwaInstallPrompt();
+                  onClose();
+                },
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(44),
+                ),
+                child: const Text('Instalar / Añadir a inicio'),
+              ),
+              const SizedBox(height: 6),
+            ],
+            TextButton(
+              onPressed: onClose,
+              child: Text(
+                canInstall ? 'Más tarde' : 'Entendido',
+                style: const TextStyle(color: Colors.white70),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Preferido: overlay in-page. Fallback a dialog si se llama sin overlay.
+/// Diálogo simple (Perfil / CTA). Preferir panel in-page en Mensajes.
 Future<void> showPwaHomeGuideDialog(BuildContext context) async {
   if (!context.mounted) return;
   await showDialog<void>(
     context: context,
     barrierDismissible: true,
-    builder: (ctx) => Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: EdgeInsets.zero,
-      child: PwaHomeGuideOverlay(onClose: () => Navigator.pop(ctx)),
-    ),
+    builder: (ctx) {
+      return AlertDialog(
+        backgroundColor: AppTheme.surfaceElevated,
+        contentPadding: EdgeInsets.zero,
+        content: SingleChildScrollView(
+          child: PwaHomeGuidePanel(onClose: () => Navigator.pop(ctx)),
+        ),
+      );
+    },
   );
 }

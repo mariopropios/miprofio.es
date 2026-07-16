@@ -24,7 +24,7 @@
   <meta name="theme-color" content="#00B27A">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="miProfio.es">
   <meta name="robots" content="index, follow">
   <meta name="googlebot" content="index, follow">
@@ -52,6 +52,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="512x512" href="favicon.png"/>
   <link rel="apple-touch-icon" href="favicon.png"/>
+  <link rel="apple-touch-icon" sizes="180x180" href="favicon.png"/>
+  <link rel="apple-touch-icon" sizes="192x192" href="favicon.png"/>
 
   <script type="application/ld+json">
   {
@@ -370,9 +372,9 @@
 
     window.addEventListener('flutter-first-frame', profioDismissLoader);
 
-    // iOS PWA: el loader invisible puede quedarse encima y bloquear TODOS los toques.
+    // iOS PWA: quitar loader pronto para no tapar toques si Flutter tarda.
     if (window.__profioPwa && window.__profioPwa.isIos && window.__profioPwa.isStandalone) {
-      setTimeout(profioDismissLoader, 6000);
+      setTimeout(profioDismissLoader, 4000);
     }
 
     // Fallback si Flutter tarda
@@ -396,7 +398,7 @@
   <script>
     (window.__profioBootReady || Promise.resolve()).then(function () {
       var s = document.createElement('script');
-      s.src = 'flutter_bootstrap.js?v=pwa-guide-20260716e';
+      s.src = 'flutter_bootstrap.js?v=pwa-ios-20260716j';
       document.body.appendChild(s);
     });
   </script>
