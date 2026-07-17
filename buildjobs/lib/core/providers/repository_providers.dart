@@ -187,6 +187,20 @@ final professionalReviewsProvider =
       .getReviewsByProfessional(professionalId),
 );
 
+/// Invalida cachés de ficha + listados (Inicio/Buscar keepAlive).
+void invalidateProfessionalListingCaches(
+  WidgetRef ref, {
+  String? professionalId,
+}) {
+  ref.invalidate(currentProfessionalProfileProvider);
+  ref.invalidate(currentUserProfessionalViewProvider);
+  ref.invalidate(featuredProfessionalsProvider);
+  ref.invalidate(professionalsProvider);
+  if (professionalId != null && professionalId.isNotEmpty) {
+    ref.invalidate(professionalDetailProvider(professionalId));
+  }
+}
+
 final savedProfessionalsProvider = FutureProvider<List<Professional>>((ref) async {
   final user = ref.watch(currentUserProvider);
   if (user == null) return [];

@@ -6,8 +6,10 @@ import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/services/gallery_image_picker.dart';
 import '../../../../core/services/profile_photo_storage.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/x_file_bytes_reader.dart';
 import '../../../../core/utils/x_file_preview_image.dart';
 import '../../../../shared/models/user_profile.dart';
+import '../../../../shared/widgets/delete_account_section.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../auth/presentation/widgets/register_form_field.dart';
 
@@ -63,31 +65,68 @@ class _EditClientProfileScreenState
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
+
+    final user = ref.read(currentUserProvider);
+    if (user == null) {
+      setState(() => _saving = false);
+      return;
+    }
+
+    final pendingAvatar = _newAvatar;
+    final hasPendingPhoto = pendingAvatar != null;
+    final storage = ProfilePhotoStorage(ref.read(supabaseClientProvider));
+    final profiles = ref.read(profileRepositoryProvider);
+
     try {
-      final user = ref.read(currentUserProvider)!;
-      String? avatarUrl;
-      if (_newAvatar != null) {
-        final storage = ProfilePhotoStorage(
-            ref.read(supabaseClientProvider));
-        avatarUrl = await storage.uploadImage(_newAvatar!, user.id);
-      }
-      await ref.read(profileRepositoryProvider).updateProfile(
-            userId: user.id,
-            fullName: _nameCtrl.text.trim(),
-            city: _cityCtrl.text.trim(),
-            avatarUrl: avatarUrl,
-          );
+      await profiles.updateProfile(
+        userId: user.id,
+        fullName: _nameCtrl.text.trim(),
+        city: _cityCtrl.text.trim(),
+      );
       ref.invalidate(currentProfileProvider);
-      if (mounted) {
+      ref.invalidate(currentUserProfessionalViewProvider);
+
+      if (!hasPendingPhoto) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Perfil actualizado')),
         );
         Navigator.of(context).pop();
+        return;
       }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Perfil guardado. Comprimiendo y subiendo foto…'),
+          duration: Duration(seconds: 8),
+        ),
+      );
+
+      final bytes = await readXFileBytes(pendingAvatar);
+      final avatarUrl = await storage.uploadBytes(
+        rawBytes: bytes,
+        userId: user.id,
+        originalName: pendingAvatar.name,
+      );
+      await profiles.updateProfile(
+        userId: user.id,
+        avatarUrl: avatarUrl,
+      );
+
+      if (!mounted) return;
+      ref.invalidate(currentProfileProvider);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Perfil y foto actualizados ✓')),
+      );
+      Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar: $e')),
+          SnackBar(
+            content: Text(ProfilePhotoStorage.friendlyErrorMessage(e)),
+          ),
         );
       }
     } finally {
@@ -221,6 +260,9 @@ class _EditClientProfileScreenState
                       onPressed: _saving ? null : _save,
                     ),
                   ),
+                  const SizedBox(height: 28),
+                  const DeleteAccountSection(isProfessional: false),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),

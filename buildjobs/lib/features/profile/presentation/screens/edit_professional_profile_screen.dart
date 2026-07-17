@@ -1,4 +1,6 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,12 +13,15 @@ import '../../../../core/services/gallery_image_cropper.dart';
 import '../../../../core/services/gallery_image_picker.dart';
 import '../../../../core/services/profile_photo_storage.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/x_file_bytes_reader.dart';
 import '../../../../core/utils/x_file_preview_image.dart';
 import '../../../../shared/models/professional.dart';
 import '../../../../shared/widgets/city_autocomplete_field.dart';
+import '../../../../shared/widgets/delete_account_section.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../../shared/widgets/spring_pressable.dart';
 import '../../../auth/presentation/widgets/register_form_field.dart';
+import '../../../companies/data/repositories/professional_repository.dart';
 import '../../../home/presentation/widgets/profession_multi_select_section.dart';
 
 class EditProfessionalProfileScreen extends ConsumerStatefulWidget {
@@ -173,86 +178,170 @@ class _EditProfessionalProfileScreenState
     final user = ref.read(currentUserProvider);
     if (user == null || _professionalId == null) return;
     setState(() => _saving = true);
+
+    final professionalId = _professionalId!;
+    final city = _cityCtrl.text.trim();
+    final address = city;
+    final latitude = _latitude;
+    final longitude = _longitude;
+    final needsGeo = latitude == null || longitude == null;
+    final pendingProfile = _newProfilePhoto;
+    final pendingGallery = List<XFile>.from(_newGallery);
+    final existingGallery = List<String>.from(_existingGallery);
+    final hasPendingPhotos =
+        pendingProfile != null || pendingGallery.isNotEmpty;
+
+    // Capturar dependencias ANTES de cualquier pop (ref no sirve tras dispose).
+    final storage = ProfilePhotoStorage(ref.read(supabaseClientProvider));
+    final repo = ref.read(professionalRepositoryProvider);
+
     try {
-      final city = _cityCtrl.text.trim();
-      // Una sola ubicación: city y address siempre iguales.
-      final address = city;
+      // Fase 1: texto/campos al instante.
+      await repo.updateProfessional(
+        professionalId: professionalId,
+        name: _nameCtrl.text.trim(),
+        profession: _selectedProfessions.join(', '),
+        city: city,
+        phone: _phoneCtrl.text.trim(),
+        website: _websiteCtrl.text.trim(),
+        address: address,
+        latitude: latitude,
+        longitude: longitude,
+        description: _bioCtrl.text.trim(),
+        galleryPhotoUrls: existingGallery,
+        serviceRadiusKm: _serviceRadius,
+        serviceCategories: _serviceCategories.toList(),
+      );
 
-      double? latitude = _latitude;
-      double? longitude = _longitude;
+      invalidateProfessionalListingCaches(ref, professionalId: professionalId);
 
-      // Geocodificamos solo si no tenemos coordenadas previas.
-      // Si falla, el guardado no se bloquea.
-      if (latitude == null || longitude == null) {
-        try {
-          final geocoded = await GeoService.resolveCoordinates(
-            city: city,
-            address: city,
-            latitude: latitude,
-            longitude: longitude,
+      // Solo texto: salir ya. Geocode opcional en background sin ref.
+      if (!hasPendingPhotos) {
+        if (needsGeo) {
+          unawaited(
+            _geocodeAndPatch(
+              repo: repo,
+              professionalId: professionalId,
+              city: city,
+            ),
           );
-          latitude = geocoded.latitude;
-          longitude = geocoded.longitude;
-        } catch (geoErr) {
-          debugPrint(
-              '[GeoService] Geocodificación fallida (no bloqueante): $geoErr');
         }
-      }
-
-      final storage = ProfilePhotoStorage(ref.read(supabaseClientProvider));
-
-      String? newProfilePhotoUrl;
-      if (_newProfilePhoto != null) {
-        newProfilePhotoUrl =
-            await storage.uploadImage(_newProfilePhoto!, user.id);
-      }
-
-      List<String> uploadedGallery = [];
-      if (_newGallery.isNotEmpty) {
-        uploadedGallery =
-            await storage.uploadGalleryImages(_newGallery, user.id);
-      }
-      final finalGallery = [..._existingGallery, ...uploadedGallery];
-
-      await ref.read(professionalRepositoryProvider).updateProfessional(
-            professionalId: _professionalId!,
-            name: _nameCtrl.text.trim(),
-            profession: _selectedProfessions.join(', '),
-            city: city,
-            phone: _phoneCtrl.text.trim(),
-            website: _websiteCtrl.text.trim(),
-            address: address,
-            latitude: latitude,
-            longitude: longitude,
-            description: _bioCtrl.text.trim(),
-            profilePhotoUrl: newProfilePhotoUrl,
-            galleryPhotoUrls: finalGallery,
-            serviceRadiusKm: _serviceRadius,
-            serviceCategories: _serviceCategories.toList(),
-          );
-
-      // Invalidar todos los providers que cachean datos del profesional
-      ref.invalidate(currentProfessionalProfileProvider);
-      ref.invalidate(currentUserProfessionalViewProvider);
-      ref.invalidate(professionalDetailProvider(_professionalId!));
-
-      if (mounted) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Perfil actualizado ✓')),
         );
         Navigator.of(context).pop();
+        return;
       }
+
+      // Con fotos: leer bytes y subir MIENTRAS la pantalla sigue montada.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Perfil guardado. Comprimiendo y subiendo fotos…'),
+          duration: Duration(seconds: 8),
+        ),
+      );
+
+      Uint8List? profileBytes;
+      String? profileName;
+      if (pendingProfile != null) {
+        profileBytes = await readXFileBytes(pendingProfile);
+        profileName = pendingProfile.name;
+      }
+
+      final galleryItems = <({Uint8List bytes, String name})>[];
+      for (final file in pendingGallery) {
+        final bytes = await readXFileBytes(file);
+        galleryItems.add((bytes: bytes, name: file.name));
+      }
+
+      String? profilePhotoUrl;
+      List<String>? uploadedGallery;
+
+      await Future.wait<void>([
+        () async {
+          if (profileBytes == null) return;
+          profilePhotoUrl = await storage.uploadBytes(
+            rawBytes: profileBytes,
+            userId: user.id,
+            originalName: profileName,
+          );
+        }(),
+        () async {
+          if (galleryItems.isEmpty) return;
+          uploadedGallery = await storage.uploadGalleryBytes(
+            items: galleryItems,
+            userId: user.id,
+          );
+        }(),
+      ]);
+
+      final galleryUrls = uploadedGallery == null
+          ? null
+          : [...existingGallery, ...uploadedGallery!];
+
+      if (profilePhotoUrl == null && galleryUrls == null) {
+        throw StateError(
+          'No se generaron URLs de las fotos. Inténtalo de nuevo.',
+        );
+      }
+
+      await repo.updateProfessional(
+        professionalId: professionalId,
+        profilePhotoUrl: profilePhotoUrl,
+        galleryPhotoUrls: galleryUrls,
+      );
+
+      if (needsGeo) {
+        unawaited(
+          _geocodeAndPatch(
+            repo: repo,
+            professionalId: professionalId,
+            city: city,
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      invalidateProfessionalListingCaches(ref, professionalId: professionalId);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Perfil y fotos actualizados ✓')),
+      );
+      Navigator.of(context).pop();
     } catch (e) {
+      debugPrint('[EditProfessional] Guardado fallido: $e');
       if (mounted) {
         final message = e is GeoServiceException
             ? e.message
-            : 'Error al guardar: $e';
+            : ProfilePhotoStorage.friendlyErrorMessage(e);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),
         );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _geocodeAndPatch({
+    required ProfessionalRepository repo,
+    required String professionalId,
+    required String city,
+  }) async {
+    try {
+      final geocoded = await GeoService.resolveCoordinates(
+        city: city,
+        address: city,
+      ).timeout(const Duration(seconds: 4));
+      await repo.updateProfessional(
+        professionalId: professionalId,
+        latitude: geocoded.latitude,
+        longitude: geocoded.longitude,
+      );
+    } catch (e) {
+      debugPrint('[GeoService] Geocodificación en background fallida: $e');
     }
   }
 
@@ -546,6 +635,8 @@ class _EditProfessionalProfileScreenState
                       onPressed: _saving ? null : _save,
                     ),
                   ),
+                  const SizedBox(height: 28),
+                  const DeleteAccountSection(isProfessional: true),
                   const SizedBox(height: 32),
                 ],
               ),

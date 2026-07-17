@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../shared/widgets/legal_links_row.dart';
 import '../../../../shared/widgets/premium_button.dart';
 import '../../../../core/utils/device_form_factor.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -328,6 +329,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 28),
+                  const LegalLinksRow(dense: true),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),

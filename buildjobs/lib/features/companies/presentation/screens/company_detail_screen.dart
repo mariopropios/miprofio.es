@@ -10,6 +10,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/professional.dart';
 import '../../../../shared/widgets/rating_stars.dart';
 import '../../../../shared/widgets/save_professional_button.dart';
+import '../../../../shared/widgets/share_professional_button.dart';
 import '../widgets/professional_public_profile_body.dart';
 
 class CompanyDetailScreen extends ConsumerWidget {
@@ -91,7 +92,37 @@ class CompanyDetailScreen extends ConsumerWidget {
                 onPressed: () => _goBack(context),
               ),
             ),
-            body: const Center(child: Text('Profesional no encontrado')),
+            body: const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.person_off_outlined,
+                        size: 56, color: AppTheme.textSecondary),
+                    SizedBox(height: 16),
+                    Text(
+                      'Este profesional ya no está disponible',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'La cuenta se eliminó o la ficha dejó de estar activa.',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        height: 1.35,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           );
         }
 
@@ -112,6 +143,11 @@ class CompanyDetailScreen extends ConsumerWidget {
               onPressed: () => _goBack(context),
             ),
             actions: [
+              ShareProfessionalButton(
+                professionalId: companyId,
+                professionalName: company.name,
+                offerOwnerPresets: isOwnListing,
+              ),
               if (!isOwnListing)
                 SaveProfessionalButton(professionalId: companyId),
             ],

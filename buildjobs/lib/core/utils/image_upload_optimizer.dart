@@ -2,12 +2,15 @@ import 'package:flutter/foundation.dart';
 
 import 'image_upload_optimizer_core.dart';
 import 'image_upload_optimizer_io.dart'
-    if (dart.library.html) 'image_upload_optimizer_stub.dart'
+    if (dart.library.html) 'image_upload_optimizer_web.dart'
     as optimizer_impl;
 
 export 'image_upload_optimizer_core.dart' show PreparedUpload;
 
 /// Comprime y redimensiona imágenes antes de subirlas a Storage.
+///
+/// Web y móvil usan `package:image` (Dart puro) vía [compute].
+/// No usa canvas HTML → no rompe CanvasKit / PWA iOS.
 class ImageUploadOptimizer {
   ImageUploadOptimizer._();
 
@@ -18,35 +21,23 @@ class ImageUploadOptimizer {
   static Future<PreparedUpload> prepareUpload(
     Uint8List input, {
     String? originalName,
-  }) {
+  }) async {
     if (input.isEmpty) {
-      return Future.error(StateError('La imagen seleccionada está vacía.'));
+      throw StateError('La imagen seleccionada está vacía.');
     }
 
-    if (input.length <= targetMaxBytes) {
-      return Future.value(
-        ImageUploadOptimizerCore.prepareSmall(
-          input,
-          originalName: originalName,
-        ),
+    if (input.length > bucketMaxBytes) {
+      throw StateError(
+        'La imagen pesa demasiado (máx. 20 MB). '
+        'Prueba con otra más pequeña.',
       );
     }
 
-    // Web: subir tal cual hasta 20 MB (sin canvas nativo → no rompe la recarga).
-    if (kIsWeb) {
-      if (input.length <= bucketMaxBytes) {
-        return Future.value(
-          ImageUploadOptimizerCore.prepareSmall(
-            input,
-            originalName: originalName,
-          ),
-        );
-      }
-      return Future.error(
-        StateError(
-          'La imagen pesa demasiado (máx. 20 MB). '
-          'Prueba con otra más pequeña o comprímela antes.',
-        ),
+    // Ya es ligera: no gastar CPU re-encodeando.
+    if (input.length <= ImageUploadOptimizerCore.skipIfUnderBytes) {
+      return ImageUploadOptimizerCore.prepareSmall(
+        input,
+        originalName: originalName,
       );
     }
 

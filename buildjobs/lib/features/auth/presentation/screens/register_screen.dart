@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/legal_links_row.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../widgets/role_selection_card.dart';
 
@@ -202,6 +203,8 @@ class RegisterScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
+                const LegalLinksRow(dense: true),
               ],
             ),
           ),

@@ -58,21 +58,41 @@ class ProfessionalRepository {
 
   Future<Professional?> getProfessionalById(String id) async {
     try {
-      final data =
-          await _client.from('professionals').select().eq('id', id).maybeSingle();
+      final data = await _client
+          .from('professionals')
+          .select()
+          .eq('id', id)
+          .not('owner_id', 'is', null)
+          .isFilter('deleted_at', null)
+          .maybeSingle();
       if (data == null) return null;
       return _parseProfessional(Map<String, dynamic>.from(data));
     } on PostgrestException catch (e) {
-      if (e.code == '42703') {
-        final data = await _client
-            .from('professionals')
-            .select(
-              'id, name, category, description, image_url, city, rating, review_count, address, phone, email, website',
-            )
-            .eq('id', id)
-            .maybeSingle();
-        if (data == null) return null;
-        return _parseProfessional(Map<String, dynamic>.from(data));
+      // Columna deleted_at aún no migrada → solo exigir dueño.
+      if (e.code == '42703' || e.code == 'PGRST204') {
+        try {
+          final data = await _client
+              .from('professionals')
+              .select()
+              .eq('id', id)
+              .not('owner_id', 'is', null)
+              .maybeSingle();
+          if (data == null) return null;
+          return _parseProfessional(Map<String, dynamic>.from(data));
+        } on PostgrestException catch (e2) {
+          if (e2.code == '42703') {
+            final data = await _client
+                .from('professionals')
+                .select(
+                  'id, name, category, description, image_url, city, rating, review_count, address, phone, email, website',
+                )
+                .eq('id', id)
+                .maybeSingle();
+            if (data == null) return null;
+            return _parseProfessional(Map<String, dynamic>.from(data));
+          }
+          rethrow;
+        }
       }
       rethrow;
     }
@@ -107,11 +127,20 @@ class ProfessionalRepository {
           .from('professionals')
           .select()
           .eq('owner_id', userId)
+          .isFilter('deleted_at', null)
           .maybeSingle();
       if (data == null) return null;
       return _parseProfessional(Map<String, dynamic>.from(data));
     } on PostgrestException catch (e) {
-      if (e.code == '42703') return null;
+      if (e.code == '42703' || e.code == 'PGRST204') {
+        final data = await _client
+            .from('professionals')
+            .select()
+            .eq('owner_id', userId)
+            .maybeSingle();
+        if (data == null) return null;
+        return _parseProfessional(Map<String, dynamic>.from(data));
+      }
       rethrow;
     }
   }
@@ -287,7 +316,11 @@ class ProfessionalRepository {
     final hasCityFilter = city != null && city.trim().isNotEmpty;
     final fetchLimit = hasCityFilter ? limit * 10 : limit * 3;
 
-    var builder = _client.from('professionals').select();
+    var builder = _client
+        .from('professionals')
+        .select()
+        .not('owner_id', 'is', null)
+        .isFilter('deleted_at', null);
 
     if (profession != null && profession.isNotEmpty) {
       builder = builder.ilike('profession', '%$profession%');
@@ -391,7 +424,11 @@ class ProfessionalRepository {
     List<String> expandedProfessions = const [],
     required int limit,
   }) async {
-    var builder = _client.from('professionals').select();
+    var builder = _client
+        .from('professionals')
+        .select()
+        .not('owner_id', 'is', null)
+        .isFilter('deleted_at', null);
 
     if (profession != null && profession.isNotEmpty) {
       builder = builder.ilike('category', '%$profession%');
@@ -550,6 +587,8 @@ class ProfessionalRepository {
       final raw = await _client
           .from('professionals')
           .select('name, profession')
+          .not('owner_id', 'is', null)
+          .isFilter('deleted_at', null)
           .or('name.ilike.%$safe%,profession.ilike.%$safe%')
           .limit(limit * 2);
 
@@ -584,6 +623,7 @@ class ProfessionalRepository {
       final raw = await _client
           .from('professionals')
           .select('name, category')
+          .not('owner_id', 'is', null)
           .or('name.ilike.%$term%,category.ilike.%$term%')
           .limit(limit * 2);
 

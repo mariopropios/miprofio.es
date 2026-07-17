@@ -16,6 +16,7 @@ PreparedUpload _optimizeInIsolate(_OptimizeRequest request) {
   );
 }
 
+/// Compresión en isolate (móvil / desktop).
 Future<PreparedUpload> optimizeOnPlatform(
   Uint8List input, {
   String? originalName,

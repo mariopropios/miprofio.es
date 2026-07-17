@@ -145,6 +145,24 @@ class AuthRepository {
 
   Future<void> signOut() => _client.auth.signOut();
 
+  /// Soft-delete de ficha (si hay) + borrado del usuario Auth vía Edge Function.
+  Future<void> deleteMyAccount() async {
+    final response = await _client.functions.invoke('delete-account');
+    final data = response.data;
+
+    if (response.status != 200) {
+      final message = data is Map && data['error'] is String
+          ? data['error'] as String
+          : 'No se pudo eliminar la cuenta.';
+      throw AuthException(message);
+    }
+
+    // La sesión local puede quedar inválida tras borrar el usuario.
+    try {
+      await _client.auth.signOut();
+    } catch (_) {}
+  }
+
   /// Reenvía el email de confirmación al usuario actual o al email indicado.
   Future<void> resendVerificationEmail(String email) async {
     try {

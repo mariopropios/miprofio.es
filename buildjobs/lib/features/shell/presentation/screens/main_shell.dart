@@ -7,6 +7,7 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/services/push_notification_clear.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../chat/presentation/providers/chat_providers.dart';
+import '../../../../shared/widgets/legal_links_row.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../shared/widgets/web_tap_guard.dart';
 
@@ -155,6 +156,15 @@ class _DesktopSideNav extends ConsumerWidget {
         leading: const Padding(
           padding: EdgeInsets.fromLTRB(14, 24, 14, 8),
           child: _DesktopRailBrand(),
+        ),
+        trailing: const Expanded(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(8, 0, 8, 16),
+              child: LegalLinksRow(dense: true),
+            ),
+          ),
         ),
         destinations: [
           const NavigationRailDestination(

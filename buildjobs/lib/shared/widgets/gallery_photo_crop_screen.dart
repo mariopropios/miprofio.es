@@ -143,38 +143,97 @@ class _GalleryPhotoCropScreenState extends State<GalleryPhotoCropScreen> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Crop(
-                image: widget.imageBytes,
-                controller: _cropController,
-                aspectRatio: GalleryPhotoConstants.aspectRatio,
-                interactive: true,
-                fixCropRect: true,
-                baseColor: Colors.black,
-                maskColor: Colors.black.withValues(alpha: 0.62),
-                radius: 10,
-                onCropped: _onCropped,
-                onStatusChanged: (status) {
-                  if (!mounted) return;
-                  if (status == CropStatus.ready && !_isReady) {
-                    setState(() => _isReady = true);
-                  }
-                },
-                initialRectBuilder: InitialRectBuilder.withSizeAndRatio(
-                  size: 0.92,
-                  aspectRatio: GalleryPhotoConstants.aspectRatio,
-                ),
-                progressIndicator: const Center(
-                  child: CircularProgressIndicator(color: AppTheme.primary),
-                ),
-                cornerDotBuilder: (size, edge) => Container(
-                  width: size,
-                  height: size,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Crop(
+                    image: widget.imageBytes,
+                    controller: _cropController,
+                    aspectRatio: GalleryPhotoConstants.aspectRatio,
+                    interactive: true,
+                    fixCropRect: true,
+                    baseColor: Colors.black,
+                    maskColor: Colors.black.withValues(alpha: 0.62),
+                    radius: 10,
+                    onCropped: _onCropped,
+                    onStatusChanged: (status) {
+                      if (!mounted) return;
+                      if (status == CropStatus.ready && !_isReady) {
+                        setState(() => _isReady = true);
+                      }
+                    },
+                    initialRectBuilder: InitialRectBuilder.withSizeAndRatio(
+                      size: 0.92,
+                      aspectRatio: GalleryPhotoConstants.aspectRatio,
+                    ),
+                    progressIndicator: const SizedBox.shrink(),
+                    cornerDotBuilder: (size, edge) => Container(
+                      width: size,
+                      height: size,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                    ),
                   ),
-                ),
+                  if (!_isReady)
+                    const ColoredBox(
+                      color: Colors.black,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: AppTheme.primary,
+                              ),
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'Cargando encuadre…',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_isCropping)
+                    ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      child: const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: AppTheme.primary,
+                              ),
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'Procesando…',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -186,13 +245,14 @@ class _GalleryPhotoCropScreenState extends State<GalleryPhotoCropScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   PremiumButton(
-                    label: _isCropping ? 'Procesando...' : 'Usar esta parte',
+                    label: _isCropping ? 'Procesando…' : 'Usar esta parte',
                     isLoading: _isCropping,
                     onPressed: _isReady && !_isCropping ? _onConfirm : null,
                   ),
                   const SizedBox(height: 8),
                   TextButton(
-                    onPressed: _isCropping ? null : () => Navigator.of(context).pop(),
+                    onPressed:
+                        _isCropping ? null : () => Navigator.of(context).pop(),
                     child: const Text('Cancelar'),
                   ),
                 ],

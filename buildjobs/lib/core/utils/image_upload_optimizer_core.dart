@@ -14,14 +14,27 @@ class PreparedUpload {
   final String contentType;
 }
 
-/// Lógica de compresión (sin dependencias web nativas).
+/// Compresión con `package:image` (Dart puro, sin canvas HTML).
+/// Seguro en Flutter web + CanvasKit / PWA iOS.
 class ImageUploadOptimizerCore {
   ImageUploadOptimizerCore._();
 
-  static const targetMaxBytes = 4 * 1024 * 1024;
+  /// Objetivo por foto tras comprimir (galería usable con 10 fotos).
+  static const targetMaxBytes = 512 * 1024;
+
+  /// Si ya pesa menos, no re-encodear (iconos / thumbs).
+  static const skipIfUnderBytes = 250 * 1024;
+
   static const bucketMaxBytes = 20 * 1024 * 1024;
-  static const maxDimension = 1920;
+
+  /// Lado largo máx. — suficiente en móvil, reduce mucho el peso.
+  static const maxDimension = 1600;
   static const fallbackMaxDimension = 1280;
+
+  static const jpegStartQuality = 82;
+  static const jpegMinQuality = 55;
+  static const jpegQualityStep = 5;
+
   static const optimizeTimeout = Duration(seconds: 45);
 
   static PreparedUpload prepareSmall(
@@ -40,8 +53,15 @@ class ImageUploadOptimizerCore {
     Uint8List input, {
     String? originalName,
   }) {
+    final ext = _extensionFromName(originalName);
     final decoded = img.decodeImage(input);
     if (decoded == null) {
+      if (ext == 'heic' || ext == 'heif') {
+        throw const FormatException(
+          'No se pudo convertir esta foto HEIC. '
+          'En el iPhone: Fotos → exportar como JPG y súbela de nuevo.',
+        );
+      }
       if (input.length <= bucketMaxBytes) {
         return prepareSmall(input, originalName: originalName);
       }
@@ -79,9 +99,17 @@ class ImageUploadOptimizerCore {
     }
 
     if (image.width >= image.height) {
-      return img.copyResize(image, width: maxSide);
+      return img.copyResize(
+        image,
+        width: maxSide,
+        interpolation: img.Interpolation.linear,
+      );
     }
-    return img.copyResize(image, height: maxSide);
+    return img.copyResize(
+      image,
+      height: maxSide,
+      interpolation: img.Interpolation.linear,
+    );
   }
 
   static PreparedUpload? _tryEncodePng(img.Image image) {
@@ -103,7 +131,9 @@ class ImageUploadOptimizerCore {
   static PreparedUpload? _encodeJpegUnderLimit(img.Image image) {
     final working = _flattenAlpha(image);
 
-    for (var quality = 88; quality >= 45; quality -= 7) {
+    for (var quality = jpegStartQuality;
+        quality >= jpegMinQuality;
+        quality -= jpegQualityStep) {
       final bytes =
           Uint8List.fromList(img.encodeJpg(working, quality: quality));
       if (bytes.length <= targetMaxBytes) {

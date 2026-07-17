@@ -1,7 +1,14 @@
 name = "profio-web"
+main = "workers/og-spa.js"
 compatibility_date = "2024-06-01"
 
 [assets]
 directory = "./build/web"
+binding = "ASSETS"
 # Rutas profundas (/login/reset-password, etc.) deben servir index.html.
 not_found_handling = "single-page-application"
+
+# SUPABASE_ANON_KEY es la clave publishable (pública en el cliente Flutter).
+[vars]
+SUPABASE_URL = "https://stwlyupcmkxdiccxdhvn.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_q17q1fyvO_fdxC1EmrTaww_BE3SIgeS"

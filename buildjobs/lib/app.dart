@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/app_constants.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'shared/widgets/cookie_consent_banner.dart';
 import 'shared/widgets/pwa_install_prompt.dart';
 
 /// Scroll behavior sin scrollbar overlay, compatible con mouse y touch.
@@ -45,6 +46,11 @@ class ProfioApp extends ConsumerWidget {
         themeMode: ThemeMode.dark,
         scrollBehavior: const _AppScrollBehavior(),
         routerConfig: router,
+        builder: (context, child) {
+          return CookieConsentHost(
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
       ),
     );
   }

@@ -30,6 +30,8 @@ import '../../features/chat/presentation/models/active_chat_route.dart';
 import '../../features/reviews/presentation/screens/write_review_screen.dart';
 import '../../features/search/presentation/screens/search_screen.dart';
 import '../../features/shell/presentation/screens/main_shell.dart';
+import '../../shared/widgets/legal_document_screen.dart';
+import '../legal/legal_documents.dart';
 import '../providers/repository_providers.dart';
 import 'routes.dart';
 import 'slide_page.dart';
@@ -280,6 +282,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
         ],
+      ),
+      GoRoute(
+        path: AppRoutes.privacy,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => slidePage<void>(
+          key: state.pageKey,
+          child: LegalDocumentScreen(document: LegalDocuments.privacy),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.cookies,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => slidePage<void>(
+          key: state.pageKey,
+          child: LegalDocumentScreen(document: LegalDocuments.cookies),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.terms,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => slidePage<void>(
+          key: state.pageKey,
+          child: LegalDocumentScreen(document: LegalDocuments.terms),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.legalNotice,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => slidePage<void>(
+          key: state.pageKey,
+          child: LegalDocumentScreen(document: LegalDocuments.legalNotice),
+        ),
       ),
       GoRoute(
         path: AppRoutes.emailVerification,

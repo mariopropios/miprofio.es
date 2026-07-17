@@ -16,6 +16,11 @@ class AppRoutes {
   static const forgotPassword = '/login/forgot-password';
   static const resetPassword = '/login/reset-password';
 
+  static const privacy = '/privacy';
+  static const cookies = '/cookies';
+  static const terms = '/terms';
+  static const legalNotice = '/legal';
+
   static String chatPath(String professionalId) =>
       '/messages/$professionalId';
 

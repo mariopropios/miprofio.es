@@ -13,6 +13,8 @@ import '../../../saved/providers/saved_professional_providers.dart';
 import '../../../../shared/widgets/message_email_notification_card.dart';
 import '../../../../shared/widgets/push_notification_setup_card.dart';
 import '../../../../shared/widgets/pwa_install_prompt.dart';
+import '../../../../shared/widgets/legal_links_row.dart';
+import '../../../../shared/widgets/share_professional_button.dart';
 import '../widgets/email_verified_welcome_listener.dart';
 import '../widgets/saved_professionals_section.dart';
 
@@ -93,9 +95,20 @@ class _LoggedInProfile extends ConsumerWidget {
         if (view.isProfessional) {
           final bottomInset =
               MediaQuery.paddingOf(context).bottom + kBottomNavigationBarHeight;
+          final companyAsync =
+              ref.watch(professionalDetailProvider(view.professionalId));
+          final professionalName = companyAsync.maybeWhen(
+            data: (c) => c?.name,
+            orElse: () => null,
+          );
           return Scaffold(
             primary: false,
-            appBar: _ProfileAppBar(userId: userId, isProfessional: true),
+            appBar: _ProfileAppBar(
+              userId: userId,
+              isProfessional: true,
+              professionalId: view.professionalId,
+              professionalName: professionalName,
+            ),
             body: ProfessionalPublicProfileBody(
               companyId: view.professionalId,
               bottomPadding: 16 + bottomInset,
@@ -165,6 +178,8 @@ class _LoggedOutProfile extends StatelessWidget {
                   label: 'Crear cuenta',
                   onPressed: () => context.push(AppRoutes.register),
                 ),
+                const SizedBox(height: 28),
+                const LegalLinksRow(dense: true),
                 ],
               ),
             ),
@@ -179,10 +194,14 @@ class _ProfileAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const _ProfileAppBar({
     this.userId,
     this.isProfessional = false,
+    this.professionalId,
+    this.professionalName,
   });
 
   final String? userId;
   final bool isProfessional;
+  final String? professionalId;
+  final String? professionalName;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -193,6 +212,14 @@ class _ProfileAppBar extends ConsumerWidget implements PreferredSizeWidget {
       title: Text(isProfessional ? 'Mi perfil público' : 'Mi perfil'),
       actions: [
         if (userId != null) ...[
+          if (isProfessional &&
+              professionalId != null &&
+              professionalId!.isNotEmpty)
+            ShareProfessionalButton(
+              professionalId: professionalId!,
+              professionalName: professionalName,
+              offerOwnerPresets: true,
+            ),
           const PwaInstallAppBarAction(),
           IconButton(
             tooltip: 'Editar perfil',

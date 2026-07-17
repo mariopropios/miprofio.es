@@ -15,6 +15,7 @@ class AppTheme {
   static const Color textSecondary = Color(0xFF8E8E93);
   static const Color divider = Color(0xFF2C343C);
   static const Color accentOrange = Color(0xFFFF6B35);
+  static const Color error = Color(0xFFFF453A);
 
   /// Alias de compatibilidad con código existente
   static const Color primaryGreen = primary;

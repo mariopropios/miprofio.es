@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/providers/repository_providers.dart';
@@ -342,10 +342,12 @@ String _cleanDescription(String description) {
       .trim();
 }
 
-/// Descripción expandible: muestra 4 líneas por defecto y un botón "Ver más".
+/// Descripción expandible: 4 líneas por defecto + «Ver más» si hay overflow real.
 class _ExpandableDescription extends StatefulWidget {
   const _ExpandableDescription({required this.text});
   final String text;
+
+  static const _maxCollapsedLines = 4;
 
   @override
   State<_ExpandableDescription> createState() =>
@@ -354,55 +356,112 @@ class _ExpandableDescription extends StatefulWidget {
 
 class _ExpandableDescriptionState extends State<_ExpandableDescription> {
   bool _expanded = false;
+  bool _overflows = false;
+  double? _lastMeasuredWidth;
 
-  /// Heurística rápida: >200 caracteres o >3 saltos de línea → probable overflow.
-  bool _likelyOverflows(String text) =>
-      text.length > 200 || '\n'.allMatches(text).length > 3;
+  TextStyle _bodyStyle(BuildContext context) =>
+      Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppTheme.textSecondary,
+            height: 1.55,
+          ) ??
+      const TextStyle(color: AppTheme.textSecondary, height: 1.55);
+
+  bool _textOverflowsAtWidth({
+    required String text,
+    required TextStyle style,
+    required double maxWidth,
+  }) {
+    if (maxWidth <= 0) return false;
+
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: _ExpandableDescription._maxCollapsedLines,
+      ellipsis: '…',
+    )..layout(maxWidth: maxWidth);
+
+    return painter.didExceedMaxLines;
+  }
+
+  void _measureOverflow(BuildContext context, double maxWidth) {
+    if (maxWidth <= 0) return;
+    // Evitar setState en bucle si el ancho no cambió de forma significativa.
+    if (_lastMeasuredWidth != null &&
+        (maxWidth - _lastMeasuredWidth!).abs() < 0.5) {
+      return;
+    }
+    _lastMeasuredWidth = maxWidth;
+
+    final overflows = _textOverflowsAtWidth(
+      text: widget.text,
+      style: _bodyStyle(context),
+      maxWidth: maxWidth,
+    );
+
+    if (overflows != _overflows) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _overflows = overflows;
+          if (!overflows) _expanded = false;
+        });
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _ExpandableDescription oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) {
+      _lastMeasuredWidth = null;
+      _expanded = false;
+      _overflows = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AnimatedCrossFade(
-          duration: const Duration(milliseconds: 220),
-          crossFadeState: _expanded
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
-          firstChild: Text(
-            widget.text,
-            maxLines: 4,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSecondary,
-                  height: 1.55,
-                ),
-          ),
-          secondChild: Text(
-            widget.text,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSecondary,
-                  height: 1.55,
-                ),
-          ),
-        ),
-        // Muestra el botón si el texto es probablemente mayor a 4 líneas
-        if (_likelyOverflows(widget.text))
-          GestureDetector(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.only(top: 6),
+    final style = _bodyStyle(context);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _measureOverflow(context, constraints.maxWidth);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topLeft,
               child: Text(
-                _expanded ? 'Ver menos' : 'Ver más',
-                style: const TextStyle(
-                  color: AppTheme.primary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
+                widget.text,
+                maxLines: _expanded
+                    ? null
+                    : _ExpandableDescription._maxCollapsedLines,
+                overflow:
+                    _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                style: style,
               ),
             ),
-          ),
-      ],
+            if (_overflows)
+              GestureDetector(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    _expanded ? 'Ver menos' : 'Ver más',
+                    style: const TextStyle(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
