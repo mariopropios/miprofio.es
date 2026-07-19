@@ -52,7 +52,7 @@ abstract final class DeviceFormFactor {
       !isTablet(context) && !isDesktopWeb(context);
 
   static double contentMaxWidth(BuildContext context) {
-    if (isDesktopWeb(context)) return 1200;
+    if (isDesktopWeb(context)) return 1440;
     return double.infinity;
   }
 }

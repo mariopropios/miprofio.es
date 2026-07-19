@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#12161A;font-family:system-ui,-apple-system,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#12161A;padding:24px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:480px;background:#1A2329;border-radius:12px;overflow:hidden;">
+        <tr><td style="padding:24px 24px 8px;">
+          <p style="margin:0;color:#00B27A;font-weight:700;font-size:18px;">miProfio.es</p>
+        </td></tr>
+        <tr><td style="padding:8px 24px 0;">
+          <p style="margin:0;color:#FFFFFF;font-size:20px;font-weight:700;">Recuperar contraseña</p>
+          <p style="margin:8px 0 0;color:#9BA3AF;font-size:15px;line-height:1.5;">
+            Haz clic para elegir una nueva contraseña en miProfio.es:
+          </p>
+        </td></tr>
+        <tr><td style="padding:20px 24px 16px;">
+          <!-- ConfirmationURL = enlace absoluto a Supabase verify + redirect_to (evita href relativo roto en Gmail). -->
+          <a href="{{ .ConfirmationURL }}"
+             target="_blank"
+             style="display:inline-block;background:#00B27A;color:#FFFFFF;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:8px;font-size:16px;">
+            Restablecer contraseña
+          </a>
+        </td></tr>
+        <tr><td style="padding:0 24px 24px;">
+          <p style="margin:0 0 10px;color:#6B7280;font-size:12px;line-height:1.5;">
+            Si el botón no funciona, copia y abre este enlace en Safari o Chrome:
+          </p>
+          <p style="margin:0 0 14px;color:#00B27A;font-size:11px;line-height:1.45;word-break:break-all;">
+            {{ .ConfirmationURL }}
+          </p>
+          <p style="margin:0;color:#6B7280;font-size:12px;line-height:1.5;">
+            Si no lo solicitaste, ignora este email.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

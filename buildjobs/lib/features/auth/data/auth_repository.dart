@@ -82,8 +82,9 @@ class AuthRepository {
 
   /// Envía un enlace seguro de recuperación al email (válido un tiempo limitado).
   ///
-  /// Requiere plantilla de email en Supabase con enlace directo:
-  /// `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`
+  /// La plantilla Auth usa `{{ .ConfirmationURL }}` (verify de Supabase +
+  /// redirect_to). La app abre `/login/reset-password` y completa la sesión
+  /// con el callback (hash/query).
   Future<void> sendPasswordResetEmail(String email) async {
     await _client.auth.resetPasswordForEmail(
       email.trim(),

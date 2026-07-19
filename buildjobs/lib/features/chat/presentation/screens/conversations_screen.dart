@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +8,6 @@ import '../../../../core/services/notification_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/models/message.dart';
 import '../providers/chat_providers.dart';
-import '../../../../shared/widgets/pwa_home_guide_dialog.dart';
 import '../widgets/chat_message_state.dart';
 import '../widgets/conversation_list_tile.dart';
 
@@ -24,7 +22,6 @@ class ConversationsScreen extends ConsumerStatefulWidget {
 class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     with WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
   bool _refreshing = false;
-  bool _showHomeGuide = false;
   final Set<String> _removingIds = {};
 
   @override
@@ -63,14 +60,6 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     } finally {
       if (mounted) setState(() => _refreshing = false);
     }
-  }
-
-  void _openHomeGuide() {
-    setState(() => _showHomeGuide = true);
-  }
-
-  void _closeHomeGuide() {
-    setState(() => _showHomeGuide = false);
   }
 
   void _openArchived() {
@@ -196,7 +185,6 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
         appBar: _buildAppBar(showArchive: false),
         body: Column(
           children: [
-            if (_showHomeGuide) PwaHomeGuidePanel(onClose: _closeHomeGuide),
             Expanded(
               child: Center(
                 child: Padding(
@@ -245,7 +233,6 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
       body: RepaintBoundary(
         child: Column(
           children: [
-            if (_showHomeGuide) PwaHomeGuidePanel(onClose: _closeHomeGuide),
             Expanded(
               child: convAsync.when(
                 skipLoadingOnReload: true,
@@ -328,13 +315,6 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
             icon: const Icon(Icons.archive_outlined,
                 color: AppTheme.textSecondary, size: 22),
             tooltip: 'Archivados',
-          ),
-        if (kIsWeb)
-          IconButton(
-            onPressed: _openHomeGuide,
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppTheme.textSecondary, size: 22),
-            tooltip: 'Añadir a pantalla de inicio',
           ),
         IconButton(
           onPressed: _refreshing ? null : _refreshConversations,

@@ -162,7 +162,8 @@ Future<void> ensureFirebaseMessagingSwReady() async {
         onTimeout: () => null,
       );
     }
-    await sw.ready;
+    // No await sw.ready sin SW: en iOS puede colgarse indefinidamente.
+    await sw.ready.timeout(const Duration(seconds: 8));
   } catch (e) {
     debugPrint('[PWA] FCM service worker: $e');
   }
@@ -197,10 +198,9 @@ bool isStandalonePwa() {
 /// True si el usuario aún no abre Profio como acceso directo / PWA instalada.
 bool lacksPwaDirectAccess() => !isStandalonePwa();
 
-bool shouldShowIosInstallHint() => _isIosDevice() && !isStandalonePwa();
+bool shouldShowIosInstallHint() => false;
 
-bool shouldShowAndroidManualInstallHint() =>
-    _isAndroidDevice() && !isStandalonePwa() && !canAutoInstallPwa();
+bool shouldShowAndroidManualInstallHint() => false;
 
 bool isMobileWebBrowser() {
   final ua = html.window.navigator.userAgent.toLowerCase();
@@ -226,20 +226,13 @@ bool isMobileWebBrowser() {
   return false;
 }
 
-bool shouldShowPwaInstallPrompt() =>
-    isMobileWebBrowser() && !isStandalonePwa();
+/// Ofertas de acceso directo / PWA desactivadas (rompían el arranque web).
+bool shouldShowPwaInstallPrompt() => false;
 
-/// Oferta de instalación: móvil web o pantalla estrecha (teléfono/tablet).
-bool shouldShowPwaInstallOffer(BuildContext context) {
-  if (!kIsWeb || isStandalonePwa()) return false;
-  if (isMobileWebBrowser()) return true;
-  return MediaQuery.sizeOf(context).shortestSide < 1024;
-}
+/// Oferta de instalación desactivada.
+bool shouldShowPwaInstallOffer(BuildContext context) => false;
 
-bool shouldShowPwaInstallPromptInContext(BuildContext? context) {
-  if (context == null) return shouldShowPwaInstallPrompt();
-  return shouldShowPwaInstallOffer(context);
-}
+bool shouldShowPwaInstallPromptInContext(BuildContext? context) => false;
 
 Future<bool> isPwaInstallPromptDismissed() async {
   if (isStandalonePwa() || _declinedThisSession) return true;

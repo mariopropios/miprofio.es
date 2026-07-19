@@ -12,7 +12,6 @@ import '../../../companies/presentation/widgets/professional_public_profile_body
 import '../../../saved/providers/saved_professional_providers.dart';
 import '../../../../shared/widgets/message_email_notification_card.dart';
 import '../../../../shared/widgets/push_notification_setup_card.dart';
-import '../../../../shared/widgets/pwa_install_prompt.dart';
 import '../../../../shared/widgets/legal_links_row.dart';
 import '../../../../shared/widgets/share_professional_button.dart';
 import '../widgets/email_verified_welcome_listener.dart';
@@ -220,7 +219,6 @@ class _ProfileAppBar extends ConsumerWidget implements PreferredSizeWidget {
               professionalName: professionalName,
               offerOwnerPresets: true,
             ),
-          const PwaInstallAppBarAction(),
           IconButton(
             tooltip: 'Editar perfil',
             icon: const Icon(Icons.edit_outlined),

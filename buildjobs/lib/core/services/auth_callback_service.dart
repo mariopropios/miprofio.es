@@ -36,8 +36,15 @@ class AuthCallbackService {
   }
 
   /// Destino del enlace de recuperación de contraseña (Redirect URLs de Supabase).
+  ///
+  /// Usa el origen actual (workers.dev o miprofio.es) para que el email
+  /// redirija al mismo sitio desde el que se pidió el reset.
   static String webPasswordResetRedirectTo() {
-    return '${Uri.base.origin}${AppRoutes.resetPassword}';
+    final origin = Uri.base.origin;
+    if (origin.isNotEmpty && origin != 'null' && origin.startsWith('http')) {
+      return '$origin${AppRoutes.resetPassword}';
+    }
+    return 'https://profio-web.mariopropiosplaza.workers.dev${AppRoutes.resetPassword}';
   }
 
   static bool isPasswordRecoveryCallback(Uri uri) {

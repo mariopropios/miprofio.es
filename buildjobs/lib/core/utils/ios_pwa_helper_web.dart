@@ -16,8 +16,7 @@ bool _isStandalonePwa() {
       html.window.matchMedia('(display-mode: fullscreen)').matches;
 }
 
-bool shouldShowIosPwaInstallBanner() =>
-    _isIosDevice() && !_isStandalonePwa();
+bool shouldShowIosPwaInstallBanner() => false;
 
 Future<bool> isIosPwaBannerDismissed() async {
   try {

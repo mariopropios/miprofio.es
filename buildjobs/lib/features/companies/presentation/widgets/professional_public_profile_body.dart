@@ -88,10 +88,15 @@ class ProfessionalPublicProfileBody extends ConsumerWidget {
             ]);
           },
           child: ResponsiveContent(
-            maxWidth: 900,
+            maxWidth: ResponsiveLayout.isDesktop(context) ? 1320 : 900,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+              padding: EdgeInsets.fromLTRB(
+                ResponsiveLayout.isDesktop(context) ? 8 : 16,
+                ResponsiveLayout.isDesktop(context) ? 20 : 16,
+                ResponsiveLayout.isDesktop(context) ? 8 : 16,
+                bottomPadding,
+              ),
               child: _ProfessionalProfileContent(
                 company: company,
                 reviewsAsync: reviewsAsync,
@@ -167,14 +172,218 @@ class _ProfessionalProfileContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final savedCount = ref.watch(effectiveSavedCountProvider(companyId));
+    final isDesktop = ResponsiveLayout.isDesktop(context);
 
+    final identityBlock = _IdentityBlock(
+      company: company,
+      companyId: companyId,
+      savedCount: savedCount,
+      isOwnerView: isOwnerView,
+    );
+
+    final ownerCards = isOwnerView
+        ? const Column(
+            children: [
+              MessageEmailNotificationCard(),
+              SizedBox(height: 12),
+              PushNotificationSetupCard(),
+            ],
+          )
+        : const SizedBox.shrink();
+
+    final cleanedDescription = company.description != null
+        ? _cleanDescription(company.description!)
+        : '';
+    final hasAbout = cleanedDescription.isNotEmpty;
+
+    final aboutBlock = hasAbout
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Sobre este profesional',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  _ExpandableDescription(text: cleanedDescription),
+                ],
+              )
+            : null;
+
+    final contactBlock = _ContactCard(
+      city: company.city,
+      address: company.address,
+      email: company.email,
+      phone: company.phone,
+      website: company.website,
+    );
+
+    final messageBlock = !isOwnerView
+        ? _SendMessageButton(
+            professionalId: company.id,
+            professionalName: company.name,
+            professionalPhoto: company.profilePhoto,
+          )
+        : const SizedBox.shrink();
+
+    final galleryBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Galería de trabajos',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        const SizedBox(height: 12),
+        if (isOwnerView)
+          ProfessionalOwnerGallerySection(
+            professionalId: company.id,
+            photoUrls: company.workGalleryPhotos,
+          )
+        else
+          WorkGalleryStrip(photoUrls: company.workGalleryPhotos),
+      ],
+    );
+
+    final reviewsBlock = AsyncValueWidget<List<Review>>(
+      value: reviewsAsync,
+      loadingMessage: 'Cargando reseñas...',
+      empty: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Reseñas',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isOwnerView
+                  ? 'Aún no tienes reseñas. Cuando los clientes te valoren, aparecerán aquí.'
+                  : 'Aún no hay reseñas. ¡Sé el primero!',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+            ),
+          ],
+        ),
+      ),
+      data: (reviews) => _ReviewsSection(
+        reviews: reviews,
+        dateFormat: dateFormat,
+        isOwnerView: isOwnerView,
+        professionalId: company.id,
+      ),
+    );
+
+    // ── Móvil: columna actual (sin cambios de jerarquía) ───────────────────
+    if (!isDesktop) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HeaderImage(imageUrl: company.profilePhoto),
+          const SizedBox(height: 16),
+          identityBlock,
+          if (isOwnerView) ...[
+            const SizedBox(height: 16),
+            ownerCards,
+          ],
+          if (hasAbout) ...[
+            const SizedBox(height: 16),
+            aboutBlock!,
+          ],
+          const SizedBox(height: 24),
+          contactBlock,
+          if (!isOwnerView) ...[
+            const SizedBox(height: 16),
+            messageBlock,
+          ],
+          const SizedBox(height: 24),
+          galleryBlock,
+          const Divider(height: 40),
+          reviewsBlock,
+        ],
+      );
+    }
+
+    // ── Escritorio: 2 columnas + galería/reseñas a ancho completo ──────────
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Identidad del perfil PRIMERO: si la tarjeta push falla en release
-        // (ErrorWidget gris enorme), foto y nombre siguen visibles arriba.
-        _HeaderImage(imageUrl: company.profilePhoto),
-        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _HeaderImage(
+                    imageUrl: company.profilePhoto,
+                    height: 280,
+                  ),
+                  const SizedBox(height: 20),
+                  identityBlock,
+                ],
+              ),
+            ),
+            const SizedBox(width: 28),
+            Expanded(
+              flex: 5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isOwnerView) ...[
+                    ownerCards,
+                    const SizedBox(height: 20),
+                  ],
+                  if (hasAbout) ...[
+                    aboutBlock!,
+                    const SizedBox(height: 20),
+                  ],
+                  contactBlock,
+                  if (!isOwnerView) ...[
+                    const SizedBox(height: 16),
+                    messageBlock,
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 32),
+        galleryBlock,
+        const Divider(height: 40),
+        reviewsBlock,
+      ],
+    );
+  }
+}
+
+class _IdentityBlock extends StatelessWidget {
+  const _IdentityBlock({
+    required this.company,
+    required this.companyId,
+    required this.savedCount,
+    required this.isOwnerView,
+  });
+
+  final Professional company;
+  final String companyId;
+  final int savedCount;
+  final bool isOwnerView;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Text(
           company.name,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -221,11 +430,13 @@ class _ProfessionalProfileContent extends ConsumerWidget {
               color: AppTheme.textSecondary,
             ),
             const SizedBox(width: 4),
-            Text(
-              company.city,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
+            Expanded(
+              child: Text(
+                company.city,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
+              ),
             ),
           ],
         ),
@@ -239,97 +450,17 @@ class _ProfessionalProfileContent extends ConsumerWidget {
                 color: AppTheme.textSecondary,
               ),
               const SizedBox(width: 4),
-              Text(
-                company.travelRadiusLabel,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
-              ),
-            ],
-          ),
-        ],
-        if (isOwnerView) ...[
-          const SizedBox(height: 16),
-          const MessageEmailNotificationCard(),
-          const SizedBox(height: 12),
-          const PushNotificationSetupCard(),
-        ],
-        if (company.description != null && _cleanDescription(company.description!).isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(
-            'Sobre este profesional',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const SizedBox(height: 8),
-          _ExpandableDescription(text: _cleanDescription(company.description!)),
-        ],
-        const SizedBox(height: 24),
-        _ContactCard(
-          city: company.city,
-          address: company.address,
-          email: company.email,
-          phone: company.phone,
-          website: company.website,
-        ),
-        if (!isOwnerView) ...[
-          const SizedBox(height: 16),
-          _SendMessageButton(
-            professionalId: company.id,
-            professionalName: company.name,
-            professionalPhoto: company.profilePhoto,
-          ),
-        ],
-        const SizedBox(height: 24),
-        Text(
-          'Galería de trabajos',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-        ),
-        const SizedBox(height: 12),
-        if (isOwnerView)
-          ProfessionalOwnerGallerySection(
-            professionalId: company.id,
-            photoUrls: company.workGalleryPhotos,
-          )
-        else
-          WorkGalleryStrip(photoUrls: company.workGalleryPhotos),
-        const Divider(height: 40),
-        AsyncValueWidget<List<Review>>(
-          value: reviewsAsync,
-          loadingMessage: 'Cargando reseñas...',
-          empty: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Reseñas',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  isOwnerView
-                      ? 'Aún no tienes reseñas. Cuando los clientes te valoren, aparecerán aquí.'
-                      : 'Aún no hay reseñas. ¡Sé el primero!',
+              Expanded(
+                child: Text(
+                  company.travelRadiusLabel,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.textSecondary,
                       ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          data: (reviews) => _ReviewsSection(
-            reviews: reviews,
-            dateFormat: dateFormat,
-            isOwnerView: isOwnerView,
-            professionalId: company.id,
-          ),
-        ),
+        ],
       ],
     );
   }
@@ -467,21 +598,22 @@ class _ExpandableDescriptionState extends State<_ExpandableDescription> {
 }
 
 class _HeaderImage extends StatelessWidget {
-  const _HeaderImage({this.imageUrl});
+  const _HeaderImage({this.imageUrl, this.height = 220});
 
   final String? imageUrl;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     final cacheWidth =
         (MediaQuery.sizeOf(context).width * MediaQuery.devicePixelRatioOf(context))
             .ceil()
-            .clamp(400, 960);
+            .clamp(400, 1200);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
-        height: 220,
+        height: height,
         width: double.infinity,
         child: imageUrl != null && imageUrl!.isNotEmpty
             ? CachedNetworkImage(
@@ -491,7 +623,7 @@ class _HeaderImage extends StatelessWidget {
                 ),
                 fit: BoxFit.cover,
                 width: double.infinity,
-                height: 220,
+                height: height,
                 memCacheWidth: cacheWidth,
                 maxWidthDiskCache: cacheWidth,
                 fadeInDuration: const Duration(milliseconds: 150),
@@ -508,7 +640,7 @@ class _HeaderImage extends StatelessWidget {
                   imageUrl: imageUrl!,
                   fit: BoxFit.cover,
                   width: double.infinity,
-                  height: 220,
+                  height: height,
                   memCacheWidth: cacheWidth,
                   errorWidget: (_, __, ___) => _placeholder(),
                 ),

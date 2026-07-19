@@ -1,3 +1,9 @@
+# Configuración remota (Edge Functions + Auth email).
+# Subir: npx supabase config push --project-ref stwlyupcmkxdiccxdhvn --yes
+#
+# Importante: site_url y redirect URLs deben coincidir con producción
+# (no usar defaults locales 127.0.0.1).
+
 # phone-otp se llama ANTES de crear cuenta → no exige JWT
 [functions.phone-otp]
 verify_jwt = false
@@ -5,3 +11,45 @@ verify_jwt = false
 # Notificaciones: cliente (JWT usuario) + triggers DB (Bearer anon/service vía Vault)
 [functions.send-push-notification]
 verify_jwt = true
+
+[auth]
+enabled = true
+site_url = "https://miprofio.es"
+additional_redirect_urls = [
+  "http://localhost:52027/**",
+  "https://miprofio.es/**",
+  "https://miprofio.es/login/reset-password",
+  "https://profio-web.mariopropiosplaza.workers.dev/**",
+  "https://profio-web.mariopropiosplaza.workers.dev/login/reset-password",
+]
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+max_frequency = "1m0s"
+otp_length = 8
+otp_expiry = 3600
+
+# Marca miProfio.es (antes el asunto decía «Profio» por el nombre del proyecto)
+[auth.email.template.recovery]
+subject = "Recuperar contraseña - miProfio.es"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.confirmation]
+subject = "Confirma tu email - miProfio.es"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Tu enlace de acceso - miProfio.es"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.email_change]
+subject = "Confirma tu nuevo email - miProfio.es"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.invite]
+subject = "Invitación a miProfio.es"
+content_path = "./supabase/templates/invite.html"

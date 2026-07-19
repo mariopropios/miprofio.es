@@ -98,23 +98,26 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <!-- Corbado Passkeys SDK: en iOS PWA se carga tras el primer frame (evita bloquear toques) -->
+  <!-- Passkeys SDK: siempre antes de Flutter (evita crash al registrar el plugin). -->
   <script>
     (function () {
-      var iosPwa = window.__profioPwa && window.__profioPwa.isIos && window.__profioPwa.isStandalone;
-      function loadBundle() {
-        if (document.querySelector('script[data-profio-bundle]')) return;
-        var s = document.createElement('script');
-        s.src = 'bundle.js';
-        s.setAttribute('data-profio-bundle', '1');
-        document.head.appendChild(s);
+      // Stub mínimo por si bundle.js falla; bundle.js lo sustituye al cargar.
+      if (typeof PasskeyAuthenticator === 'undefined') {
+        window.PasskeyAuthenticator = {
+          init: function () {},
+          register: function () { return Promise.reject(new Error('passkeys unavailable')); },
+          login: function () { return Promise.reject(new Error('passkeys unavailable')); },
+          cancelCurrentAuthenticatorOperation: function () {},
+          hasPasskeySupport: function () { return false; },
+          isConditionalMediationAvailable: function () { return Promise.resolve(false); },
+          isUserVerifyingPlatformAuthenticatorAvailable: function () { return Promise.resolve(false); }
+        };
       }
-      if (iosPwa) {
-        window.addEventListener('flutter-first-frame', loadBundle, { once: true });
-        setTimeout(loadBundle, 12000);
-      } else {
-        loadBundle();
-      }
+      if (document.querySelector('script[data-profio-bundle]')) return;
+      var s = document.createElement('script');
+      s.src = 'bundle.js?v=20260719a';
+      s.setAttribute('data-profio-bundle', '1');
+      document.head.appendChild(s);
     })();
   </script>
 
@@ -265,29 +268,13 @@
       font-size: 22px;
       font-weight: 700;
       letter-spacing: 0.5px;
-      background: linear-gradient(
-        90deg,
-        #9ba3af 0%,
-        #ffffff 40%,
-        #00B27A 60%,
-        #9ba3af 100%
-      );
-      background-size: 200% auto;
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      animation: shimmer 2.8s linear infinite;
-    }
-
-    @keyframes shimmer {
-      0%   { background-position: 200% center; }
-      100% { background-position: -200% center; }
+      color: #00B27A;
     }
 
     .brand-sub {
       font-family: system-ui, -apple-system, sans-serif;
       font-size: 11.5px;
-      color: #4b5563;
+      color: #6b7280;
       letter-spacing: 2.5px;
       text-transform: uppercase;
     }
@@ -312,6 +299,32 @@
     @keyframes progress-sweep {
       0%   { transform: translateX(-200%); }
       100% { transform: translateX(400%); }
+    }
+
+    #hc-loader.slow .progress-bar {
+      display: none;
+    }
+
+    .hc-slow-msg {
+      margin: 8px 0 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      color: #e5e7eb;
+      text-align: center;
+      max-width: 280px;
+      line-height: 1.45;
+    }
+
+    .hc-retry-btn {
+      appearance: none;
+      border: 0;
+      margin-top: 8px;
+      border-radius: 14px;
+      padding: 14px 36px;
+      min-width: 200px;
+      font: 700 16px system-ui, -apple-system, sans-serif;
+      color: #06140f;
+      background: #00B27A;
     }
   </style>
 </head>
@@ -378,32 +391,38 @@
       if (seo) seo.remove();
     }
 
-    // Igual en browser y acceso directo: solo quitar splash cuando Flutter pinta.
+    // Solo quitar splash cuando Flutter pinta el primer frame.
     window.addEventListener('flutter-first-frame', profioDismissLoader);
 
-    // Fallback: no dejar pantalla negra; ofrecer recarga.
+    // Si tarda: mismo estilo visual + botón Reintentar.
     setTimeout(function () {
       var loader = document.getElementById('hc-loader');
       if (!loader || loader.classList.contains('fade-out')) return;
+      if (loader.querySelector('.hc-retry-btn')) return;
 
-      var hint = document.createElement('p');
-      hint.style.cssText =
-        'margin-top:20px;font-family:system-ui,sans-serif;font-size:13px;color:#9ba3af;text-align:center;max-width:260px;line-height:1.5';
-      hint.innerHTML =
-        'La app tarda más de lo normal.<br><a href="#" style="color:#00B27A">Recargar</a>';
-      hint.querySelector('a').addEventListener('click', function (e) {
-        e.preventDefault();
+      loader.classList.add('slow');
+
+      var msg = document.createElement('p');
+      msg.className = 'hc-slow-msg';
+      msg.textContent = 'La carga está tardando más de lo normal.';
+
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hc-retry-btn';
+      btn.textContent = 'Reintentar';
+      btn.addEventListener('click', function () {
         location.reload();
       });
-      loader.appendChild(hint);
+
+      loader.appendChild(msg);
+      loader.appendChild(btn);
     }, 12000);
   </script>
 
   <script>
-    // Arranque idéntico standalone/browser: no esperar limpiezas de SW.
     (window.__profioBootReady || Promise.resolve()).then(function () {
       var s = document.createElement('script');
-      s.src = 'flutter_bootstrap.js?v=pwa-boot-20260717a';
+      s.src = 'flutter_bootstrap.js?v=boot-20260719b';
       s.async = true;
       document.body.appendChild(s);
     });

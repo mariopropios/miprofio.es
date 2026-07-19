@@ -123,7 +123,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final legacyChat = _legacyChatPathRedirect(state);
       if (legacyChat != null) return legacyChat;
 
-      final session = Supabase.instance.client.auth.currentSession;
+      // Fail-soft si Supabase aún no está listo (p. ej. arranque iOS sin bundle).
+      Session? session;
+      try {
+        session = Supabase.instance.client.auth.currentSession;
+      } catch (_) {
+        session = null;
+      }
       final isAuthenticated = session != null;
       final path = state.matchedLocation;
       final isAuthCallback = AuthCallbackService.isAuthCallback(state.uri);

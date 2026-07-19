@@ -29,21 +29,18 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       primary: false,
-      appBar: AppBar(
-        // En escritorio el NavigationRail ya muestra el logo; en móvil lo mostramos aquí.
-        title: isDesktop
-            ? null
-            : const Row(
+      appBar: isDesktop
+          ? null
+          : AppBar(
+              title: const Row(
                 children: [
                   Icon(Icons.construction, color: AppTheme.primary),
                   SizedBox(width: 8),
                   Text(AppConstants.appName),
                 ],
               ),
-        // _AuthActionButton es un Consumer independiente: se reconstruye solo
-        // cuando cambia el estado de auth, no cuando cambia featuredAsync.
-        actions: const [_AuthActionButton(), SizedBox(width: 12)],
-      ),
+              actions: const [_AuthActionButton(), SizedBox(width: 12)],
+            ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(featuredProfessionalsProvider);
@@ -182,10 +179,19 @@ class _HomeScrollHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = ResponsiveLayout.isDesktop(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 16),
+        if (isDesktop) ...[
+          const Align(
+            alignment: Alignment.centerRight,
+            child: _AuthActionButton(),
+          ),
+          const SizedBox(height: 8),
+        ],
         Text(
           AppConstants.appTagline,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(

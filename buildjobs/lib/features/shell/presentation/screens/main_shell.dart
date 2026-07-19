@@ -7,7 +7,6 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/services/push_notification_clear.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../chat/presentation/providers/chat_providers.dart';
-import '../../../../shared/widgets/legal_links_row.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../shared/widgets/web_tap_guard.dart';
 
@@ -138,62 +137,136 @@ class _DesktopShell extends StatelessWidget {
   }
 }
 
+/// Sidebar custom de escritorio: ritmo vertical repartido (sin rail apelotonado).
 class _DesktopSideNav extends ConsumerWidget {
   const _DesktopSideNav({required this.selectedIndex});
 
   final int selectedIndex;
+
+  static const double _width = 248;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unreadCount = ref.watch(totalUnreadMessagesProvider);
 
     return WebTapGuard(
-      child: NavigationRail(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) => _navigateShell(context, index),
-        labelType: NavigationRailLabelType.all,
-        minWidth: 108,
-        leading: const Padding(
-          padding: EdgeInsets.fromLTRB(14, 24, 14, 8),
-          child: _DesktopRailBrand(),
-        ),
-        trailing: const Expanded(
-          child: Align(
-            alignment: Alignment.bottomCenter,
+      child: Material(
+        color: AppTheme.surface,
+        child: SizedBox(
+          width: _width,
+          child: SafeArea(
+            right: false,
             child: Padding(
-              padding: EdgeInsets.fromLTRB(8, 0, 8, 16),
-              child: LegalLinksRow(dense: true),
+              padding: const EdgeInsets.fromLTRB(16, 22, 16, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _DesktopRailBrand(),
+                  const SizedBox(height: 28),
+                  _DesktopNavTile(
+                    selected: selectedIndex == 0,
+                    icon: Icons.home_outlined,
+                    selectedIcon: Icons.home,
+                    label: 'Inicio',
+                    onTap: () => _navigateShell(context, 0),
+                  ),
+                  const SizedBox(height: 8),
+                  _DesktopNavTile(
+                    selected: selectedIndex == 1,
+                    icon: Icons.search,
+                    selectedIcon: Icons.search,
+                    label: 'Buscar',
+                    onTap: () => _navigateShell(context, 1),
+                  ),
+                  const SizedBox(height: 8),
+                  _DesktopNavTile(
+                    selected: selectedIndex == 2,
+                    icon: Icons.chat_bubble_outline_rounded,
+                    selectedIcon: Icons.chat_bubble_rounded,
+                    label: 'Mensajes',
+                    badgeCount: unreadCount,
+                    onTap: () => _navigateShell(context, 2),
+                  ),
+                  const SizedBox(height: 8),
+                  _DesktopNavTile(
+                    selected: selectedIndex == 3,
+                    icon: Icons.person_outline,
+                    selectedIcon: Icons.person,
+                    label: 'Perfil',
+                    onTap: () => _navigateShell(context, 3),
+                  ),
+                  const SizedBox(height: 32),
+                  const Divider(height: 1, color: AppTheme.divider),
+                  const SizedBox(height: 16),
+                  const _DesktopLegalLinks(),
+                  // El hueco restante queda debajo del bloque (no entre nav y legales).
+                  const Spacer(),
+                ],
+              ),
             ),
           ),
         ),
-        destinations: [
-          const NavigationRailDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: Text('Inicio'),
+      ),
+    );
+  }
+}
+
+class _DesktopNavTile extends StatelessWidget {
+  const _DesktopNavTile({
+    required this.selected,
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.onTap,
+    this.badgeCount = 0,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final VoidCallback onTap;
+  final int badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? AppTheme.primary : AppTheme.textSecondary;
+    final bg = selected
+        ? AppTheme.primary.withValues(alpha: 0.14)
+        : Colors.transparent;
+
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        hoverColor: AppTheme.primary.withValues(alpha: 0.08),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              _BadgedChatIcon(
+                count: badgeCount,
+                outlined: !selected,
+                iconOverride: selected ? selectedIcon : icon,
+                color: fg,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 15,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const NavigationRailDestination(
-            icon: Icon(Icons.search),
-            selectedIcon: Icon(Icons.search),
-            label: Text('Buscar'),
-          ),
-          NavigationRailDestination(
-            icon: _BadgedChatIcon(
-              count: unreadCount,
-              outlined: true,
-            ),
-            selectedIcon: _BadgedChatIcon(
-              count: unreadCount,
-              outlined: false,
-            ),
-            label: const Text('Mensajes'),
-          ),
-          const NavigationRailDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: Text('Perfil'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -217,40 +290,76 @@ class _DesktopRailBrand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final parts = AppConstants.appName.split('.');
-    final name = parts.first;
-    final domain =
-        parts.length > 1 ? '.${parts.sublist(1).join('.')}' : '';
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Row(
       children: [
-        const Icon(Icons.construction, color: AppTheme.primary, size: 32),
-        const SizedBox(height: 10),
-        Text(
-          name,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppTheme.primary.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppTheme.primary.withValues(alpha: 0.35),
+            ),
+          ),
+          child: const Icon(
+            Icons.construction,
             color: AppTheme.primary,
-            height: 1.15,
-            letterSpacing: -0.2,
+            size: 22,
           ),
         ),
-        if (domain.isNotEmpty) ...[
-          const SizedBox(height: 2),
-          Text(
-            domain,
-            textAlign: TextAlign.center,
+        const SizedBox(width: 12),
+        const Flexible(
+          child: Text(
+            AppConstants.appName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: AppTheme.primary.withValues(alpha: 0.88),
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              color: AppTheme.primary,
+              letterSpacing: -0.3,
               height: 1.1,
             ),
           ),
-        ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopLegalLinks extends StatelessWidget {
+  const _DesktopLegalLinks();
+
+  @override
+  Widget build(BuildContext context) {
+    const style = TextStyle(
+      color: AppTheme.textSecondary,
+      fontSize: 12.5,
+      fontWeight: FontWeight.w500,
+      height: 1.4,
+    );
+
+    Widget link(String label, String route) {
+      return InkWell(
+        onTap: () => context.push(route),
+        borderRadius: BorderRadius.circular(6),
+        hoverColor: AppTheme.primary.withValues(alpha: 0.08),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          child: Text(label, style: style),
+        ),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        link('Privacidad', AppRoutes.privacy),
+        link('Cookies', AppRoutes.cookies),
+        link('Términos', AppRoutes.terms),
+        link('Aviso legal', AppRoutes.legalNotice),
       ],
     );
   }
@@ -260,15 +369,24 @@ class _BadgedChatIcon extends StatelessWidget {
   const _BadgedChatIcon({
     required this.count,
     required this.outlined,
+    this.iconOverride,
+    this.color,
   });
 
   final int count;
   final bool outlined;
+  final IconData? iconOverride;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     final icon = Icon(
-      outlined ? Icons.chat_bubble_outline_rounded : Icons.chat_bubble_rounded,
+      iconOverride ??
+          (outlined
+              ? Icons.chat_bubble_outline_rounded
+              : Icons.chat_bubble_rounded),
+      color: color,
+      size: 22,
     );
 
     if (count <= 0) return icon;
