@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/services/post_email_confirm_redirect.dart';
 import '../../../../core/services/profile_photo_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/email_typo_helper.dart';
@@ -16,6 +19,8 @@ import '../../../../shared/widgets/premium_button.dart';
 import '../widgets/profile_avatar_picker.dart';
 import '../widgets/register_form_field.dart';
 import '../widgets/register_password_hint.dart';
+import '../../data/pending_client_draft.dart';
+import '../../data/signup_finalize.dart';
 import '../../providers/pending_email_verification_provider.dart';
 
 class ClientRegisterScreen extends ConsumerStatefulWidget {
@@ -209,7 +214,50 @@ class _ClientRegisterScreenState extends ConsumerState<ClientRegisterScreen> {
                   role: 'client',
                 ),
               );
-          context.go(AppRoutes.emailVerificationPath(email));
+
+          Uint8List? avatarBytes;
+          var avatarMime = 'image/jpeg';
+          if (_profileAvatar != null) {
+            avatarBytes = await _profileAvatar!.readAsBytes();
+            final name = _profileAvatar!.name.toLowerCase();
+            if (name.endsWith('.png')) avatarMime = 'image/png';
+            if (name.endsWith('.webp')) avatarMime = 'image/webp';
+          }
+
+          await PendingClientDraft.save(
+            PendingClientDraft(
+              userId: authResult.userId!,
+              email: email,
+              fullName: fullName,
+              avatarBytes: avatarBytes,
+              avatarMime: avatarMime,
+              redirectTo: widget.redirectTo,
+            ),
+          );
+          try {
+            await saveSignupDraftToServer(
+              userId: authResult.userId!,
+              kind: 'client',
+              payload: {
+                'email': email,
+                'fullName': fullName,
+                if (widget.redirectTo != null) 'redirectTo': widget.redirectTo,
+              },
+              avatarBytes: avatarBytes,
+              avatarMime: avatarMime,
+            );
+          } catch (e) {
+            debugPrint('Borrador cliente servidor no guardado: $e');
+          }
+          await PostEmailConfirmRedirect.save(
+            PostEmailConfirmRedirect.pathForRole(
+              'client',
+              redirectTo: widget.redirectTo,
+            ),
+          );
+          if (mounted) {
+            context.go(AppRoutes.emailVerificationPath(email));
+          }
         }
         return;
       }

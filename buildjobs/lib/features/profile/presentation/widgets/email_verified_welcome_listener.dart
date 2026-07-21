@@ -61,7 +61,7 @@ class _EmailVerifiedWelcomeListenerState
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '¡Email verificado!',
+                '¡Email confirmado!',
                 style: TextStyle(
                   color: AppTheme.textPrimary,
                   fontWeight: FontWeight.w700,
@@ -70,8 +70,8 @@ class _EmailVerifiedWelcomeListenerState
               ),
               const SizedBox(height: 4),
               Text(
-                'Hemos guardado tu sesión en este dispositivo. '
-                'No necesitarás iniciar sesión de nuevo.',
+                'Tu cuenta ya está activa. Hemos guardado tu sesión '
+                'y puedes continuar donde lo dejaste.',
                 style: TextStyle(
                   color: AppTheme.textSecondary,
                   fontSize: 13,

@@ -37,13 +37,13 @@ Future<void> main() async {
     debugPrint('Supabase.initialize fallido: $e\n$st');
   }
 
-  // Recuperacion de contrasena: token_hash (email) o code (PKCE mismo navegador).
+  // Confirmacion email / recovery / PKCE al abrir desde el enlace del correo.
   try {
-    await AuthRepository().completePasswordRecoveryFromUrl(Uri.base);
+    await AuthRepository().completeAuthCallbackFromUrl(Uri.base);
   } on AuthException catch (e) {
-    debugPrint('Enlace de recuperacion: ${e.message}');
+    debugPrint('Enlace de auth: ${e.message}');
   } catch (e) {
-    debugPrint('Enlace de recuperacion: $e');
+    debugPrint('Enlace de auth: $e');
   }
 
   // Firebase (push notifications)

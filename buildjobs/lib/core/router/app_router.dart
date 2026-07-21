@@ -6,8 +6,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/auth_callback_service.dart';
 import '../services/notification_service.dart';
+import '../services/post_email_confirm_redirect.dart';
 
 import '../../features/auth/presentation/screens/email_verification_screen.dart';
+import '../../features/auth/presentation/screens/auth_confirm_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/reset_password_screen.dart';
@@ -134,10 +136,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final path = state.matchedLocation;
       final isAuthCallback = AuthCallbackService.isAuthCallback(state.uri);
 
-      // Tras verificar email u OAuth: ir al perfil con sesión activa.
+      // Recovery: ir a reset-password. Signup/email: lo gestiona /auth/confirm.
       if (isAuthenticated && isAuthCallback) {
-        return AppRoutes.profileAfterEmailVerification();
+        if (AuthCallbackService.isPasswordRecoveryCallback(state.uri)) {
+          return AppRoutes.resetPassword;
+        }
+        if (state.uri.path != AppRoutes.authConfirm) {
+          return AppRoutes.profileAfterEmailVerification();
+        }
       }
+
+      // /auth/confirm publica borrador y redirige — no interceptar aquí.
 
       if (!isAuthenticated && _requiresAuth(path)) {
         final redirect = state.uri.hasQuery
@@ -322,6 +331,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: AppRoutes.authConfirm,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => slidePage<void>(
+          key: state.pageKey,
+          child: const AuthConfirmScreen(),
+        ),
+      ),
+      GoRoute(
         path: AppRoutes.emailVerification,
         parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) {
@@ -414,12 +431,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ref.invalidate(currentProfessionalProfileProvider);
             ref.invalidate(currentUserProfessionalViewProvider);
             _trySyncNotifications();
+            final onAuthConfirm = Uri.base.path == AppRoutes.authConfirm;
             if (authState.session != null &&
+                !onAuthConfirm &&
                 AuthCallbackService.isAuthCallback(Uri.base)) {
               if (AuthCallbackService.isPasswordRecoveryCallback(Uri.base)) {
                 router.go(AppRoutes.resetPassword);
               } else {
-                router.go(AppRoutes.profileAfterEmailVerification());
+                PostEmailConfirmRedirect.resolve(
+                  nextFromUrl:
+                      AuthCallbackService.allParameters(Uri.base)['next'],
+                ).then((dest) {
+                  router.go(dest);
+                });
               }
             }
 

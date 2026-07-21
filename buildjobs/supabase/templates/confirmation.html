@@ -12,19 +12,32 @@
           <p style="margin:0;color:#00B27A;font-weight:700;font-size:18px;">miProfio.es</p>
         </td></tr>
         <tr><td style="padding:8px 24px 0;">
-          <p style="margin:0;color:#FFFFFF;font-size:20px;font-weight:700;">Confirma tu email</p>
+          <p style="margin:0;color:#FFFFFF;font-size:20px;font-weight:700;">Tu código de confirmación</p>
           <p style="margin:8px 0 0;color:#9BA3AF;font-size:15px;line-height:1.5;">
-            Bienvenido a miProfio.es. Confirma tu correo para activar la cuenta:
+            Introduce este código en la misma pantalla donde creaste tu cuenta en miProfio.es:
           </p>
         </td></tr>
-        <tr><td style="padding:20px 24px 28px;">
-          <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=signup"
-             style="display:inline-block;background:#00B27A;color:#FFFFFF;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:8px;font-size:16px;">
-            Confirmar email
-          </a>
+        <tr><td style="padding:24px 24px 8px;" align="center">
+          <p style="margin:0;font-size:36px;font-weight:800;letter-spacing:10px;color:#FFFFFF;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+            {{ .Token }}
+          </p>
+        </td></tr>
+        <tr><td style="padding:8px 24px 20px;">
+          <p style="margin:0;color:#6B7280;font-size:13px;line-height:1.5;text-align:center;">
+            El código caduca en breve. No lo compartas con nadie.
+          </p>
         </td></tr>
         <tr><td style="padding:0 24px 24px;">
-          <p style="margin:0;color:#6B7280;font-size:12px;line-height:1.5;">
+          <p style="margin:0 0 10px;color:#6B7280;font-size:12px;line-height:1.5;">
+            Si no puedes introducir el código, abre este enlace de respaldo:
+          </p>
+          <p style="margin:0;word-break:break-all;color:#9BA3AF;font-size:12px;line-height:1.45;">
+            <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup"
+               style="color:#00B27A;text-decoration:underline;">
+              {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup
+            </a>
+          </p>
+          <p style="margin:14px 0 0;color:#6B7280;font-size:12px;line-height:1.5;">
             Si no creaste una cuenta, ignora este email.
           </p>
         </td></tr>

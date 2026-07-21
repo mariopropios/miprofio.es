@@ -35,8 +35,7 @@ interface RecipientProfile {
   message_email_notifications: boolean | null;
 }
 
-const DEFAULT_SITE_URL =
-  "https://profio-web.mariopropiosplaza.workers.dev";
+const DEFAULT_SITE_URL = "https://miprofio.es";
 
 const MESSAGE_EMAIL_COOLDOWN_MIN = 2;
 const REVIEW_EMAIL_COOLDOWN_MIN = 10080; // ~1 semana; 1 email por reseña

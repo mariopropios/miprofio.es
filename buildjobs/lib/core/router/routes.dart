@@ -58,6 +58,8 @@ class AppRoutes {
   static const professionalRegister = '/register/professional';
   static const professionalRegisterSuccess = '/register/professional/success';
   static const emailVerification = '/email-verification';
+  /// Deep link del email de confirmación (`token_hash` + `type=signup`).
+  static const authConfirm = '/auth/confirm';
   static const emailVerifiedQueryKey = 'verified';
   static const emailVerifiedQueryValue = 'email';
 

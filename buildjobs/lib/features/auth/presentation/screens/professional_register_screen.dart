@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,7 +14,7 @@ import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/services/geo_permission_helper.dart';
 import '../../../../core/services/geo_service.dart';
 import '../../../../core/router/routes.dart';
-import '../../../../core/services/profile_photo_storage.dart';
+import '../../../../core/services/post_email_confirm_redirect.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/email_typo_helper.dart';
 import '../../../../shared/widgets/premium_button.dart';
@@ -25,6 +27,8 @@ import '../widgets/profile_avatar_picker.dart';
 import '../widgets/register_form_field.dart';
 import '../widgets/register_password_hint.dart';
 import '../../providers/pending_email_verification_provider.dart';
+import '../../data/pending_professional_draft.dart';
+import '../../data/signup_finalize.dart';
 import '../widgets/register_profile_preview.dart';
 import '../widgets/register_step_indicator.dart';
 import '../widgets/work_gallery_upload.dart';
@@ -69,6 +73,7 @@ class _ProfessionalRegisterScreenState
 
   int _step = 0;
   bool _isSubmitting = false;
+  bool _resumingDraft = false;
   int _serviceRadius = 25; // km
   AutovalidateMode _nameValidateMode = AutovalidateMode.disabled;
   AutovalidateMode _cityValidateMode = AutovalidateMode.disabled;
@@ -148,7 +153,54 @@ class _ProfessionalRegisterScreenState
     }
     _cityController.addListener(_onAddressOrCityChanged);
     _addressController.addListener(_onAddressOrCityChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _prefillIfLoggedIn());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeResumeAfterEmailConfirm();
+    });
+  }
+
+  Future<void> _maybeResumeAfterEmailConfirm() async {
+    final user = ref.read(currentUserProvider);
+    final draft = PendingProfessionalDraft.load();
+    final resume = GoRouterState.of(context).uri.queryParameters['resume'] == '1';
+
+    if (user != null && draft != null && (resume || draft.userId == user.id)) {
+      if (!mounted) return;
+      setState(() {
+        _resumingDraft = true;
+        _isSubmitting = true;
+      });
+      try {
+        await finalizePendingSignupDraft(
+          ref: ref,
+          userId: user.id,
+          accountEmail: user.email ?? draft.email,
+        );
+        if (mounted) {
+          context.go(AppRoutes.profileAfterEmailVerification());
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'No se pudo publicar el perfil guardado. Revisa los datos. ($e)',
+              ),
+            ),
+          );
+          _restoreDraftToForm(draft);
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _resumingDraft = false;
+            _isSubmitting = false;
+          });
+        }
+      }
+      return;
+    }
+
+    _prefillIfLoggedIn();
   }
 
   void _prefillIfLoggedIn() {
@@ -460,13 +512,6 @@ class _ProfessionalRegisterScreenState
 
   static const _networkTimeout = Duration(seconds: 30);
 
-  Future<List<String>> _uploadGalleryImages(String userId) async {
-    final client = ref.read(supabaseClientProvider);
-    return ProfilePhotoStorage(client)
-        .uploadGalleryImages(_galleryImages, userId)
-        .timeout(ProfilePhotoStorage.uploadTimeout);
-  }
-
   Future<void> _submit() async {
     setState(() => _isSubmitting = true);
 
@@ -504,6 +549,21 @@ class _ProfessionalRegisterScreenState
       if (loggedInUser != null) {
         userId = loggedInUser.id;
       } else {
+        final pendingPayload = <String, dynamic>{
+          'email': email,
+          'businessName': fullName,
+          'city': city,
+          'address': address,
+          'latitude': latitude,
+          'longitude': longitude,
+          'phoneE164': _phoneE164,
+          'phoneDisplay': _phoneDisplay,
+          'bio': _bioController.text.trim(),
+          'professions': _selectedProfessions.toList(),
+          'categories': _selectedCategories.toList(),
+          'serviceRadiusKm': _serviceRadius,
+        };
+
         final authResult = await ref
             .read(authRepositoryProvider)
             .registerOrSignIn(
@@ -511,6 +571,9 @@ class _ProfessionalRegisterScreenState
               password: password,
               fullName: fullName,
               role: 'professional',
+              extraMetadata: {
+                'pending_professional': pendingPayload,
+              },
             )
             .timeout(_networkTimeout);
 
@@ -538,7 +601,58 @@ class _ProfessionalRegisterScreenState
                     role: 'professional',
                   ),
                 );
-            context.go(AppRoutes.emailVerificationPath(email));
+            final draft = await _captureDraft(
+              userId: authResult.userId!,
+              email: email,
+              fullName: fullName,
+              city: city,
+              address: address,
+              latitude: latitude,
+              longitude: longitude,
+            );
+            await PendingProfessionalDraft.save(draft);
+
+            // Obligatorio para Gmail → otro navegador: texto en servidor.
+            // Si fallan las fotos, reintentamos solo texto.
+            try {
+              await saveSignupDraftToServer(
+                userId: draft.userId,
+                kind: 'professional',
+                payload: pendingPayload,
+                avatarBytes: draft.avatarBytes,
+                avatarMime: draft.avatarMime,
+                galleryBytes: draft.galleryBytes,
+                galleryMimes: draft.galleryMimes,
+              );
+            } catch (e) {
+              debugPrint('Draft con fotos falló, reintento solo texto: $e');
+              try {
+                await saveSignupDraftToServer(
+                  userId: draft.userId,
+                  kind: 'professional',
+                  payload: pendingPayload,
+                );
+              } catch (e2) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'No se pudo guardar tu perfil para confirmar el email. '
+                        'Comprueba la conexión e inténtalo de nuevo. ($e2)',
+                      ),
+                    ),
+                  );
+                }
+                return;
+              }
+            }
+
+            await PostEmailConfirmRedirect.save(
+              PostEmailConfirmRedirect.pathForRole('professional'),
+            );
+            if (mounted) {
+              context.go(AppRoutes.emailVerificationPath(email));
+            }
           }
           return;
         }
@@ -548,131 +662,22 @@ class _ProfessionalRegisterScreenState
 
       final accountEmail = loggedInUser?.email ?? email;
 
-      String? profilePhotoUrl;
-      if (_profileAvatar != null) {
-        try {
-          final client = ref.read(supabaseClientProvider);
-          profilePhotoUrl = await ProfilePhotoStorage(client)
-              .uploadImage(_profileAvatar!, userId)
-              .timeout(ProfilePhotoStorage.uploadTimeout);
-        } on TimeoutException {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'La subida del logo tardó demasiado. Comprueba tu conexión.',
-                ),
-              ),
-            );
-          }
-          rethrow;
-        } on StorageException catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'No se pudo guardar tu logo: ${e.message}',
-                ),
-              ),
-            );
-          }
-          rethrow;
-        }
-      }
-
-      List<String> galleryPhotoUrls = [];
-      if (_galleryImages.isNotEmpty) {
-        try {
-          galleryPhotoUrls = await _uploadGalleryImages(userId);
-        } on TimeoutException {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'La subida de fotos tardó demasiado. Comprueba tu conexión.',
-                ),
-              ),
-            );
-          }
-          rethrow;
-        } on StorageException catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'No se pudieron guardar las fotos: ${e.message}. '
-                  'Ejecuta la migración 006 en Supabase (bucket profile-photos).',
-                ),
-              ),
-            );
-          }
-          rethrow;
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('No se pudieron subir las fotos: $e'),
-              ),
-            );
-          }
-          rethrow;
-        }
-      }
-
-      if (profilePhotoUrl == null && galleryPhotoUrls.isNotEmpty) {
-        profilePhotoUrl = galleryPhotoUrls.first;
-      }
-
-      final bio = _bioController.text.trim();
-      final description = bio;
-
-      await ref
-          .read(profileRepositoryProvider)
-          .markAsProfessional(
-            userId: userId,
-            email: accountEmail,
-            fullName: fullName,
-            city: city,
-            avatarUrl: profilePhotoUrl,
-          )
-          .timeout(_networkTimeout);
-
-      await ref
-          .read(professionalRepositoryProvider)
-          .createProfessional(
-            name: fullName,
-            professions: _selectedProfessions.toList(),
-            description: description,
-            city: city,
-            address: address,
-            latitude: latitude,
-            longitude: longitude,
-            phone: _phoneE164,
-            email: accountEmail,
-            profilePhotoUrl: profilePhotoUrl,
-            galleryPhotoUrls: galleryPhotoUrls,
-            userId: userId,
-            serviceRadiusKm: _serviceRadius,
-            serviceCategories: _selectedCategories.toList(),
-          )
-          .timeout(_networkTimeout);
-
-      ref.invalidate(currentUserProvider);
-      ref.invalidate(featuredProfessionalsProvider);
-      ref.invalidate(currentProfileProvider);
-      ref.invalidate(currentProfessionalProfileProvider);
-      ref.invalidate(currentUserProfessionalViewProvider);
-      ref.invalidate(professionalDetailProvider(userId));
-
-      if (mounted) {
-        TextInput.finishAutofillContext(shouldSave: true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Perfil publicado correctamente!'),
-          ),
-        );
-        context.go(AppRoutes.profile);
-      }
+      await _publishProfessionalProfile(
+        userId: userId,
+        accountEmail: accountEmail,
+        fullName: fullName,
+        city: city,
+        address: address,
+        latitude: latitude,
+        longitude: longitude,
+        phoneE164: _phoneE164,
+        bio: _bioController.text.trim(),
+        professions: _selectedProfessions.toList(),
+        categories: _selectedCategories.toList(),
+        serviceRadiusKm: _serviceRadius,
+        profileAvatar: _profileAvatar,
+        galleryImages: _galleryImages,
+      );
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -715,6 +720,179 @@ class _ProfessionalRegisterScreenState
     }
   }
 
+  Future<PendingProfessionalDraft> _captureDraft({
+    required String userId,
+    required String email,
+    required String fullName,
+    required String city,
+    required String address,
+    required double latitude,
+    required double longitude,
+  }) async {
+    Uint8List? avatarBytes;
+    var avatarMime = 'image/jpeg';
+    if (_profileAvatar != null) {
+      avatarBytes = await _profileAvatar!.readAsBytes();
+      avatarMime = _mimeFromName(_profileAvatar!.name);
+    }
+
+    final galleryBytes = <Uint8List>[];
+    final galleryMimes = <String>[];
+    for (final file in _galleryImages) {
+      galleryBytes.add(await file.readAsBytes());
+      galleryMimes.add(_mimeFromName(file.name));
+    }
+
+    return PendingProfessionalDraft(
+      userId: userId,
+      email: email,
+      businessName: fullName,
+      city: city,
+      address: address,
+      latitude: latitude,
+      longitude: longitude,
+      phoneE164: _phoneE164,
+      phoneDisplay: _phoneDisplay,
+      bio: _bioController.text.trim(),
+      professions: _selectedProfessions.toList(),
+      categories: _selectedCategories.toList(),
+      serviceRadiusKm: _serviceRadius,
+      avatarBytes: avatarBytes,
+      avatarMime: avatarMime,
+      galleryBytes: galleryBytes,
+      galleryMimes: galleryMimes,
+    );
+  }
+
+  String _mimeFromName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'image/jpeg';
+  }
+
+  void _restoreDraftToForm(PendingProfessionalDraft draft) {
+    _businessNameController.text = draft.businessName;
+    _cityController.text = draft.city;
+    _addressController.text = draft.address;
+    _bioController.text = draft.bio;
+    _emailController.text = draft.email;
+    _phoneE164 = draft.phoneE164;
+    _phoneDisplay = draft.phoneDisplay;
+    _isPhoneValid = draft.phoneE164.isNotEmpty;
+    _latitude = draft.latitude;
+    _longitude = draft.longitude;
+    _serviceRadius = draft.serviceRadiusKm;
+    _selectedProfessions = draft.professions.toSet();
+    _selectedCategories = draft.categories.toSet();
+    if (draft.avatarBytes != null) {
+      _profileAvatar = XFile.fromData(
+        draft.avatarBytes!,
+        mimeType: draft.avatarMime,
+        name: 'avatar.${_extFromMime(draft.avatarMime)}',
+      );
+    }
+    _galleryImages = [
+      for (var i = 0; i < draft.galleryBytes.length; i++)
+        XFile.fromData(
+          draft.galleryBytes[i],
+          mimeType: i < draft.galleryMimes.length
+              ? draft.galleryMimes[i]
+              : 'image/jpeg',
+          name: 'gallery_$i.jpg',
+        ),
+    ];
+    if (mounted) setState(() => _step = _lastStep);
+  }
+
+  String _extFromMime(String mime) {
+    if (mime.contains('png')) return 'png';
+    if (mime.contains('webp')) return 'webp';
+    if (mime.contains('gif')) return 'gif';
+    return 'jpg';
+  }
+
+  Future<void> _publishProfessionalProfile({
+    required String userId,
+    required String accountEmail,
+    required String fullName,
+    required String city,
+    required String address,
+    required double latitude,
+    required double longitude,
+    required String phoneE164,
+    required String bio,
+    required List<String> professions,
+    required List<String> categories,
+    required int serviceRadiusKm,
+    XFile? profileAvatar,
+    List<XFile> galleryImages = const [],
+  }) async {
+    Uint8List? avatarBytes;
+    var avatarMime = 'image/jpeg';
+    if (profileAvatar != null) {
+      avatarBytes = await profileAvatar.readAsBytes();
+      avatarMime = _mimeFromName(profileAvatar.name);
+    }
+    final galleryBytes = <Uint8List>[];
+    final galleryMimes = <String>[];
+    for (final file in galleryImages) {
+      galleryBytes.add(await file.readAsBytes());
+      galleryMimes.add(_mimeFromName(file.name));
+    }
+
+    try {
+      await publishProfessionalRegistration(
+        ref: ref,
+        userId: userId,
+        accountEmail: accountEmail,
+        fullName: fullName,
+        city: city,
+        address: address,
+        latitude: latitude,
+        longitude: longitude,
+        phoneE164: phoneE164,
+        bio: bio,
+        professions: professions,
+        categories: categories,
+        serviceRadiusKm: serviceRadiusKm,
+        avatarBytes: avatarBytes,
+        avatarMime: avatarMime,
+        galleryBytes: galleryBytes,
+        galleryMimes: galleryMimes,
+      );
+    } on TimeoutException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'La subida tardó demasiado. Comprueba tu conexión.',
+            ),
+          ),
+        );
+      }
+      rethrow;
+    } on StorageException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudieron guardar las fotos: ${e.message}')),
+        );
+      }
+      rethrow;
+    }
+
+    if (mounted) {
+      TextInput.finishAutofillContext(shouldSave: true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Perfil publicado correctamente!'),
+        ),
+      );
+      context.go(AppRoutes.profileAfterEmailVerification());
+    }
+  }
+
   Widget _buildPreview() {
     return RegisterProfilePreview(
       businessName: _businessNameController.text,
@@ -738,13 +916,17 @@ class _ProfessionalRegisterScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Registro profesional'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: _goBack,
+        title: Text(
+          _resumingDraft ? 'Publicando tu perfil…' : 'Registro profesional',
         ),
+        leading: _resumingDraft
+            ? const SizedBox.shrink()
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: _goBack,
+              ),
         actions: [
-          if (!isWide)
+          if (!isWide && !_resumingDraft)
             IconButton(
               tooltip: 'Vista previa del perfil',
               onPressed: _showPreviewSheet,
@@ -756,33 +938,54 @@ class _ProfessionalRegisterScreenState
               ),
             ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(28),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: RegisterStepIndicator(
-              currentStep: _step,
-              totalSteps: _stepLabels.length,
-              labels: _stepLabels,
+        bottom: _resumingDraft
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(28),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                  child: RegisterStepIndicator(
+                    currentStep: _step,
+                    totalSteps: _stepLabels.length,
+                    labels: _stepLabels,
+                  ),
+                ),
+              ),
+      ),
+      body: _resumingDraft
+          ? const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppTheme.primary),
+                  SizedBox(height: 20),
+                  Text(
+                    'Confirmado. Estamos publicando tu perfil\ncon los datos que ya rellenaste…',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 16,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(
+                  child: isWide ? _buildWideBody() : _buildMobileBody(),
+                ),
+                _WizardFooter(
+                  hint: hint,
+                  continueLabel: _continueLabel,
+                  canContinue: _canContinue,
+                  isLoading: _isSubmitting,
+                  onBack: _goBack,
+                  onContinue: _handleContinue,
+                ),
+              ],
             ),
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: isWide ? _buildWideBody() : _buildMobileBody(),
-          ),
-          _WizardFooter(
-            hint: hint,
-            continueLabel: _continueLabel,
-            canContinue: _canContinue,
-            isLoading: _isSubmitting,
-            onBack: _goBack,
-            onContinue: _handleContinue,
-          ),
-        ],
-      ),
     );
   }
 

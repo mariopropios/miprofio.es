@@ -40,13 +40,18 @@ class AuthRepository {
     required String password,
     required String fullName,
     String role = 'professional',
+    Map<String, dynamic>? extraMetadata,
   }) async {
     AuthResponse signUpResponse;
     try {
       signUpResponse = await _client.auth.signUp(
         email: email,
         password: password,
-        data: {'full_name': fullName, 'role': role},
+        data: {
+          'full_name': fullName,
+          'role': role,
+          if (extraMetadata != null) ...extraMetadata,
+        },
         emailRedirectTo: kIsWeb ? AuthCallbackService.webEmailRedirectTo() : null,
       );
     } on AuthException catch (e) {
@@ -94,24 +99,76 @@ class AuthRepository {
 
   /// Valida el enlace de recuperación (token_hash o code PKCE) y abre sesión.
   Future<bool> completePasswordRecoveryFromUrl(Uri uri) async {
-    if (currentSession != null) return true;
+    return completeAuthCallbackFromUrl(uri, recoveryOnly: true);
+  }
+
+  /// Completa callbacks de Auth al abrir la app (confirmación email, recovery, PKCE).
+  Future<bool> completeAuthCallbackFromUrl(
+    Uri uri, {
+    bool recoveryOnly = false,
+  }) async {
+    if (!AuthCallbackService.isAuthCallback(uri) &&
+        AuthCallbackService.recoveryTokenHash(uri) == null) {
+      return currentSession != null;
+    }
 
     final tokenHash = AuthCallbackService.recoveryTokenHash(uri);
-    if (tokenHash != null &&
-        AuthCallbackService.isPasswordRecoveryCallback(uri)) {
-      await _client.auth.verifyOTP(
-        type: OtpType.recovery,
-        tokenHash: tokenHash,
-      );
-      return currentSession != null;
+    final type = AuthCallbackService.authCallbackType(uri);
+
+    if (tokenHash != null) {
+      if (AuthCallbackService.isPasswordRecoveryCallback(uri)) {
+        if (currentSession != null && recoveryOnly) return true;
+        await _client.auth.verifyOTP(
+          type: OtpType.recovery,
+          tokenHash: tokenHash,
+        );
+        return currentSession != null;
+      }
+
+      if (!recoveryOnly &&
+          !AuthCallbackService.isPasswordRecoveryCallback(uri)) {
+        final preferred = switch (type) {
+          'invite' => OtpType.invite,
+          'email' => OtpType.email,
+          'magiclink' => OtpType.magiclink,
+          _ => OtpType.signup,
+        };
+        final otpTypes = <OtpType>[
+          preferred,
+          if (preferred != OtpType.signup) OtpType.signup,
+          if (preferred != OtpType.email) OtpType.email,
+        ];
+        Object? lastError;
+        for (final otpType in otpTypes) {
+          try {
+            await _client.auth.verifyOTP(
+              type: otpType,
+              tokenHash: tokenHash,
+            );
+            if (currentSession != null) return true;
+          } catch (e) {
+            lastError = e;
+          }
+        }
+        if (currentSession != null) return true;
+        if (lastError != null) throw lastError;
+        return false;
+      }
+
+      if (recoveryOnly) return currentSession != null;
     }
 
+    // PKCE / hash: access_token, code, etc. (tras ConfirmationURL de Supabase).
     if (AuthCallbackService.isAuthCallback(uri)) {
-      await _client.auth.getSessionFromUrl(uri);
+      try {
+        await _client.auth.getSessionFromUrl(uri);
+      } catch (_) {
+        // detectSessionInUri pudo haberlo consumido ya en initialize.
+      }
       return currentSession != null;
     }
 
-    return false;
+    return currentSession != null;
   }
 
   /// Establece una nueva contraseña tras abrir el enlace de recuperación.
@@ -164,8 +221,11 @@ class AuthRepository {
     } catch (_) {}
   }
 
-  /// Reenvía el email de confirmación al usuario actual o al email indicado.
-  Future<void> resendVerificationEmail(String email) async {
+  /// Reenvía el email de confirmación (código OTP + enlace de respaldo).
+  Future<void> resendVerificationEmail(String email) => resendEmailOtp(email);
+
+  /// Reenvía un código de confirmación al email (invalidá el anterior).
+  Future<void> resendEmailOtp(String email) async {
     try {
       await _client.auth.resend(
         type: OtpType.signup,
@@ -175,6 +235,68 @@ class AuthRepository {
     } on AuthException catch (e) {
       throw AuthException(mapVerificationEmailError(e));
     }
+  }
+
+  /// Confirma el alta con el código de 6 dígitos recibido por email.
+  ///
+  /// Usa `signup` (confirmación de registro). Si falla, reintenta con `email`.
+  Future<void> verifyEmailOtp({
+    required String email,
+    required String code,
+  }) async {
+    final token = code.trim();
+    final trimmedEmail = email.trim();
+    if (token.isEmpty) {
+      throw const AuthException('Introduce el código del email.');
+    }
+
+    Object? lastError;
+    for (final otpType in <OtpType>[OtpType.signup, OtpType.email]) {
+      try {
+        await _client.auth.verifyOTP(
+          type: otpType,
+          email: trimmedEmail,
+          token: token,
+        );
+        if (currentSession != null) return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    if (currentSession != null) return;
+
+    if (lastError is AuthException) {
+      throw AuthException(mapOtpVerifyError(lastError));
+    }
+    throw AuthException(
+      lastError != null
+          ? mapOtpVerifyError(
+              AuthException(lastError.toString()),
+            )
+          : 'Código incorrecto o caducado. Pide uno nuevo e inténtalo de nuevo.',
+    );
+  }
+
+  static String mapOtpVerifyError(AuthException e) {
+    final code = e.code?.toLowerCase() ?? '';
+    final message = e.message.toLowerCase();
+
+    if (message.contains('expired') || code.contains('expired')) {
+      return 'El código ha caducado. Pide uno nuevo.';
+    }
+    if (message.contains('invalid') ||
+        message.contains('otp') ||
+        code.contains('otp') ||
+        message.contains('token')) {
+      return 'Código incorrecto. Revisa el email e inténtalo de nuevo.';
+    }
+    if (message.contains('rate') || message.contains('too many')) {
+      return 'Demasiados intentos. Espera un momento o pide un código nuevo.';
+    }
+    return e.message.isNotEmpty
+        ? e.message
+        : 'No se pudo verificar el código. Inténtalo de nuevo.';
   }
 
   /// Corrige el email de una cuenta aún no confirmada (evita registros huérfanos).

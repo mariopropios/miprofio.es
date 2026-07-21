@@ -30,9 +30,27 @@ class AuthCallbackService {
 
   static String? recoveryTokenHash(Uri uri) => allParameters(uri)['token_hash'];
 
+  /// Tipo de OTP en el enlace (`signup`, `email`, `recovery`, …).
+  static String? authCallbackType(Uri uri) =>
+      allParameters(uri)['type']?.toLowerCase();
+
+  static bool isEmailConfirmationCallback(Uri uri) {
+    final type = authCallbackType(uri);
+    return recoveryTokenHash(uri) != null &&
+        (type == 'signup' || type == 'email' || type == 'invite');
+  }
+
   /// Destino tras confirmar email en web (debe estar en Redirect URLs de Supabase).
+  ///
+  /// Sin query (`?verified=…`): si la plantilla usa RedirectTo + token_hash,
+  /// un `?` extra no rompe la URL. La UI de “email verificado” la pone el router.
   static String webEmailRedirectTo() {
-    return '${Uri.base.origin}${AppRoutes.profileAfterEmailVerification()}';
+    final origin = Uri.base.origin;
+    const path = AppRoutes.authConfirm;
+    if (origin.isNotEmpty && origin != 'null' && origin.startsWith('http')) {
+      return '$origin$path';
+    }
+    return 'https://miprofio.es$path';
   }
 
   /// Destino del enlace de recuperación de contraseña (Redirect URLs de Supabase).

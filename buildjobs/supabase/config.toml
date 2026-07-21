@@ -8,6 +8,14 @@
 [functions.phone-otp]
 verify_jwt = false
 
+# Borrador de registro antes de confirmar email (aún no hay JWT de sesión)
+[functions.save-signup-draft]
+verify_jwt = false
+
+# Publica ficha tras confirmar email (JWT del usuario)
+[functions.publish-pending-signup]
+verify_jwt = true
+
 # Notificaciones: cliente (JWT usuario) + triggers DB (Bearer anon/service vía Vault)
 [functions.send-push-notification]
 verify_jwt = true
@@ -18,8 +26,12 @@ site_url = "https://miprofio.es"
 additional_redirect_urls = [
   "http://localhost:52027/**",
   "https://miprofio.es/**",
+  "https://miprofio.es/auth/confirm",
   "https://miprofio.es/login/reset-password",
+  "https://www.miprofio.es/**",
+  "https://www.miprofio.es/auth/confirm",
   "https://profio-web.mariopropiosplaza.workers.dev/**",
+  "https://profio-web.mariopropiosplaza.workers.dev/auth/confirm",
   "https://profio-web.mariopropiosplaza.workers.dev/login/reset-password",
 ]
 enable_signup = true
@@ -30,7 +42,7 @@ enable_signup = true
 double_confirm_changes = true
 enable_confirmations = true
 max_frequency = "1m0s"
-otp_length = 8
+otp_length = 6
 otp_expiry = 3600
 
 # Marca miProfio.es (antes el asunto decía «Profio» por el nombre del proyecto)
