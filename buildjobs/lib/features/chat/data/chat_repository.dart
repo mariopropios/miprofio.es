@@ -234,28 +234,36 @@ class ChatRepository {
     final uid = _uid;
     if (uid == null) throw Exception('Usuario no autenticado');
 
-    await _client.from('messages').insert({
-      'conversation_id': conversationId,
-      'sender_id': uid,
-      'body': body.trim(),
-    });
+    final trimmed = body.trim();
+    final row = await _client
+        .from('messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': uid,
+          'body': trimmed,
+        })
+        .select('id')
+        .single();
 
-    // ── Push + email al destinatario ──────────────────────────────────────
-    // Se lanza en background; si falla no afecta al envío del mensaje.
-    _sendPushNotification(
+    final messageId = row['id']?.toString();
+
+    // Push + email: cliente + trigger DB. La Edge Function deduplica por message_id
+    // (1 FCM). Así no dependemos solo del Vault/trigger (a veces falla en Android).
+    _notifyNewMessage(
       conversationId: conversationId,
       senderId: uid,
-      body: body.trim(),
+      body: trimmed,
+      messageId: messageId,
     );
   }
 
-  Future<void> _sendPushNotification({
+  Future<void> _notifyNewMessage({
     required String conversationId,
     required String senderId,
     required String body,
+    String? messageId,
   }) async {
     try {
-      // Nombre del remitente para el título de la notificación
       final profileRow = await _client
           .from('profiles')
           .select('full_name')
@@ -271,6 +279,7 @@ class ChatRepository {
           'sender_id': senderId,
           'sender_name': senderName,
           'body': body,
+          if (messageId != null && messageId.isNotEmpty) 'message_id': messageId,
         },
       );
     } catch (e) {

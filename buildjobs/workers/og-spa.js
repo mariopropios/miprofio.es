@@ -17,6 +17,16 @@ const COMPANY_PATH =
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    // Empujar tráfico y push al dominio canónico (Chrome marca workers.dev como spam).
+    if (
+      url.hostname === "profio-web.mariopropiosplaza.workers.dev" ||
+      url.hostname.endsWith(".profio-web.mariopropiosplaza.workers.dev")
+    ) {
+      const dest = new URL(url.pathname + url.search + url.hash, "https://miprofio.es");
+      return Response.redirect(dest.toString(), 302);
+    }
+
     const ua = request.headers.get("user-agent") || "";
     const match = url.pathname.match(COMPANY_PATH);
 

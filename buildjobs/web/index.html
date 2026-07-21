@@ -8,6 +8,15 @@
   <meta http-equiv="Permissions-Policy" content="geolocation=(self), microphone=(self), camera=(self)">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <script>
+    // Nunca quedarse en workers.dev (sesión/push/spam de Chrome).
+    (function () {
+      try {
+        var h = location.hostname || '';
+        if (h.indexOf('workers.dev') !== -1) {
+          location.replace('https://miprofio.es' + location.pathname + location.search + location.hash);
+        }
+      } catch (e) {}
+    })();
     // Capturar beforeinstallprompt lo antes posible (antes de que cargue Flutter).
     window.__deferredPwaPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {

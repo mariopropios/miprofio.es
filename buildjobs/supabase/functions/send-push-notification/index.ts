@@ -91,9 +91,26 @@ async function handleMessageNotification(
   const sender_id = String(payload.sender_id ?? "");
   const sender_name = String(payload.sender_name ?? "Alguien");
   const body = String(payload.body ?? "");
+  const messageId = String(payload.message_id ?? "").trim();
 
   if (!conversation_id || !sender_id) {
     return { error: "missing_fields" };
+  }
+
+  // Idempotencia push SOLO por message_id (anti doble cliente+trigger).
+  // Sin message_id no bloqueamos: un mensaje distinto debe notificar siempre.
+  let pushResult: Record<string, unknown> = { skipped: "not_attempted" };
+  let allowPush = true;
+  if (messageId) {
+    allowPush = await claimThrottle(
+      supabase,
+      `push:message:${messageId}`,
+      60 * 24,
+    );
+    if (!allowPush) {
+      pushResult = { skipped: "push_deduped", message_id: messageId };
+      console.log("push_deduped", messageId);
+    }
   }
 
   const { data: conv, error: convErr } = await supabase
@@ -140,21 +157,25 @@ async function handleMessageNotification(
     }),
   );
 
-  const pushResult = await sendPushIfPossible({
-    supabase,
-    recipientUserId,
-    recipient,
-    conversation_id,
-    professionalId,
-    sender_id,
-    sender_name,
-    notificationBody,
-    siteUrl,
-    asProf: viewingAsProfessional,
-    peerUserId: viewingAsProfessional
-      ? (conv.user_id as string)
-      : undefined,
-  });
+  if (allowPush) {
+    pushResult = await sendPushIfPossible({
+      supabase,
+      recipientUserId,
+      recipient,
+      conversation_id,
+      professionalId,
+      sender_id,
+      sender_name,
+      notificationBody,
+      siteUrl,
+      asProf: viewingAsProfessional,
+      peerUserId: viewingAsProfessional
+        ? (conv.user_id as string)
+        : undefined,
+      messageId: messageId || undefined,
+    });
+    console.log("push_result", pushResult);
+  }
 
   const emailResult = await sendTemplatedEmail({
     supabase,
@@ -415,9 +436,13 @@ async function sendPushIfPossible(args: {
   siteUrl: string;
   asProf?: boolean;
   peerUserId?: string;
+  messageId?: string;
 }): Promise<Record<string, unknown>> {
   const fcmToken = args.recipient?.fcm_token;
-  if (!fcmToken) return { skipped: "no_token" };
+  if (!fcmToken) {
+    console.log("push_skipped no_token", args.recipientUserId);
+    return { skipped: "no_token" };
+  }
 
   const serviceAccountJson = Deno.env.get("FCM_SERVICE_ACCOUNT");
   if (!serviceAccountJson) return { skipped: "fcm_not_configured" };
@@ -447,10 +472,10 @@ async function sendPushIfPossible(args: {
       link: chatLink,
       as_prof: args.asProf ? "1" : "",
       peer_user_id: args.peerUserId ?? "",
+      message_id: args.messageId ?? "",
     },
     webpush: {
       headers: { Urgency: "high" },
-      // Android Chrome / PWA: el clic debe ir a miprofio.es, no al origin del SW.
       fcm_options: {
         link: chatLink,
       },
