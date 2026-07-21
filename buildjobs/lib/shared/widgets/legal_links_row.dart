@@ -40,6 +40,8 @@ class LegalLinksRow extends StatelessWidget {
       spacing: 2,
       runSpacing: 2,
       children: [
+        link('Acerca de', AppRoutes.about),
+        _dot(style),
         link('Privacidad', AppRoutes.privacy),
         _dot(style),
         link('Cookies', AppRoutes.cookies),

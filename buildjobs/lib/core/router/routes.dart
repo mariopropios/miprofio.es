@@ -20,6 +20,16 @@ class AppRoutes {
   static const cookies = '/cookies';
   static const terms = '/terms';
   static const legalNotice = '/legal';
+  static const about = '/about';
+  /// Handoff de deep links (emails): reutiliza pestaña abierta.
+  static const go = '/go';
+
+  static String goHandoffPath(String targetPathAndQuery) {
+    final to = targetPathAndQuery.startsWith('/')
+        ? targetPathAndQuery
+        : '/$targetPathAndQuery';
+    return Uri(path: go, queryParameters: {'to': to}).toString();
+  }
 
   static String chatPath(String professionalId) =>
       '/messages/$professionalId';

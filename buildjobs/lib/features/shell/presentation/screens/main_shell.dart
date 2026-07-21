@@ -356,6 +356,7 @@ class _DesktopLegalLinks extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        link('Acerca de', AppRoutes.about),
         link('Privacidad', AppRoutes.privacy),
         link('Cookies', AppRoutes.cookies),
         link('Términos', AppRoutes.terms),

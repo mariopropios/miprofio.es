@@ -32,9 +32,12 @@ import '../../features/chat/presentation/models/active_chat_route.dart';
 import '../../features/reviews/presentation/screens/write_review_screen.dart';
 import '../../features/search/presentation/screens/search_screen.dart';
 import '../../features/shell/presentation/screens/main_shell.dart';
+import '../../features/about/presentation/screens/about_feedback_screen.dart';
+import '../../features/deep_link/presentation/screens/go_handoff_screen.dart';
 import '../../shared/widgets/legal_document_screen.dart';
 import '../legal/legal_documents.dart';
 import '../providers/repository_providers.dart';
+import '../services/tab_coordinator.dart';
 import 'routes.dart';
 import 'slide_page.dart';
 
@@ -97,6 +100,7 @@ class _AuthRouteNotifier extends ChangeNotifier {
 // ── Rutas que requieren sesión activa ─────────────────────────────────────────
 
 bool _requiresAuth(String path) {
+  if (path == AppRoutes.go) return false;
   return path.startsWith(AppRoutes.conversations) ||
       path.startsWith(AppRoutes.editProfile) ||
       path == AppRoutes.savedProfessionals ||
@@ -148,7 +152,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // /auth/confirm publica borrador y redirige — no interceptar aquí.
 
+      // No mandar a login hasta hidratar sesión (evita false login en deep link).
+      final authAsync = ref.read(authStateProvider);
+      final authReady = authAsync.hasValue || authAsync.hasError;
+
       if (!isAuthenticated && _requiresAuth(path)) {
+        if (!authReady) return null;
         final redirect = state.uri.hasQuery
             ? '${state.uri.path}?${state.uri.query}'
             : path;
@@ -299,6 +308,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
+        path: AppRoutes.go,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final to = state.uri.queryParameters['to'] ?? '';
+          return NoTransitionPage<void>(
+            key: state.pageKey,
+            child: GoHandoffScreen(target: to),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.about,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => slidePage<void>(
+          key: state.pageKey,
+          child: const AboutFeedbackScreen(),
+        ),
+      ),
+      GoRoute(
         path: AppRoutes.privacy,
         parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) => slidePage<void>(
@@ -403,6 +431,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 
   NotificationService.attachRouter(router);
+
+  // Deep links de email → reutilizar pestaña ya abierta.
+  TabCoordinator.start();
+  TabCoordinator.listenHandoffs((target) {
+    try {
+      router.go(target);
+    } catch (e) {
+      debugPrint('TabCoordinator handoff nav: $e');
+    }
+  });
+  ref.onDispose(TabCoordinator.stopListeningHandoffs);
 
   // ── Listener global de Auth ───────────────────────────────────────────────
   // Reacciona a eventos de sesión para limpiar estado y navegar.

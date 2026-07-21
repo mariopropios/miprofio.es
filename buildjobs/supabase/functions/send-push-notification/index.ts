@@ -12,9 +12,8 @@
 //   FCM_SERVICE_ACCOUNT  = JSON cuenta de servicio Firebase (push)
 //   RESEND_API_KEY       = API key de Resend (email)
 //   MESSAGE_EMAIL_FROM   = remitente, ej. "miProfio.es <notificaciones@miprofio.es>"
-//   SITE_URL             = base de deep links en emails/push
-//     Ahora (sin DNS): https://profio-web.mariopropiosplaza.workers.dev
-//     Producción:      https://miprofio.es  ← cambiar solo este secret cuando el dominio esté online
+//   SITE_URL             = base de deep links en emails/push → https://miprofio.es
+//     (no usar workers.dev: la sesión de login no se comparte entre dominios)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { create, getNumericDate } from "https://deno.land/x/djwt@v2.8/mod.ts";
@@ -36,15 +35,26 @@ interface RecipientProfile {
 }
 
 const DEFAULT_SITE_URL = "https://miprofio.es";
+const LEGACY_SITE_HOST = "profio-web.mariopropiosplaza.workers.dev";
 
 const MESSAGE_EMAIL_COOLDOWN_MIN = 2;
 const REVIEW_EMAIL_COOLDOWN_MIN = 10080; // ~1 semana; 1 email por reseña
 const REVIEW_REPLY_EMAIL_COOLDOWN_MIN = 5;
 
+/** Base canónica para CTAs: siempre miprofio.es (misma sesión que la PWA). */
 function resolveSiteUrl(): string {
   const raw = Deno.env.get("SITE_URL")?.trim();
-  if (raw && raw.length > 0) return raw.replace(/\/$/, "");
-  return DEFAULT_SITE_URL;
+  if (!raw) return DEFAULT_SITE_URL;
+
+  try {
+    const url = new URL(raw.includes("://") ? raw : `https://${raw}`);
+    if (url.hostname === LEGACY_SITE_HOST || url.hostname.endsWith(".workers.dev")) {
+      return DEFAULT_SITE_URL;
+    }
+    return `${url.protocol}//${url.host}`.replace(/\/$/, "");
+  } catch {
+    return DEFAULT_SITE_URL;
+  }
 }
 
 serve(async (req: Request) => {
@@ -117,15 +127,18 @@ async function handleMessageNotification(
   const siteUrl = resolveSiteUrl();
   const notificationBody = formatNotificationBody(body);
   const viewingAsProfessional = sender_id === conv.user_id;
-  const chatLink = buildChatDeepLink(siteUrl, {
-    conversation_id,
-    professional_id: professionalId,
-    sender_name,
-    as_prof: viewingAsProfessional,
-    peer_user_id: viewingAsProfessional
-      ? (conv.user_id as string)
-      : undefined,
-  });
+  const chatLink = wrapAppDeepLink(
+    siteUrl,
+    buildChatDeepLinkPath({
+      conversation_id,
+      professional_id: professionalId,
+      sender_name,
+      as_prof: viewingAsProfessional,
+      peer_user_id: viewingAsProfessional
+        ? (conv.user_id as string)
+        : undefined,
+    }),
+  );
 
   const pushResult = await sendPushIfPossible({
     supabase,
@@ -199,8 +212,10 @@ async function handleReviewEmail(
 
   const recipient = await loadRecipient(supabase, ownerId);
   const siteUrl = resolveSiteUrl();
-  const profileLink =
-    `${siteUrl}/companies/${professionalId}?from=review`;
+  const profileLink = wrapAppDeepLink(
+    siteUrl,
+    `/companies/${professionalId}?from=review`,
+  );
   const stars = formatStars(rating);
   const preview = [title.trim(), body.trim()].filter(Boolean).join(" — ") ||
     "Nueva reseña";
@@ -248,8 +263,10 @@ async function handleReviewReplyEmail(
 
   const recipient = await loadRecipient(supabase, reviewerId);
   const siteUrl = resolveSiteUrl();
-  const profileLink =
-    `${siteUrl}/companies/${professionalId}?from=review_reply`;
+  const profileLink = wrapAppDeepLink(
+    siteUrl,
+    `/companies/${professionalId}?from=review_reply`,
+  );
   const preview = reply.trim() || "El profesional ha respondido a tu reseña.";
 
   const emailResult = await sendTemplatedEmail({
@@ -450,13 +467,16 @@ async function sendPushIfPossible(args: {
         icon: `${args.siteUrl}/favicon.png`,
       },
       fcm_options: {
-        link: buildChatDeepLink(args.siteUrl, {
-          conversation_id: args.conversation_id,
-          professional_id: args.professionalId,
-          sender_name: args.sender_name,
-          as_prof: args.asProf,
-          peer_user_id: args.peerUserId,
-        }),
+        link: wrapAppDeepLink(
+          args.siteUrl,
+          buildChatDeepLinkPath({
+            conversation_id: args.conversation_id,
+            professional_id: args.professionalId,
+            sender_name: args.sender_name,
+            as_prof: args.asProf,
+            peer_user_id: args.peerUserId,
+          }),
+        ),
       },
     };
   }
@@ -565,24 +585,28 @@ function formatNotificationBody(body: string): string {
   return body.length > 100 ? `${body.substring(0, 97)}...` : body;
 }
 
-function buildChatDeepLink(
-  siteUrl: string,
-  data: {
-    conversation_id: string;
-    professional_id: string;
-    sender_name: string;
-    as_prof?: boolean;
-    peer_user_id?: string;
-  },
-): string {
-  const base = siteUrl.replace(/\/$/, "");
+/** Path+query interno (sin dominio). */
+function buildChatDeepLinkPath(data: {
+  conversation_id: string;
+  professional_id: string;
+  sender_name: string;
+  as_prof?: boolean;
+  peer_user_id?: string;
+}): string {
   const params = new URLSearchParams();
   if (data.conversation_id) params.set("conversationId", data.conversation_id);
   if (data.sender_name) params.set("name", data.sender_name);
   if (data.as_prof) params.set("asProf", "1");
   if (data.peer_user_id) params.set("peerUserId", data.peer_user_id);
   const qs = params.toString();
-  return `${base}/messages/${data.professional_id}${qs ? `?${qs}` : ""}`;
+  return `/messages/${data.professional_id}${qs ? `?${qs}` : ""}`;
+}
+
+/** CTA vía /go para reutilizar pestaña abierta (no acumular tabs). */
+function wrapAppDeepLink(siteUrl: string, pathAndQuery: string): string {
+  const base = siteUrl.replace(/\/$/, "");
+  const to = pathAndQuery.startsWith("/") ? pathAndQuery : `/${pathAndQuery}`;
+  return `${base}/go?to=${encodeURIComponent(to)}`;
 }
 
 async function getFcmAccessToken(sa: ServiceAccount): Promise<string> {
