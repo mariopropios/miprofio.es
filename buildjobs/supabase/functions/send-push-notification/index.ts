@@ -426,6 +426,14 @@ async function sendPushIfPossible(args: {
   const serviceAccount: ServiceAccount = JSON.parse(serviceAccountJson);
   const accessToken = await getFcmAccessToken(serviceAccount);
   const notificationTitle = args.sender_name || "Nuevo mensaje";
+  const chatPath = buildChatDeepLinkPath({
+    conversation_id: args.conversation_id,
+    professional_id: args.professionalId,
+    sender_name: args.sender_name,
+    as_prof: args.asProf,
+    peer_user_id: args.peerUserId,
+  });
+  const chatLink = wrapAppDeepLink(args.siteUrl, chatPath);
 
   const messagePayload: Record<string, unknown> = {
     token: fcmToken,
@@ -436,9 +444,16 @@ async function sendPushIfPossible(args: {
       sender_name: args.sender_name,
       body: args.notificationBody,
       timestamp: String(Date.now()),
+      link: chatLink,
+      as_prof: args.asProf ? "1" : "",
+      peer_user_id: args.peerUserId ?? "",
     },
     webpush: {
       headers: { Urgency: "high" },
+      // Android Chrome / PWA: el clic debe ir a miprofio.es, no al origin del SW.
+      fcm_options: {
+        link: chatLink,
+      },
     },
   };
 
@@ -467,16 +482,7 @@ async function sendPushIfPossible(args: {
         icon: `${args.siteUrl}/favicon.png`,
       },
       fcm_options: {
-        link: wrapAppDeepLink(
-          args.siteUrl,
-          buildChatDeepLinkPath({
-            conversation_id: args.conversation_id,
-            professional_id: args.professionalId,
-            sender_name: args.sender_name,
-            as_prof: args.asProf,
-            peer_user_id: args.peerUserId,
-          }),
-        ),
+        link: chatLink,
       },
     };
   }

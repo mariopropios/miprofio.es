@@ -253,18 +253,19 @@ class NotificationService {
 
     final conversationId = msg.data['conversation_id'];
     final senderName = msg.data['sender_name'];
+    final asProf = msg.data['as_prof'] == '1' || msg.data['asProf'] == '1';
+    final peerUserId = msg.data['peer_user_id'];
 
-    router.push(
-      AppRoutes.chatPathWith(
-        professionalId: professionalId,
-        conversationId: conversationId,
-        name: senderName,
-      ),
-      extra: {
-        if (conversationId != null) 'conversationId': conversationId,
-        if (senderName != null && senderName.isNotEmpty) 'name': senderName,
-      },
+    final chatPath = AppRoutes.chatPathWith(
+      professionalId: professionalId,
+      conversationId: conversationId,
+      name: senderName,
+      peerUserId: peerUserId,
+      viewingAsProfessional: asProf,
     );
+
+    // Preferir handoff /go (misma lógica que emails).
+    router.go(AppRoutes.goHandoffPath(chatPath));
   }
 
   // ── Token FCM ────────────────────────────────────────────────────────────

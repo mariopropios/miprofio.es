@@ -1,6 +1,7 @@
 // ── Firebase Messaging Service Worker ────────────────────────────────────────
 // Agrupa mensajes por conversación (estilo WhatsApp): una sola notificación
 // expandible con todos los mensajes en orden.
+// v2026-07-21: deep links canónicos → https://miprofio.es (no workers.dev)
 
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
@@ -30,15 +31,36 @@ const DB_NAME = 'profio-push';
 const STORE_NAME = 'conversation_messages';
 const MAX_LINES = 7;
 
+const CANONICAL_ORIGIN = 'https://miprofio.es';
+
 function buildChatUrl(data) {
   const professionalId = data.professional_id;
-  if (!professionalId) return self.location.origin + '/messages';
+  // Siempre miprofio.es: el SW puede estar registrado en workers.dev (origen viejo).
+  const origin = CANONICAL_ORIGIN;
+  if (!professionalId) return origin + '/messages';
 
   const params = new URLSearchParams();
   if (data.conversation_id) params.set('conversationId', data.conversation_id);
   if (data.sender_name) params.set('name', data.sender_name);
+  if (data.as_prof === '1' || data.as_prof === 'true' || data.asProf === '1') {
+    params.set('asProf', '1');
+  }
+  if (data.peer_user_id) params.set('peerUserId', data.peer_user_id);
   const qs = params.toString();
-  return `${self.location.origin}/messages/${professionalId}${qs ? '?' + qs : ''}`;
+  return origin + '/go?to=' + encodeURIComponent(
+    '/messages/' + professionalId + (qs ? '?' + qs : '')
+  );
+}
+
+function isOurClientUrl(url) {
+  try {
+    var u = new URL(url);
+    return u.hostname === 'miprofio.es' ||
+      u.hostname === 'www.miprofio.es' ||
+      u.hostname === 'profio-web.mariopropiosplaza.workers.dev';
+  } catch (e) {
+    return false;
+  }
 }
 
 function openDb() {
@@ -138,7 +160,7 @@ messaging.onBackgroundMessage(function (payload) {
   });
 });
 
-// Clic en la notificación → abre el chat y limpia el grupo.
+// Clic en la notificación → abre el chat en miprofio.es y limpia el grupo.
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
   var data = event.notification.data || {};
@@ -151,18 +173,34 @@ self.addEventListener('notificationclick', function (event) {
     }).then(function () {
       return clients.matchAll({ type: 'window', includeUncontrolled: true });
     }).then(function (clientList) {
+      // Preferir pestaña/PWA ya abierta en miprofio.es
+      var preferred = null;
+      var fallback = null;
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i];
-        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-          client.focus();
-          if ('navigate' in client) {
-            return client.navigate(url);
+        if (!isOurClientUrl(client.url)) continue;
+        try {
+          var host = new URL(client.url).hostname;
+          if (host === 'miprofio.es' || host === 'www.miprofio.es') {
+            preferred = client;
+            break;
           }
-          client.postMessage({ type: 'NOTIFICATION_CLICK', url: url });
-          return;
-        }
+          if (!fallback) fallback = client;
+        } catch (e) {}
       }
+      var target = preferred || fallback;
+      if (preferred && 'focus' in preferred) {
+        preferred.focus();
+        if ('navigate' in preferred) {
+          return preferred.navigate(url);
+        }
+        preferred.postMessage({ type: 'NOTIFICATION_CLICK', url: url });
+        return;
+      }
+      // No navegar un client de workers.dev a miprofio.es (cross-origin).
+      // Abrir/enfocar siempre la URL canónica.
       if (clients.openWindow) return clients.openWindow(url);
+      if (target && 'focus' in target) return target.focus();
     })
   );
 });

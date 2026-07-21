@@ -101,6 +101,10 @@
       return navigator.serviceWorker.getRegistration('/');
     }).then(function (existing) {
       if (existing && isFirebaseMessagingSw(existing) && existing.active) {
+        // Forzar descarga del SW nuevo (p. ej. links canónicos a miprofio.es).
+        try {
+          existing.update();
+        } catch (_) {}
         window.__profioFcmSwRegistered = true;
         window.profioSetPushServiceWorkerActive(true);
         return existing;
