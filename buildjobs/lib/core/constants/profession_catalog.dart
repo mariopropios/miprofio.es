@@ -343,6 +343,64 @@ class ProfessionCatalog {
         ),
       ],
     ),
+
+    // ─── 4. Proyecto y diseño ────────────────────────────────────────────────
+    ProfessionCategory(
+      id: 'proyecto_diseno',
+      shortName: 'Proyecto',
+      title: 'Proyecto y diseño',
+      professions: [
+        ProfessionItem(
+          categoryId: 'proyecto_diseno',
+          name: 'Arquitecto',
+          description:
+              'Proyectos de obra nueva y reforma, licencias, planos y dirección de obra.',
+        ),
+        ProfessionItem(
+          categoryId: 'proyecto_diseno',
+          name: 'Arquitecto técnico',
+          description:
+              'Dirección de ejecución, mediciones, presupuestos y coordinación de obra '
+              '(aparejador).',
+        ),
+        ProfessionItem(
+          categoryId: 'proyecto_diseno',
+          name: 'Diseñador de interiores',
+          description:
+              'Interiorismo, distribución de espacios, materiales y mobiliario a medida.',
+        ),
+        ProfessionItem(
+          categoryId: 'proyecto_diseno',
+          name: 'Decorador',
+          description:
+              'Estilo, color, textiles y ambientación de viviendas y locales.',
+        ),
+        ProfessionItem(
+          categoryId: 'proyecto_diseno',
+          name: 'Paisajista',
+          description:
+              'Diseño de jardines, terrazas y espacios exteriores con vegetación y hardscape.',
+        ),
+        ProfessionItem(
+          categoryId: 'proyecto_diseno',
+          name: 'Delineante',
+          description:
+              'Planos técnicos, mediciones y documentación gráfica de proyectos.',
+        ),
+        ProfessionItem(
+          categoryId: 'proyecto_diseno',
+          name: 'Diseñador de iluminación',
+          description:
+              'Proyectos de luz interior y exterior, cálculo y selección de luminarias.',
+        ),
+        ProfessionItem(
+          categoryId: 'proyecto_diseno',
+          name: 'Consultor energético',
+          description:
+              'Certificado energético, eficiencia, aislamiento y mejoras de consumo.',
+        ),
+      ],
+    ),
   ];
 
   /// Secciones de servicio para registro y búsqueda (Reparaciones+Reformas unidas).
@@ -358,6 +416,12 @@ class ProfessionCatalog {
       label: 'Mantenimiento',
       title: 'Mantenimiento General',
       categoryIds: ['mantenimiento'],
+    ),
+    ServiceSectionGroup(
+      id: 'proyecto_diseno',
+      label: 'Proyecto y diseño',
+      title: 'Proyecto y diseño',
+      categoryIds: ['proyecto_diseno'],
     ),
   ];
 
@@ -594,6 +658,25 @@ class ProfessionCatalog {
       'hormigon impreso': 'reformas',
       'hormigon': 'reformas',
       'pavimento exterior': 'reformas',
+      // proyecto y diseño
+      'aparejador': 'proyecto_diseno',
+      'arquitectura': 'proyecto_diseno',
+      'arquitecto tecnico': 'proyecto_diseno',
+      'arquitecto técnico': 'proyecto_diseno',
+      'interiorismo': 'proyecto_diseno',
+      'interiorista': 'proyecto_diseno',
+      'diseñador interiores': 'proyecto_diseno',
+      'diseñadora de interiores': 'proyecto_diseno',
+      'decoración': 'proyecto_diseno',
+      'decoracion': 'proyecto_diseno',
+      'paisajismo': 'proyecto_diseno',
+      'proyectista': 'proyecto_diseno',
+      'iluminación': 'proyecto_diseno',
+      'iluminacion': 'proyecto_diseno',
+      'certificado energético': 'proyecto_diseno',
+      'certificado energetico': 'proyecto_diseno',
+      'eficiencia energética': 'proyecto_diseno',
+      'eficiencia energetica': 'proyecto_diseno',
     };
     final mapped = legacyMap[lower];
     if (mapped != null) return categoryById(mapped);

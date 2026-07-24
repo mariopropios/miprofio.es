@@ -78,12 +78,12 @@ class _ProfessionMultiSelectSectionState
       widget.selectedCategories.where(available.contains),
     );
 
-    if (available.contains('reparaciones') ||
-        available.contains('reformas')) {
-      next.addAll(['reparaciones', 'reformas']);
-    }
-    if (available.contains('mantenimiento')) {
-      next.add('mantenimiento');
+    // Auto-marca cada sección del catálogo que tenga oficios seleccionados
+    // (Reparaciones+Reformas se activan juntas, como hasta ahora).
+    for (final group in ProfessionCatalog.serviceSectionGroups) {
+      if (group.categoryIds.any(available.contains)) {
+        next.addAll(group.categoryIds);
+      }
     }
 
     if (next != widget.selectedCategories) {
@@ -247,13 +247,11 @@ class _CategorySelector extends StatelessWidget {
     required this.available,
     required this.selected,
     required this.onToggleGroup,
-    this.topPadding = 20,
   });
 
   final Set<String> available;
   final Set<String> selected;
   final ValueChanged<ServiceSectionGroup> onToggleGroup;
-  final double topPadding;
 
   bool _groupAvailable(ServiceSectionGroup group) =>
       group.categoryIds.any(available.contains);
@@ -280,7 +278,6 @@ class _CategorySelector extends StatelessWidget {
       context,
       applicable,
       enabledOnly: true,
-      topPadding: topPadding,
     );
   }
 
@@ -288,12 +285,11 @@ class _CategorySelector extends StatelessWidget {
     BuildContext context,
     List<ServiceSectionGroup> groups, {
     required bool enabledOnly,
-    double topPadding = 20,
   }) {
     final canToggle = !enabledOnly || available.isNotEmpty;
 
     return Padding(
-      padding: EdgeInsets.only(top: topPadding),
+      padding: const EdgeInsets.only(top: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -308,7 +304,7 @@ class _CategorySelector extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             canToggle
-                ? 'Marca Reparaciones y Reformas, Mantenimiento u otras secciones.'
+                ? 'Marca las secciones en las que quieres aparecer al buscar.'
                 : 'Selecciona tus oficios abajo para activar estas opciones.',
             style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),

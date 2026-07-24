@@ -144,7 +144,8 @@ class _ProfessionCatalogSheetState extends State<ProfessionCatalogSheet> {
           child: Text(
             widget.multiSelect
                 ? 'Puedes marcar varios oficios a la vez.'
-                : 'Explora las especialidades de hogar y mantenimiento, organizadas en 2 áreas.',
+                : 'Explora oficios del hogar, mantenimiento y proyecto/diseño, '
+                    'organizados en ${ProfessionCatalog.serviceSectionGroups.length} áreas.',
             style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
           ),
         ),
