@@ -6,8 +6,8 @@ import 'profession_catalog_sheet.dart';
 import 'profession_chip.dart';
 
 /// Sección de filtrado por profesión: categorías madre + chips segmentados.
-/// En móvil los chips se muestran en scroll horizontal (1 fila compacta).
-/// En desktop se expanden en Wrap para mayor visibilidad.
+/// Categorías madre: siempre 1 fila con scroll horizontal.
+/// Oficios: scroll horizontal en móvil; Wrap en desktop.
 class ProfessionFilterSection extends StatefulWidget {
   const ProfessionFilterSection({
     super.key,
@@ -101,18 +101,11 @@ class _ProfessionFilterSectionState extends State<ProfessionFilterSection> {
         ),
         const SizedBox(height: 10),
 
-        // ── Tabs de categoría ─────────────────────────────────────────────
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final group in ProfessionCatalog.serviceSectionGroups)
-              MotherCategoryChip(
-                label: group.label,
-                selected: _selectedBrowseGroupId == group.id,
-                onTap: () => setState(() => _selectedBrowseGroupId = group.id),
-              ),
-          ],
+        // ── Tabs de categoría (1 fila, scroll horizontal) ─────────────────
+        _MotherCategoriesRow(
+          selectedGroupId: _selectedBrowseGroupId,
+          onGroupSelected: (id) =>
+              setState(() => _selectedBrowseGroupId = id),
         ),
         const SizedBox(height: 10),
 
@@ -137,6 +130,38 @@ class _ProfessionFilterSectionState extends State<ProfessionFilterSection> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// Scroll horizontal de categorías madre — una sola fila, como los oficios.
+class _MotherCategoriesRow extends StatelessWidget {
+  const _MotherCategoriesRow({
+    required this.selectedGroupId,
+    required this.onGroupSelected,
+  });
+
+  final String selectedGroupId;
+  final ValueChanged<String> onGroupSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = ProfessionCatalog.serviceSectionGroups;
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: groups.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final group = groups[index];
+          return MotherCategoryChip(
+            label: group.label,
+            selected: selectedGroupId == group.id,
+            onTap: () => onGroupSelected(group.id),
+          );
+        },
+      ),
     );
   }
 }

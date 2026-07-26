@@ -294,6 +294,8 @@ class _IncompleteProfessionalProfile extends ConsumerWidget {
                   onPressed: () =>
                       context.push(AppRoutes.professionalRegister),
                 ),
+                const SizedBox(height: 28),
+                const LegalLinksRow(dense: true),
               ],
             ),
           ),
@@ -421,6 +423,8 @@ class _ClientProfileView extends ConsumerWidget {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 28),
+                    const LegalLinksRow(dense: true),
                   ],
                 ),
               ),

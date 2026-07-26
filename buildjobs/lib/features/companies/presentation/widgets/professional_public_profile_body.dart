@@ -19,6 +19,7 @@ import 'professional_owner_gallery_section.dart';
 import '../../../../shared/widgets/profession_tags_row.dart';
 import '../../../../shared/widgets/message_email_notification_card.dart';
 import '../../../../shared/widgets/push_notification_setup_card.dart';
+import '../../../../shared/widgets/legal_links_row.dart';
 import '../../../../shared/widgets/rating_stars.dart';
 import '../../../../shared/widgets/responsive_layout.dart';
 import '../../../../shared/widgets/resilient_network_image.dart';
@@ -308,6 +309,10 @@ class _ProfessionalProfileContent extends ConsumerWidget {
           galleryBlock,
           const Divider(height: 40),
           reviewsBlock,
+          if (isOwnerView) ...[
+            const SizedBox(height: 28),
+            const LegalLinksRow(dense: true),
+          ],
         ],
       );
     }
@@ -361,6 +366,10 @@ class _ProfessionalProfileContent extends ConsumerWidget {
         galleryBlock,
         const Divider(height: 40),
         reviewsBlock,
+        if (isOwnerView) ...[
+          const SizedBox(height: 28),
+          const LegalLinksRow(dense: true),
+        ],
       ],
     );
   }

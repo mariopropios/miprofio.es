@@ -149,17 +149,22 @@ class _ProfessionMultiSelectSectionState
           ),
         ),
         SizedBox(height: widget.compact ? 10 : 14),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final group in ProfessionCatalog.serviceSectionGroups)
-              MotherCategoryChip(
+        SizedBox(
+          height: 40,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: ProfessionCatalog.serviceSectionGroups.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final group = ProfessionCatalog.serviceSectionGroups[index];
+              return MotherCategoryChip(
                 label: group.label,
                 selected: _selectedBrowseGroupId == group.id,
-                onTap: () => setState(() => _selectedBrowseGroupId = group.id),
-              ),
-          ],
+                onTap: () =>
+                    setState(() => _selectedBrowseGroupId = group.id),
+              );
+            },
+          ),
         ),
         const SizedBox(height: 16),
         AnimatedSwitcher(
