@@ -34,7 +34,10 @@ import '../../features/search/presentation/screens/search_screen.dart';
 import '../../features/shell/presentation/screens/main_shell.dart';
 import '../../features/about/presentation/screens/about_feedback_screen.dart';
 import '../../features/deep_link/presentation/screens/go_handoff_screen.dart';
+import '../../features/local_seo/presentation/screens/local_seo_hub_screen.dart';
+import '../../features/local_seo/presentation/screens/local_seo_profession_screen.dart';
 import '../../shared/widgets/legal_document_screen.dart';
+import '../constants/local_seo.dart';
 import '../legal/legal_documents.dart';
 import '../providers/repository_providers.dart';
 import '../services/tab_coordinator.dart';
@@ -150,6 +153,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }
       }
 
+      // /search?city=Candeleda(&profession=…) → URL limpia SEO local.
+      if (path == AppRoutes.search) {
+        final clean = LocalSeo.tryCleanSearchPath(
+          city: state.uri.queryParameters['city'],
+          profession: state.uri.queryParameters['q'] == null ||
+                  state.uri.queryParameters['q']!.isEmpty
+              ? state.uri.queryParameters['profession']
+              : null,
+        );
+        if (clean != null &&
+            (state.uri.queryParameters['q'] == null ||
+                state.uri.queryParameters['q']!.isEmpty)) {
+          return clean;
+        }
+      }
+
       // /auth/confirm publica borrador y redirige — no interceptar aquí.
 
       // No mandar a login hasta hidratar sesión (evita false login en deep link).
@@ -188,6 +207,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 initialCategoryId: state.uri.queryParameters['cat'],
                 initialCity: state.uri.queryParameters['city'],
               ),
+            ),
+          ),
+          // Hubs + landings SEO local (La Vera). Rutas explícitas para no
+          // capturar /login, /about, etc.
+          ...LocalSeo.locations.map(
+            (loc) => GoRoute(
+              path: '/${loc.slug}',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: LocalSeoHubScreen(location: loc),
+              ),
+              routes: [
+                GoRoute(
+                  path: ':professionSlug',
+                  redirect: (context, state) {
+                    final slug = state.pathParameters['professionSlug'];
+                    if (LocalSeo.professionBySlug(slug) == null) {
+                      return '/${loc.slug}';
+                    }
+                    return null;
+                  },
+                  pageBuilder: (context, state) {
+                    final slug = state.pathParameters['professionSlug']!;
+                    final profession = LocalSeo.professionBySlug(slug)!;
+                    return NoTransitionPage(
+                      child: LocalSeoProfessionScreen(
+                        location: loc,
+                        profession: profession,
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
           GoRoute(

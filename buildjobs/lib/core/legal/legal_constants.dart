@@ -19,9 +19,9 @@ abstract final class LegalConstants {
   static const taxId = '77025168P';
 
   /// Localidad del titular (sin calle, por privacidad en web pública).
-  static const address = 'Candeleda (Ávila), España';
+  static const address = 'Madrigal de la Vera (Cáceres), España';
 
-  static const lastUpdated = '17 de julio de 2026';
+  static const lastUpdated = '5 de agosto de 2026';
 
   static const disclaimer =
       'Textos orientativos para cumplimiento básico. '

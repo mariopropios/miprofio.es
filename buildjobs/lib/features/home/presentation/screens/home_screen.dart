@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/gallery_photo_constants.dart';
+import '../../../../core/constants/local_seo.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/services/geo_permission_helper.dart';
@@ -87,6 +88,10 @@ class HomeScreen extends ConsumerWidget {
                         ),
                         data: (companies) => _CompanyGrid(companies: companies),
                       ),
+                      const SizedBox(height: 40),
+                      const Divider(height: 1),
+                      const SizedBox(height: 28),
+                      const _LaVeraSeoLinks(),
                     ],
                   ),
                 )
@@ -215,6 +220,57 @@ class _HomeScrollHeader extends StatelessWidget {
               categoryId: categoryId,
             ),
           ),
+        ),
+        // En móvil: La Vera tras oficios (antes del deck). En desktop va
+        // después de destacados (ver HomeScreen).
+        if (!isDesktop) ...[
+          const SizedBox(height: 28),
+          const _LaVeraSeoLinks(),
+        ],
+      ],
+    );
+  }
+}
+
+class _LaVeraSeoLinks extends StatelessWidget {
+  const _LaVeraSeoLinks();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop = ResponsiveLayout.isDesktop(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cerca de La Vera',
+          style: (isDesktop
+                  ? Theme.of(context).textTheme.titleLarge
+                  : Theme.of(context).textTheme.titleMedium)
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Text(
+            'Elige tu pueblo y busca el oficio que necesitas.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSecondary,
+                ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final loc in LocalSeo.locations)
+              ActionChip(
+                avatar: const Icon(Icons.location_on_outlined, size: 16),
+                label: Text(loc.name),
+                onPressed: () => context.go(LocalSeo.hubPath(loc)),
+              ),
+          ],
         ),
       ],
     );

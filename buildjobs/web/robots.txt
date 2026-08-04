@@ -2,6 +2,9 @@
 User-agent: *
 Allow: /
 Allow: /search
+Allow: /candeleda
+Allow: /madrigal-de-la-vera
+Allow: /villanueva-de-la-vera
 Disallow: /messages/
 Disallow: /profile/
 Disallow: /login

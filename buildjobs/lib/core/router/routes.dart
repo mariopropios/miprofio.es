@@ -1,3 +1,5 @@
+import '../constants/local_seo.dart';
+
 class AppRoutes {
   AppRoutes._();
 
@@ -87,13 +89,23 @@ class AppRoutes {
       Uri(path: emailVerification, queryParameters: {'email': email})
           .toString();
 
-  /// Buscar con filtros opcionales: /search?profession=Albañil&q=Madrid&cat=reformas&city=Madrid
+  /// Buscar con filtros opcionales: `/search?profession=…&city=…`
+  /// Si city (+ oficio) es SEO local (La Vera), redirige a URL limpia.
   static String searchWith({
     String? profession,
     String? q,
     String? categoryId,
     String? city,
   }) {
+    final clean = LocalSeo.tryCleanSearchPath(
+      city: city,
+      profession: (q == null || q.isEmpty) ? profession : null,
+    );
+    // Solo URL limpia si no hay texto libre `q` (evita perder búsqueda).
+    if (clean != null && (q == null || q.isEmpty)) {
+      return clean;
+    }
+
     final params = <String, String>{};
     if (profession != null && profession.isNotEmpty) {
       params['profession'] = profession;
@@ -106,6 +118,11 @@ class AppRoutes {
     if (params.isEmpty) return search;
     return Uri(path: search, queryParameters: params).toString();
   }
+
+  static String localHubPath(String citySlug) => '/$citySlug';
+
+  static String localProfessionPath(String citySlug, String professionSlug) =>
+      '/$citySlug/$professionSlug';
 
   static String companyDetailPath(String id) => '/companies/$id';
 
