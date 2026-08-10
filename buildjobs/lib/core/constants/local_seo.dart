@@ -114,19 +114,20 @@ abstract final class LocalSeo {
   static String professionPathBySlugs(String citySlug, String professionSlug) =>
       '/$citySlug/$professionSlug';
 
-  /// Si city (+ oficio opcional) coinciden con SEO local, devuelve path limpio.
+  /// Si city + oficio coinciden con SEO local, devuelve path limpio oficio×pueblo.
+  /// Solo ciudad (sin oficio) → `null` (la app debe quedarse en `/search?city=…`).
+  /// Los hubs (`/candeleda`, etc.) siguen existiendo por URL directa / sitemap.
   static String? tryCleanSearchPath({
     String? city,
     String? profession,
   }) {
     final loc = locationByCityName(city);
     if (loc == null) return null;
-    if (profession == null || profession.trim().isEmpty) {
-      return hubPath(loc);
-    }
+    if (profession == null || profession.trim().isEmpty) return null;
+
     final item = ProfessionCatalog.findByName(profession.trim()) ??
         professionBySlug(profession);
-    if (item == null) return hubPath(loc);
+    if (item == null) return null;
     return professionPath(loc, item.name);
   }
 

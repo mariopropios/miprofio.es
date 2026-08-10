@@ -90,7 +90,8 @@ class AppRoutes {
           .toString();
 
   /// Buscar con filtros opcionales: `/search?profession=…&city=…`
-  /// Si city (+ oficio) es SEO local (La Vera), redirige a URL limpia.
+  /// Si city + oficio es SEO local (La Vera), usa URL limpia oficio×pueblo.
+  /// Solo city SEO → permanece en `/search?city=…` (no abre el hub).
   static String searchWith({
     String? profession,
     String? q,

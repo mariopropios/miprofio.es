@@ -153,7 +153,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }
       }
 
-      // /search?city=Candeleda(&profession=…) → URL limpia SEO local.
+      // /search?city=…&profession=… (SEO local) → URL limpia oficio×pueblo.
+      // Solo city → no redirigir al hub; SearchScreen con ?city=.
       if (path == AppRoutes.search) {
         final clean = LocalSeo.tryCleanSearchPath(
           city: state.uri.queryParameters['city'],

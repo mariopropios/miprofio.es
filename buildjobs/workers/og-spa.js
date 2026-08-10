@@ -346,7 +346,6 @@ async function buildLocalSeoHtml({ env, origin, citySlug, professionSlug }) {
   <meta name="twitter:title" content="${escapeHtml(title)}">
   <meta name="twitter:description" content="${escapeHtml(description)}">
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
-  <meta http-equiv="refresh" content="0;url=${escapeHtml(pageUrl)}">
 </head>
 <body>
   <header>
@@ -359,6 +358,7 @@ async function buildLocalSeoHtml({ env, origin, citySlug, professionSlug }) {
     <h2>${professionName ? "Mismo oficio en otros pueblos" : `Oficios en ${escapeHtml(city.name)}`}</h2>
     <ul>${linksProfession}</ul>
     <p><a href="${origin}/register/professional">Publicar perfil profesional gratis</a></p>
+    <p><a href="${escapeHtml(pageUrl)}">Abrir en miProfio.es</a></p>
   </main>
 </body>
 </html>`;

@@ -45,7 +45,7 @@ void main() {
       );
       expect(
         LocalSeo.tryCleanSearchPath(city: 'Madrigal de la Vera'),
-        '/madrigal-de-la-vera',
+        isNull,
       );
       expect(
         LocalSeo.tryCleanSearchPath(city: 'Madrid', profession: 'Fontanero'),
