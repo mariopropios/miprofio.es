@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/local_seo.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -251,7 +252,7 @@ class _RegisterWall extends StatelessWidget {
                       RatingStars(rating: company.rating, size: 16),
                       const SizedBox(width: 6),
                       Text(
-                        '${company.rating.toStringAsFixed(1)}  ·  ${company.city}',
+                        '${company.rating.toStringAsFixed(1)}  ·  ${LocalSeo.formatCityWithProvince(company.city)}',
                         style: const TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 13,

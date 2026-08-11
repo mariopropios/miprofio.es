@@ -151,26 +151,10 @@ class _LocalSeoHubScreenState extends ConsumerState<LocalSeoHubScreen> {
               ),
             ),
             if (_showAllProfessions) ...[
-              const SizedBox(height: 4),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: isDesktop ? 900 : double.infinity,
-                ),
-                child: Column(
-                  children: [
-                    for (final p in more)
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        title: Text(p.name),
-                        trailing:
-                            const Icon(Icons.chevron_right, size: 20),
-                        onTap: () => context.go(
-                          LocalSeo.professionPath(loc, p.name),
-                        ),
-                      ),
-                  ],
-                ),
+              const SizedBox(height: 8),
+              _HubMoreProfessionSections(
+                location: loc,
+                excludeNames: popularNames,
               ),
             ],
             const SizedBox(height: 28),
@@ -194,17 +178,70 @@ class _LocalSeoHubScreenState extends ConsumerState<LocalSeoHubScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final other in LocalSeo.locations)
-                  if (other.slug != loc.slug)
-                    OutlinedButton(
-                      onPressed: () => context.go(LocalSeo.hubPath(other)),
-                      child: Text(other.name),
-                    ),
+                for (final other in LocalSeo.neighborsOf(loc))
+                  OutlinedButton(
+                    onPressed: () => context.go(LocalSeo.hubPath(other)),
+                    child: Text(other.name),
+                  ),
               ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Oficios restantes agrupados en las 3 secciones del catálogo (chips).
+class _HubMoreProfessionSections extends StatelessWidget {
+  const _HubMoreProfessionSections({
+    required this.location,
+    required this.excludeNames,
+  });
+
+  final LocalSeoLocation location;
+  final Set<String> excludeNames;
+
+  @override
+  Widget build(BuildContext context) {
+    final sections = <({ServiceSectionGroup group, List<ProfessionItem> items})>[];
+    for (final group in ProfessionCatalog.serviceSectionGroups) {
+      final items = ProfessionCatalog.professionsForBrowseGroup(group.id)
+          .where((p) => !excludeNames.contains(p.name))
+          .toList(growable: false);
+      if (items.isEmpty) continue;
+      sections.add((group: group, items: items));
+    }
+
+    if (sections.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < sections.length; i++) ...[
+          if (i > 0) const SizedBox(height: 24),
+          Text(
+            sections[i].group.label,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final p in sections[i].items)
+                ActionChip(
+                  label: Text(p.name),
+                  onPressed: () => context.go(
+                    LocalSeo.professionPath(location, p.name),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

@@ -73,9 +73,7 @@ class _LocalSeoProfessionScreenState
     );
     final resultsAsync = ref.watch(professionalsProvider(params));
     final isDesktop = ResponsiveLayout.isDesktop(context);
-    final otherCities = LocalSeo.locations
-        .where((l) => l.slug != loc.slug)
-        .toList(growable: false);
+    final otherCities = LocalSeo.neighborsOf(loc);
     final related = ProfessionCatalog.allProfessions
         .where((p) => p.categoryId == profession.categoryId)
         .where((p) => p.name != profession.name)

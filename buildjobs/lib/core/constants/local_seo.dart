@@ -73,6 +73,27 @@ abstract final class LocalSeo {
     for (final loc in locations) loc.slug: loc,
   };
 
+  /// Grafo de colindancia SEO v1 (La Vera). Fuente única para hubs/landings.
+  /// Máx. razonable por pueblo: 3–4 vecinos.
+  static const neighborSlugsBySlug = <String, List<String>>{
+    'candeleda': ['madrigal-de-la-vera', 'villanueva-de-la-vera'],
+    'madrigal-de-la-vera': ['candeleda', 'villanueva-de-la-vera'],
+    'villanueva-de-la-vera': ['candeleda', 'madrigal-de-la-vera'],
+  };
+
+  /// Pueblos colindantes de [location] (nunca incluye la propia ciudad).
+  static List<LocalSeoLocation> neighborsOf(LocalSeoLocation location) {
+    final slugs = neighborSlugsBySlug[location.slug] ?? const <String>[];
+    final out = <LocalSeoLocation>[];
+    for (final slug in slugs) {
+      if (slug == location.slug) continue;
+      final loc = _bySlug[slug];
+      if (loc != null) out.add(loc);
+      if (out.length >= 4) break;
+    }
+    return List.unmodifiable(out);
+  }
+
   static LocalSeoLocation? locationBySlug(String? slug) {
     if (slug == null || slug.isEmpty) return null;
     return _bySlug[slugify(slug)];
@@ -87,6 +108,29 @@ abstract final class LocalSeo {
       if (needle.startsWith(loc.slug)) return loc;
     }
     return null;
+  }
+
+  /// Presentación UI: `{Ciudad}, {Provincia}` cuando se conoce (SEO La Vera).
+  /// No inventa provincias; no duplica si ya viene `Ciudad, …`.
+  /// Solo display — no altera el valor guardado en BD.
+  static String formatCityWithProvince(String? city) {
+    final raw = city?.trim() ?? '';
+    if (raw.isEmpty) return '';
+
+    final comma = raw.indexOf(',');
+    if (comma >= 0) {
+      final before = raw.substring(0, comma).trim();
+      final after = raw.substring(comma + 1).trim();
+      if (after.isNotEmpty) {
+        final loc = locationByCityName(before) ?? locationByCityName(raw);
+        if (loc != null) return '${loc.name}, ${loc.provinceHint}';
+        return '$before, $after';
+      }
+    }
+
+    final loc = locationByCityName(raw);
+    if (loc != null) return '${loc.name}, ${loc.provinceHint}';
+    return raw;
   }
 
   static bool isLocalSeoCitySlug(String? slug) => locationBySlug(slug) != null;

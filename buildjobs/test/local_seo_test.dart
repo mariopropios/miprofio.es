@@ -59,5 +59,60 @@ void main() {
           .toList();
       expect(slugs.toSet().length, slugs.length);
     });
+
+    test('grafo de vecinos: ≥1, sin autoenlace y simétrico', () {
+      for (final loc in LocalSeo.locations) {
+        final neighbors = LocalSeo.neighborsOf(loc);
+        expect(neighbors, isNotEmpty, reason: loc.slug);
+        expect(
+          neighbors.every((n) => n.slug != loc.slug),
+          isTrue,
+          reason: loc.slug,
+        );
+        expect(neighbors.length, lessThanOrEqualTo(4));
+      }
+
+      expect(
+        LocalSeo.neighborsOf(LocalSeo.locationBySlug('candeleda')!)
+            .map((n) => n.slug),
+        containsAll(['madrigal-de-la-vera', 'villanueva-de-la-vera']),
+      );
+
+      for (final loc in LocalSeo.locations) {
+        for (final neighbor in LocalSeo.neighborsOf(loc)) {
+          expect(
+            LocalSeo.neighborsOf(neighbor).any((n) => n.slug == loc.slug),
+            isTrue,
+            reason: '${loc.slug} ↔ ${neighbor.slug}',
+          );
+        }
+      }
+    });
+
+    test('formatCityWithProvince añade provincia SEO sin duplicar', () {
+      expect(
+        LocalSeo.formatCityWithProvince('Villanueva de la Vera'),
+        'Villanueva de la Vera, Cáceres',
+      );
+      expect(
+        LocalSeo.formatCityWithProvince('Villanueva De la Vera'),
+        'Villanueva de la Vera, Cáceres',
+      );
+      expect(
+        LocalSeo.formatCityWithProvince('Candeleda'),
+        'Candeleda, Ávila',
+      );
+      expect(
+        LocalSeo.formatCityWithProvince('Madrigal de la Vera'),
+        'Madrigal de la Vera, Cáceres',
+      );
+      expect(
+        LocalSeo.formatCityWithProvince('Villanueva de la Vera, Cáceres'),
+        'Villanueva de la Vera, Cáceres',
+      );
+      expect(LocalSeo.formatCityWithProvince('Madrid'), 'Madrid');
+      expect(LocalSeo.formatCityWithProvince(null), '');
+      expect(LocalSeo.formatCityWithProvince('  '), '');
+    });
   });
 }

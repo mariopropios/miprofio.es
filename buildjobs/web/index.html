@@ -407,6 +407,7 @@
     window.addEventListener('flutter-first-frame', profioDismissLoader);
 
     // Si tarda: mismo estilo visual + botón Reintentar.
+    // 25s: evita falso “lento” en debug/localhost y redes móviles reales.
     setTimeout(function () {
       var loader = document.getElementById('hc-loader');
       if (!loader || loader.classList.contains('fade-out')) return;
@@ -428,7 +429,7 @@
 
       loader.appendChild(msg);
       loader.appendChild(btn);
-    }, 12000);
+    }, 25000);
   </script>
 
   <script>

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/constants/local_seo.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -214,7 +215,7 @@ class _ProfessionalProfileContent extends ConsumerWidget {
             : null;
 
     final contactBlock = _ContactCard(
-      city: company.city,
+      city: LocalSeo.formatCityWithProvince(company.city),
       address: company.address,
       email: company.email,
       phone: company.phone,
@@ -441,7 +442,7 @@ class _IdentityBlock extends StatelessWidget {
             const SizedBox(width: 4),
             Expanded(
               child: Text(
-                company.city,
+                LocalSeo.formatCityWithProvince(company.city),
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppTheme.textSecondary,
                     ),

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/gallery_photo_constants.dart';
+import '../../core/constants/local_seo.dart';
 import '../../core/theme/app_theme.dart';
 import '../models/company.dart';
 import 'hover_lift_card.dart';
@@ -149,7 +150,7 @@ class CompanyCard extends StatelessWidget {
         ),
         SizedBox(height: dense ? 3 : 4),
         Text(
-          company.city,
+          LocalSeo.formatCityWithProvince(company.city),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppTheme.textSecondary,
               ),
