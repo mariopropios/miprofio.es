@@ -67,6 +67,20 @@ abstract final class LocalSeo {
     'fontaneria': 'fontanero',
     'electricidad': 'electricista',
     'albanileria': 'albanil',
+    'trabajos-en-altura': 'trabajos-verticales',
+    'verticalista': 'trabajos-verticales',
+    'alpinista-industrial': 'trabajos-verticales',
+    'poda-de-altura': 'poda-en-altura',
+    'podador': 'poda-en-altura',
+    'podador-en-altura': 'poda-en-altura',
+    'canalero': 'canalones',
+    'canalones-y-bajantes': 'canalones',
+    'canalon': 'canalones',
+    'fachadista': 'rehabilitacion-de-fachadas',
+    'fachadas': 'rehabilitacion-de-fachadas',
+    'rehabilitacion-fachadas': 'rehabilitacion-de-fachadas',
+    'chimeneas': 'deshollinador',
+    'limpieza-de-chimeneas': 'deshollinador',
   };
 
   static final Map<String, LocalSeoLocation> _bySlug = {

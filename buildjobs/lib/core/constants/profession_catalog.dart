@@ -116,6 +116,13 @@ class ProfessionCatalog {
           description:
               'Rejas, puertas metálicas, soldadura, barandillas y reparación de estructuras de hierro.',
         ),
+        ProfessionItem(
+          categoryId: 'reparaciones',
+          name: 'Canalones',
+          description:
+              'Instalación y reparación de canalones, bajantes y desagües de cubierta '
+              'para evitar goteras y humedades.',
+        ),
       ],
     ),
 
@@ -270,7 +277,22 @@ class ProfessionCatalog {
           categoryId: 'reformas',
           name: 'Andamiero',
           description:
-              'Montaje y desmontaje de andamios, vallados de obra y plataformas de trabajo en altura.',
+              'Montaje y desmontaje de andamios, vallados de obra y plataformas '
+              'seguras para trabajo en altura.',
+        ),
+        ProfessionItem(
+          categoryId: 'reformas',
+          name: 'Canalones',
+          description:
+              'Canalones y bajantes nuevos en obra o reforma de cubierta; '
+              'evacuación de agua de tejados y terrazas.',
+        ),
+        ProfessionItem(
+          categoryId: 'reformas',
+          name: 'Rehabilitación de fachadas',
+          description:
+              'Reparación y revestimiento de fachadas, aislamiento y remates '
+              'en edificios con andamio o plataformas.',
         ),
       ],
     ),
@@ -340,6 +362,27 @@ class ProfessionCatalog {
           name: 'Instalador de Riego',
           description:
               'Diseño e instalación de sistemas de riego por goteo, aspersión y automatizados.',
+        ),
+        ProfessionItem(
+          categoryId: 'mantenimiento',
+          name: 'Trabajos verticales',
+          description:
+              'Acceso por cuerdas y trabajos en altura: fachadas, patios de luces, '
+              'cubiertas y puntos de difícil acceso.',
+        ),
+        ProfessionItem(
+          categoryId: 'mantenimiento',
+          name: 'Poda en altura',
+          description:
+              'Poda y tala controlada de árboles altos con trepa o plataformas; '
+              'distinto del mantenimiento habitual de jardín.',
+        ),
+        ProfessionItem(
+          categoryId: 'mantenimiento',
+          name: 'Deshollinador',
+          description:
+              'Limpieza y revisión de chimeneas, conductos y extracciones '
+              'para evitar humos e incendios.',
         ),
       ],
     ),
@@ -648,6 +691,25 @@ class ProfessionCatalog {
       'andamiero': 'reformas',
       'vallado': 'reformas',
       'vallamiento': 'reformas',
+      'trabajos verticales': 'mantenimiento',
+      'trabajos en altura': 'mantenimiento',
+      'verticalista': 'mantenimiento',
+      'altura': 'mantenimiento',
+      'poda en altura': 'mantenimiento',
+      'podador': 'mantenimiento',
+      'trepa': 'mantenimiento',
+      'canalones': 'reparaciones',
+      'canalón': 'reparaciones',
+      'canalon': 'reparaciones',
+      'canalero': 'reparaciones',
+      'bajantes': 'reparaciones',
+      'rehabilitación de fachadas': 'reformas',
+      'rehabilitacion de fachadas': 'reformas',
+      'fachadas': 'reformas',
+      'fachadista': 'reformas',
+      'deshollinador': 'mantenimiento',
+      'chimenea': 'mantenimiento',
+      'chimeneas': 'mantenimiento',
       'gasista': 'reparaciones',
       'gas': 'reparaciones',
       'caldera': 'reparaciones',

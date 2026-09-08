@@ -51,6 +51,28 @@ void main() {
         LocalSeo.tryCleanSearchPath(city: 'Madrid', profession: 'Fontanero'),
         isNull,
       );
+      expect(
+        LocalSeo.professionBySlug('trabajos-en-altura')?.name,
+        'Trabajos verticales',
+      );
+      expect(
+        LocalSeo.professionBySlug('verticalista')?.name,
+        'Trabajos verticales',
+      );
+      expect(LocalSeo.professionBySlug('podador')?.name, 'Poda en altura');
+      expect(LocalSeo.professionBySlug('canalero')?.name, 'Canalones');
+      expect(
+        LocalSeo.professionBySlug('fachadista')?.name,
+        'Rehabilitación de fachadas',
+      );
+      expect(LocalSeo.professionBySlug('chimeneas')?.name, 'Deshollinador');
+      expect(
+        LocalSeo.tryCleanSearchPath(
+          city: 'Candeleda',
+          profession: 'Trabajos verticales',
+        ),
+        '/candeleda/trabajos-verticales',
+      );
     });
 
     test('slugs de oficio del catálogo sin colisiones', () {
