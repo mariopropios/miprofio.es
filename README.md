@@ -23,20 +23,7 @@ Diseñado, programado y desplegado por [Mario Propios](https://github.com/mariop
 - Notificaciones push y email
 - PWA instalable
 
-El código de la app está en [`buildjobs/`](buildjobs/).
-
-## Desarrollo local
-
-Hace falta [Flutter](https://docs.flutter.dev/get-started/install) 3.24+.
-
-```powershell
-cd buildjobs
-copy .env.example .env
-flutter pub get
-flutter run -d chrome
-```
-
-Rellena `.env` con **tu** proyecto de Supabase. No uses las claves de producción.
+El código de la app está en [`buildjobs/`](buildjobs/). El `.env` de producción no está en el repositorio.
 
 ## Licencia
 

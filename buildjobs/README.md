@@ -12,12 +12,4 @@ Código de la aplicación Flutter. El contexto del producto está en el [README 
 - Cloudflare Workers
 - Firebase Cloud Messaging
 
-## Local
-
-```powershell
-copy .env.example .env
-flutter pub get
-flutter run -d chrome
-```
-
-Usa un proyecto de Supabase propio en `.env`. El `.env` de producción no está en el repositorio.
+El `.env` de producción no está en el repositorio.
