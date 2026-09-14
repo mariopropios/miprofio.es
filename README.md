@@ -23,7 +23,8 @@ Diseñado, programado y desplegado por [Mario Propios](https://github.com/mariop
 - Notificaciones push y email
 - PWA instalable
 
-El código de la app está en [`buildjobs/`](buildjobs/). El `.env` de producción no está en el repositorio.
+El código de la app está en [`buildjobs/`](buildjobs/). 
+El `.env` de producción no está en el repositorio.
 
 ## Licencia
 
