@@ -11,6 +11,10 @@ build/
 
 # Environment
 .env
+.env.local
+
+# Supabase CLI
+supabase/.temp/
 
 # IDE
 .idea/
