@@ -365,10 +365,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             highlightProfession: _selectedProfession,
           );
         }
-        final crossAxisCount = ResponsiveLayout.isDesktop(context) ? 3 : 2;
-
         return LayoutBuilder(
           builder: (context, constraints) {
+            final crossAxisCount = ResponsiveLayout.isDesktop(context)
+                ? (constraints.maxWidth >= 1400 ? 4 : 3)
+                : 2;
             final aspectRatio = GalleryPhotoConstants.gridChildAspectRatioFor(
               gridWidth: constraints.maxWidth,
               crossAxisCount: crossAxisCount,

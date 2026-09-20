@@ -46,7 +46,7 @@ class ResponsiveContent extends StatelessWidget {
   const ResponsiveContent({
     super.key,
     required this.child,
-    this.maxWidth = 1440,
+    this.maxWidth = 1680,
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
   });
 
@@ -60,9 +60,8 @@ class ResponsiveContent extends StatelessWidget {
     final effectiveMax = adaptiveMax.isFinite
         ? adaptiveMax.clamp(0, maxWidth).toDouble()
         : maxWidth;
-    final isDesktop = DeviceFormFactor.isDesktopWeb(context);
-    final resolvedPadding = isDesktop
-        ? const EdgeInsets.fromLTRB(28, 0, 32, 0)
+    final resolvedPadding = DeviceFormFactor.isDesktopWeb(context)
+        ? const EdgeInsets.symmetric(horizontal: 32)
         : padding;
 
     final content = ConstrainedBox(
@@ -73,14 +72,10 @@ class ResponsiveContent extends StatelessWidget {
       ),
     );
 
-    // En escritorio, pegado al sidebar (no isla centrada en pantallas anchas).
-    if (isDesktop) {
-      return Align(
-        alignment: Alignment.topLeft,
-        child: content,
-      );
-    }
-
-    return Center(child: content);
+    // Desktop: centrar en el hueco junto al sidebar (evita vacío solo a la derecha).
+    return Align(
+      alignment: Alignment.topCenter,
+      child: content,
+    );
   }
 }

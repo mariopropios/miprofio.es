@@ -375,10 +375,11 @@ class _CompanyGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final crossAxisCount = ResponsiveLayout.isDesktop(context) ? 3 : 2;
-
     return LayoutBuilder(
       builder: (context, constraints) {
+        final crossAxisCount = ResponsiveLayout.isDesktop(context)
+            ? (constraints.maxWidth >= 1400 ? 4 : 3)
+            : 2;
         final aspectRatio = GalleryPhotoConstants.gridChildAspectRatioFor(
           gridWidth: constraints.maxWidth,
           crossAxisCount: crossAxisCount,

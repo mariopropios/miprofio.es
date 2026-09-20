@@ -141,7 +141,7 @@ class _AllProfessionsSheet extends StatelessWidget {
 
 // ── Tag ───────────────────────────────────────────────────────────────────────
 
-class _Tag extends StatelessWidget {
+class _Tag extends StatefulWidget {
   const _Tag({
     required this.label,
     this.highlighted = false,
@@ -157,18 +157,49 @@ class _Tag extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
+  State<_Tag> createState() => _TagState();
+}
+
+class _TagState extends State<_Tag> {
+  bool _hovering = false;
+
+  double get _hoverScale {
+    if (!_hovering) return 1.0;
+    final base = widget.muted
+        ? 1.03
+        : widget.highlighted
+            ? 1.055
+            : 1.045;
+    return widget.compact ? (1.0 + (base - 1.0) * 0.75) : base;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bg = muted
+    final muted = widget.muted;
+    final highlighted = widget.highlighted;
+    final compact = widget.compact;
+
+    final bgIdle = muted
         ? AppTheme.surfaceElevated
         : highlighted
             ? AppTheme.primary.withValues(alpha: 0.28)
             : AppTheme.primary.withValues(alpha: 0.16);
+    final bgHover = muted
+        ? AppTheme.surfaceElevated.withValues(alpha: 0.95)
+        : highlighted
+            ? AppTheme.primary.withValues(alpha: 0.38)
+            : AppTheme.primary.withValues(alpha: 0.24);
 
-    final border = muted
+    final borderIdle = muted
         ? AppTheme.divider
         : highlighted
             ? AppTheme.primary.withValues(alpha: 0.7)
             : AppTheme.primary.withValues(alpha: 0.4);
+    final borderHover = muted
+        ? AppTheme.primary.withValues(alpha: 0.35)
+        : highlighted
+            ? AppTheme.primary.withValues(alpha: 0.95)
+            : AppTheme.primary.withValues(alpha: 0.65);
 
     final textColor = muted
         ? AppTheme.textSecondary
@@ -176,18 +207,29 @@ class _Tag extends StatelessWidget {
             ? Colors.white
             : AppTheme.primary;
 
-    final container = Container(
+    final chip = AnimatedContainer(
+      duration: AppTheme.hoverDuration,
+      curve: Curves.easeOutCubic,
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 8 : 10,
         vertical: compact ? 3 : 5,
       ),
       decoration: BoxDecoration(
-        color: bg,
+        color: _hovering ? bgHover : bgIdle,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border),
+        border: Border.all(color: _hovering ? borderHover : borderIdle),
+        boxShadow: _hovering && !muted
+            ? [
+                BoxShadow(
+                  color: AppTheme.primary.withValues(alpha: 0.18),
+                  blurRadius: 8,
+                  spreadRadius: 0,
+                ),
+              ]
+            : const [],
       ),
       child: Text(
-        label,
+        widget.label,
         style: TextStyle(
           color: textColor,
           fontSize: compact ? 11 : 12,
@@ -196,11 +238,25 @@ class _Tag extends StatelessWidget {
       ),
     );
 
-    if (onTap == null) return container;
+    final scaled = AnimatedScale(
+      scale: _hoverScale,
+      duration: AppTheme.hoverDuration,
+      curve: Curves.easeOutCubic,
+      child: chip,
+    );
 
-    return GestureDetector(
-      onTap: onTap,
-      child: container,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      cursor: widget.onTap != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
+      child: widget.onTap == null
+          ? scaled
+          : GestureDetector(
+              onTap: widget.onTap,
+              child: scaled,
+            ),
     );
   }
 }

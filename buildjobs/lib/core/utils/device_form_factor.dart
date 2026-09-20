@@ -52,7 +52,11 @@ abstract final class DeviceFormFactor {
       !isTablet(context) && !isDesktopWeb(context);
 
   static double contentMaxWidth(BuildContext context) {
-    if (isDesktopWeb(context)) return 1440;
-    return double.infinity;
+    if (!isDesktopWeb(context)) return double.infinity;
+    // Tope generoso para monitores anchos; ResponsiveContent centra el bloque.
+    final viewport = MediaQuery.sizeOf(context).width;
+    if (viewport >= 2200) return 1680;
+    if (viewport >= 1800) return 1560;
+    return 1440;
   }
 }
