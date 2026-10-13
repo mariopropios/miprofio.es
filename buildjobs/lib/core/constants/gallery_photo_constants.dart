@@ -16,8 +16,10 @@ abstract final class GalleryPhotoConstants {
   /// Texto + padding bajo la foto en [CompanyCard] (grid / desktop).
   static const cardInfoBandHeight = 148.0;
 
-  /// Banda de info en el tambor ([CompanyCard.dense]); alineada al layout real.
-  static const deckCardInfoBandHeight = 136.0;
+  /// Banda de info en el tambor ([CompanyCard.dense]).
+  /// Presupuesto para: padding + nombre + chips (pueden 2 filas) + ciudad +
+  /// radio de desplazamiento + rating/likes. FittedBox cubre el exceso raro.
+  static const deckCardInfoBandHeight = 168.0;
 
   /// Padding vertical del ítem en [CompanyCardDeck] (6 + 6).
   static const deckWheelItemPadding = 12.0;

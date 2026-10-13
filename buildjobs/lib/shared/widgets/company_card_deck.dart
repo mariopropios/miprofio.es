@@ -93,29 +93,32 @@ class _CompanyCardDeckState extends State<CompanyCardDeck> {
                               parent: BouncingScrollPhysics(),
                             ),
                             perspective: 0.0012,
-                            squeeze: 0.96,
+                            // 1.0: evita comprimir el ítem bajo itemExtent (overflow
+                            // debug ~itemExtent*(1-squeeze) con contenido justo).
+                            squeeze: 1.0,
                             useMagnifier: false,
                             childDelegate: ListWheelChildBuilderDelegate(
                               childCount: count,
                               builder: (context, index) {
                                 final company = widget.companies[index];
+                                // Solo padding vertical: el ancho del viewport ya es
+                                // cardWidth; padding horizontal encogía la tarjeta y
+                                // desalineaba altura estimada vs AspectRatio.
                                 return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 4, vertical: 6),
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: cardWidth,
-                                      height: cardHeight,
-                                      child: RepaintBoundary(
-                                        child: SavableCompanyCard(
-                                          company: company,
-                                          dense: true,
-                                          highlightProfession:
-                                              widget.highlightProfession,
-                                          onTap: () => context.push(
-                                            AppRoutes.companyDetailPath(
-                                                company.id),
-                                          ),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  child: SizedBox(
+                                    width: cardWidth,
+                                    height: cardHeight,
+                                    child: RepaintBoundary(
+                                      child: SavableCompanyCard(
+                                        company: company,
+                                        dense: true,
+                                        highlightProfession:
+                                            widget.highlightProfession,
+                                        onTap: () => context.push(
+                                          AppRoutes.companyDetailPath(
+                                              company.id),
                                         ),
                                       ),
                                     ),

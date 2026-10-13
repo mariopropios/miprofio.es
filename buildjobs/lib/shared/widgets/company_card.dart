@@ -49,38 +49,88 @@ class CompanyCard extends StatelessWidget {
 
     // WebTapGuard evita que el navegador active selección de texto (pantalla azul)
     // al pulsar el carrusel o sus flechas.
+    final info = _infoSection(
+      context,
+      company,
+      onTap,
+      savedCountOverride: savedCountOverride,
+      highlightProfession: highlightProfession,
+      dense: dense,
+    );
+
+    final photo = ClipRect(
+      child: _PhotoCarousel(
+        photos: photos,
+        onTap: onTap,
+        overlay: photoOverlay,
+      ),
+    );
+
     return WebTapGuard(
       child: HoverLiftCard(
         onTap: null,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AspectRatio(
-              aspectRatio: GalleryPhotoConstants.aspectRatio,
-              child: ClipRect(
-                child: _PhotoCarousel(
-                  photos: photos,
-                  onTap: onTap,
-                  overlay: photoOverlay,
-                ),
+        // Dense (tambor): altura fija del padre → foto con tamaño explícito
+        // (mismo aspect ratio) + info en el resto. Evita pelea AspectRatio+Column
+        // y el BOTTOM OVERFLOW cuando chips/radio/ciudad empujan la banda.
+        child: dense
+            ? LayoutBuilder(
+                builder: (context, constraints) {
+                  final w = constraints.maxWidth;
+                  final h = constraints.maxHeight;
+                  final photoH = w / GalleryPhotoConstants.aspectRatio;
+                  // Si el padre no acota altura (no debería en deck/grid), caer a
+                  // layout intrínseco para no romper Expanded/AspectRatio.
+                  if (!constraints.hasBoundedHeight || !h.isFinite) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AspectRatio(
+                          aspectRatio: GalleryPhotoConstants.aspectRatio,
+                          child: photo,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                          child: info,
+                        ),
+                      ],
+                    );
+                  }
+                  final infoH = (h - photoH).clamp(0.0, h);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(width: w, height: photoH, child: photo),
+                      SizedBox(
+                        width: w,
+                        height: infoH,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.topLeft,
+                            child: SizedBox(width: w - 24, child: info),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AspectRatio(
+                    aspectRatio: GalleryPhotoConstants.aspectRatio,
+                    child: photo,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                    child: info,
+                  ),
+                ],
               ),
-            ),
-            Padding(
-              padding: dense
-                  ? const EdgeInsets.fromLTRB(12, 6, 12, 8)
-                  : const EdgeInsets.fromLTRB(12, 8, 12, 10),
-              child: _infoSection(
-                context,
-                company,
-                onTap,
-                savedCountOverride: savedCountOverride,
-                highlightProfession: highlightProfession,
-                dense: dense,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -159,6 +209,7 @@ class CompanyCard extends StatelessWidget {
         ),
         if (company.travelRadiusLabel.isNotEmpty) ...[
           SizedBox(height: dense ? 1 : 2),
+          // Sin Expanded: compatible con FittedBox (constraints intrínsecos).
           Row(
             children: [
               Icon(
@@ -167,7 +218,7 @@ class CompanyCard extends StatelessWidget {
                 color: AppTheme.textSecondary.withValues(alpha: 0.85),
               ),
               const SizedBox(width: 4),
-              Expanded(
+              Flexible(
                 child: Text(
                   company.travelRadiusLabel,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
