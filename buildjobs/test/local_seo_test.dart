@@ -16,10 +16,12 @@ void main() {
   });
 
   group('LocalSeo', () {
-    test('3 hubs y paths oficio×pueblo únicos', () {
-      expect(LocalSeo.locations.length, 3);
+    test('hubs La Vera + Madrid y paths oficio×pueblo únicos', () {
+      expect(LocalSeo.locations.length, 4);
       final paths = LocalSeo.allIndexablePaths();
       expect(paths.toSet().length, paths.length);
+      expect(paths, contains('/madrid'));
+      expect(paths, contains('/madrid/fontanero'));
       expect(paths, contains('/candeleda'));
       expect(paths, contains('/candeleda/fontanero'));
       expect(paths, contains('/villanueva-de-la-vera/albanil'));
@@ -49,8 +51,14 @@ void main() {
       );
       expect(
         LocalSeo.tryCleanSearchPath(city: 'Madrid', profession: 'Fontanero'),
-        isNull,
+        '/madrid/fontanero',
       );
+      expect(
+        LocalSeo.locationByCityName('Madrigal de la Vera')?.slug,
+        'madrigal-de-la-vera',
+      );
+      expect(LocalSeo.locationByCityName('Madrid')?.slug, 'madrid');
+      expect(LocalSeo.neighborsOf(LocalSeo.locationBySlug('madrid')!), isEmpty);
       expect(
         LocalSeo.professionBySlug('trabajos-en-altura')?.name,
         'Trabajos verticales',
@@ -82,16 +90,22 @@ void main() {
       expect(slugs.toSet().length, slugs.length);
     });
 
-    test('grafo de vecinos: ≥1, sin autoenlace y simétrico', () {
+    test('grafo de vecinos: La Vera simétrico; Madrid sin vecinos (fase A)', () {
+      expect(
+        LocalSeo.neighborsOf(LocalSeo.locationBySlug('madrid')!),
+        isEmpty,
+      );
+
       for (final loc in LocalSeo.locations) {
         final neighbors = LocalSeo.neighborsOf(loc);
-        expect(neighbors, isNotEmpty, reason: loc.slug);
         expect(
           neighbors.every((n) => n.slug != loc.slug),
           isTrue,
           reason: loc.slug,
         );
         expect(neighbors.length, lessThanOrEqualTo(4));
+        if (loc.slug == 'madrid') continue;
+        expect(neighbors, isNotEmpty, reason: loc.slug);
       }
 
       expect(
@@ -124,6 +138,7 @@ void main() {
         LocalSeo.formatCityWithProvince('Candeleda'),
         'Candeleda, Ávila',
       );
+      expect(LocalSeo.formatCityWithProvince('Madrid'), 'Madrid');
       expect(
         LocalSeo.formatCityWithProvince('Madrigal de la Vera'),
         'Madrigal de la Vera, Cáceres',

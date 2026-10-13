@@ -166,25 +166,27 @@ class _LocalSeoHubScreenState extends ConsumerState<LocalSeoHubScreen> {
                     context.push(AppRoutes.professionalRegister),
               ),
             ),
-            const SizedBox(height: 32),
-            Text(
-              'Pueblos vecinos',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final other in LocalSeo.neighborsOf(loc))
-                  OutlinedButton(
-                    onPressed: () => context.go(LocalSeo.hubPath(other)),
-                    child: Text(other.name),
-                  ),
-              ],
-            ),
+            if (LocalSeo.neighborsOf(loc).isNotEmpty) ...[
+              const SizedBox(height: 32),
+              Text(
+                'Pueblos vecinos',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final other in LocalSeo.neighborsOf(loc))
+                    OutlinedButton(
+                      onPressed: () => context.go(LocalSeo.hubPath(other)),
+                      child: Text(other.name),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

@@ -272,34 +272,36 @@ class _LocalSeoProfessionScreenState
                       ],
                     ),
                   ],
-                  const SizedBox(height: 28),
-                  Text(
-                    'Cerca de ${loc.name}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Mismo oficio en pueblos vecinos de ${loc.regionLabel}.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textSecondary,
-                        ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final other in otherCities)
-                        OutlinedButton(
-                          onPressed: () => context.go(
-                            LocalSeo.professionPath(other, profession.name),
+                  if (otherCities.isNotEmpty) ...[
+                    const SizedBox(height: 28),
+                    Text(
+                      'Cerca de ${loc.name}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
                           ),
-                          child: Text(other.name),
-                        ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Mismo oficio en zonas cercanas de ${loc.regionLabel}.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final other in otherCities)
+                          OutlinedButton(
+                            onPressed: () => context.go(
+                              LocalSeo.professionPath(other, profession.name),
+                            ),
+                            child: Text(other.name),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               );
             },

@@ -1,7 +1,7 @@
 /**
  * Worker SPA + Open Graph / SEO local para crawlers.
  * - /companies/:id(+ /review) → OG de ficha
- * - /{candeleda|madrigal-de-la-vera|villanueva-de-la-vera}[/{oficio}] → HTML SEO
+ * - /{madrid|candeleda|madrigal-de-la-vera|villanueva-de-la-vera}[/{oficio}] → HTML SEO
  * El resto → assets Flutter (SPA).
  *
  * Vars: SUPABASE_URL, SUPABASE_ANON_KEY
@@ -14,10 +14,15 @@ const COMPANY_PATH =
   /^\/companies\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/review)?\/?$/i;
 
 const LOCAL_SEO_PATH =
-  /^\/(candeleda|madrigal-de-la-vera|villanueva-de-la-vera)(?:\/([a-z0-9-]+))?\/?$/i;
+  /^\/(madrid|candeleda|madrigal-de-la-vera|villanueva-de-la-vera)(?:\/([a-z0-9-]+))?\/?$/i;
 
 /** Keep in sync with lib/core/constants/local_seo.dart */
 const LOCAL_SEO_CITIES = {
+  madrid: {
+    name: "Madrid",
+    regionLabel: "Madrid",
+    provinceHint: "Madrid",
+  },
   candeleda: {
     name: "Candeleda",
     regionLabel: "La Vera",
@@ -33,6 +38,14 @@ const LOCAL_SEO_CITIES = {
     regionLabel: "La Vera",
     provinceHint: "Cáceres",
   },
+};
+
+/** Keep in sync with LocalSeo.neighborSlugsBySlug */
+const LOCAL_SEO_NEIGHBORS = {
+  madrid: [],
+  candeleda: ["madrigal-de-la-vera", "villanueva-de-la-vera"],
+  "madrigal-de-la-vera": ["candeleda", "villanueva-de-la-vera"],
+  "villanueva-de-la-vera": ["candeleda", "madrigal-de-la-vera"],
 };
 
 /** Keep in sync with ProfessionCatalog.allProfessions names */
@@ -239,14 +252,21 @@ async function buildLocalSeoHtml({ env, origin, citySlug, professionSlug }) {
     "Electricista",
     "Albañil",
     "Pintor",
-    "Arquitecto",
-    "Diseñador de interiores",
+    "Manitas a domicilio",
+    "Cerrajero",
+    "Climatización",
+    "Gasista",
+    "Jardinero",
+    "Trabajos verticales",
   ];
 
-  const otherCities = Object.entries(LOCAL_SEO_CITIES)
-    .filter(([slug]) => slug !== citySlug)
-    .map(([slug, c]) => ({ slug, name: c.name }));
-
+  const neighborSlugs = LOCAL_SEO_NEIGHBORS[citySlug] || [];
+  const otherCities = neighborSlugs
+    .map((slug) => {
+      const c = LOCAL_SEO_CITIES[slug];
+      return c ? { slug, name: c.name } : null;
+    })
+    .filter(Boolean);
   const breadcrumb = professionName
     ? [
         { name: "Inicio", item: `${origin}/` },
@@ -319,19 +339,38 @@ async function buildLocalSeoHtml({ env, origin, citySlug, professionSlug }) {
     });
   }
 
-  const linksProfession = professionName
-    ? otherCities
+  let secondaryHtml = "";
+  if (professionName) {
+    if (otherCities.length > 0) {
+      const links = otherCities
         .map(
           (c) =>
             `<li><a href="${origin}/${c.slug}/${slugify(professionName)}">${escapeHtml(professionName)} en ${escapeHtml(c.name)}</a></li>`,
         )
-        .join("")
-    : popular
+        .join("");
+      secondaryHtml = `<h2>Mismo oficio en zonas cercanas</h2><ul>${links}</ul>`;
+    } else {
+      const related = popular
+        .filter((n) => n !== professionName)
+        .slice(0, 6)
         .map(
           (n) =>
             `<li><a href="${origin}/${citySlug}/${slugify(n)}">${escapeHtml(n)} en ${escapeHtml(city.name)}</a></li>`,
         )
         .join("");
+      if (related) {
+        secondaryHtml = `<h2>Otros oficios en ${escapeHtml(city.name)}</h2><ul>${related}</ul>`;
+      }
+    }
+  } else {
+    const links = popular
+      .map(
+        (n) =>
+          `<li><a href="${origin}/${citySlug}/${slugify(n)}">${escapeHtml(n)} en ${escapeHtml(city.name)}</a></li>`,
+      )
+      .join("");
+    secondaryHtml = `<h2>Oficios en ${escapeHtml(city.name)}</h2><ul>${links}</ul>`;
+  }
 
   const resultsHtml =
     pros.length === 0
@@ -374,8 +413,7 @@ async function buildLocalSeoHtml({ env, origin, citySlug, professionSlug }) {
     <h1>${escapeHtml(h1)}</h1>
     <p>${escapeHtml(intro)}</p>
     ${resultsHtml}
-    <h2>${professionName ? "Mismo oficio en otros pueblos" : `Oficios en ${escapeHtml(city.name)}`}</h2>
-    <ul>${linksProfession}</ul>
+    ${secondaryHtml}
     <p><a href="${origin}/register/professional">Publicar perfil profesional gratis</a></p>
     <p><a href="${escapeHtml(pageUrl)}">Abrir en miProfio.es</a></p>
   </main>

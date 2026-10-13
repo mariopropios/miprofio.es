@@ -2,7 +2,7 @@ import 'profession_catalog.dart';
 import '../utils/slugify.dart';
 import 'seo_constants.dart';
 
-/// Localidad objetivo SEO (v1: La Vera).
+/// Localidad objetivo SEO (La Vera + Madrid fase A).
 class LocalSeoLocation {
   const LocalSeoLocation({
     required this.slug,
@@ -14,10 +14,10 @@ class LocalSeoLocation {
   final String slug;
   final String name;
 
-  /// Contexto regional corto, p.ej. "La Vera".
+  /// Contexto regional corto, p.ej. "La Vera" / "Madrid".
   final String regionLabel;
 
-  /// Pista de provincia para copy (Ávila / Cáceres).
+  /// Pista de provincia para copy (Ávila / Cáceres / Madrid).
   final String provinceHint;
 }
 
@@ -26,6 +26,12 @@ abstract final class LocalSeo {
   LocalSeo._();
 
   static const locations = <LocalSeoLocation>[
+    LocalSeoLocation(
+      slug: 'madrid',
+      name: 'Madrid',
+      regionLabel: 'Madrid',
+      provinceHint: 'Madrid',
+    ),
     LocalSeoLocation(
       slug: 'candeleda',
       name: 'Candeleda',
@@ -46,16 +52,18 @@ abstract final class LocalSeo {
     ),
   ];
 
-  /// Oficios destacados en hubs (subconjunto del catálogo).
+  /// Oficios destacados en hubs (fase A Madrid / demanda hogar).
   static const popularProfessionNames = <String>[
     'Fontanero',
     'Electricista',
     'Albañil',
     'Pintor',
     'Manitas a domicilio',
+    'Cerrajero',
+    'Climatización',
+    'Gasista',
     'Jardinero',
-    'Arquitecto',
-    'Diseñador de interiores',
+    'Trabajos verticales',
   ];
 
   /// Aliases de slug → slug canónico del catálogo.
@@ -87,9 +95,10 @@ abstract final class LocalSeo {
     for (final loc in locations) loc.slug: loc,
   };
 
-  /// Grafo de colindancia SEO v1 (La Vera). Fuente única para hubs/landings.
-  /// Máx. razonable por pueblo: 3–4 vecinos.
+  /// Grafo de colindancia SEO. Madrid fase A: sin vecinos (barrios en fase C).
+  /// Máx. razonable por localidad: 3–4.
   static const neighborSlugsBySlug = <String, List<String>>{
+    'madrid': <String>[],
     'candeleda': ['madrigal-de-la-vera', 'villanueva-de-la-vera'],
     'madrigal-de-la-vera': ['candeleda', 'villanueva-de-la-vera'],
     'villanueva-de-la-vera': ['candeleda', 'madrigal-de-la-vera'],
@@ -116,15 +125,21 @@ abstract final class LocalSeo {
   static LocalSeoLocation? locationByCityName(String? city) {
     if (city == null || city.trim().isEmpty) return null;
     final needle = slugify(city);
+    // Exacto primero (evita que "madrid" capture "madrigal-de-la-vera").
     for (final loc in locations) {
-      if (slugify(loc.name) == needle) return loc;
-      // "Candeleda, Ávila" etc.
-      if (needle.startsWith(loc.slug)) return loc;
+      if (slugify(loc.name) == needle || loc.slug == needle) return loc;
     }
-    return null;
+    // Prefijo con frontera de slug: "candeleda-avila", no "madrid"⊂"madrigal…".
+    LocalSeoLocation? best;
+    for (final loc in locations) {
+      final hit = needle == loc.slug || needle.startsWith('${loc.slug}-');
+      if (!hit) continue;
+      if (best == null || loc.slug.length > best.slug.length) best = loc;
+    }
+    return best;
   }
 
-  /// Presentación UI: `{Ciudad}, {Provincia}` cuando se conoce (SEO La Vera).
+  /// Presentación UI: `{Ciudad}, {Provincia}` cuando se conoce (SEO local).
   /// No inventa provincias; no duplica si ya viene `Ciudad, …`.
   /// Solo display — no altera el valor guardado en BD.
   static String formatCityWithProvince(String? city) {
@@ -137,14 +152,19 @@ abstract final class LocalSeo {
       final after = raw.substring(comma + 1).trim();
       if (after.isNotEmpty) {
         final loc = locationByCityName(before) ?? locationByCityName(raw);
-        if (loc != null) return '${loc.name}, ${loc.provinceHint}';
+        if (loc != null) return _cityProvinceLabel(loc);
         return '$before, $after';
       }
     }
 
     final loc = locationByCityName(raw);
-    if (loc != null) return '${loc.name}, ${loc.provinceHint}';
+    if (loc != null) return _cityProvinceLabel(loc);
     return raw;
+  }
+
+  static String _cityProvinceLabel(LocalSeoLocation loc) {
+    if (slugify(loc.name) == slugify(loc.provinceHint)) return loc.name;
+    return '${loc.name}, ${loc.provinceHint}';
   }
 
   static bool isLocalSeoCitySlug(String? slug) => locationBySlug(slug) != null;
