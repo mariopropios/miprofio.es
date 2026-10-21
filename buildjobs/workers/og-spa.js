@@ -1,22 +1,23 @@
 /**
- * Worker SPA + Open Graph / SEO local para crawlers.
- * - /companies/:id(+ /review) → OG de ficha
- * - /{madrid|candeleda|madrigal-de-la-vera|villanueva-de-la-vera}[/{oficio}] → HTML SEO
- * El resto → assets Flutter (SPA).
+ * Worker SPA + Open Graph / SEO local.
+ * - /companies/:id(+ /review) → OG de ficha (solo bots)
+ * - hubs/landings LocalSeo → HTML SEO para TODOS (?app=1 / ?spa=1 → SPA)
+ * - El resto → assets Flutter (SPA).
  *
  * Vars: SUPABASE_URL, SUPABASE_ANON_KEY
  */
 
 import { cityMatchesSeoLocation, slugify } from "./city_match.js";
+import {
+  LOCAL_SEO_PATH,
+  shouldServeLocalSeoHtml,
+} from "./local_seo_gate.js";
 
 const BOT_UA =
   /whatsapp|facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|discordbot|telegrambot|skypeuripreview|googlebot|bingbot|applebot|pinterest|redditbot|embedly|quora link preview|outbrain|vkshare|w3c_validator/i;
 
 const COMPANY_PATH =
   /^\/companies\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/review)?\/?$/i;
-
-const LOCAL_SEO_PATH =
-  /^\/(madrid|candeleda|madrigal-de-la-vera|villanueva-de-la-vera)(?:\/([a-z0-9-]+))?\/?$/i;
 
 /** Keep in sync with lib/core/constants/local_seo.dart */
 const LOCAL_SEO_CITIES = {
@@ -176,8 +177,10 @@ export default {
       }
     }
 
+    // P0-1: HTML SEO de landings para cualquier UA (no solo bots).
+    // ?app=1 o ?spa=1 → Flutter SPA (puente sin meta refresh).
     const localMatch = url.pathname.match(LOCAL_SEO_PATH);
-    if (localMatch && isBot) {
+    if (localMatch && shouldServeLocalSeoHtml(url)) {
       try {
         const citySlug = localMatch[1];
         const professionSlug = localMatch[2] || null;
@@ -417,7 +420,7 @@ async function buildLocalSeoHtml({ env, origin, citySlug, professionSlug }) {
     ${resultsHtml}
     ${secondaryHtml}
     <p><a href="${origin}/register/professional">Publicar perfil profesional gratis</a></p>
-    <p><a href="${escapeHtml(pageUrl)}">Abrir en miProfio.es</a></p>
+    <p><a href="${escapeHtml(pageUrl)}?app=1">Abrir app completa en miProfio.es</a></p>
   </main>
 </body>
 </html>`;
