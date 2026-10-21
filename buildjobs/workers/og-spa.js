@@ -7,6 +7,8 @@
  * Vars: SUPABASE_URL, SUPABASE_ANON_KEY
  */
 
+import { cityMatchesSeoLocation, slugify } from "./city_match.js";
+
 const BOT_UA =
   /whatsapp|facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|discordbot|telegrambot|skypeuripreview|googlebot|bingbot|applebot|pinterest|redditbot|embedly|quora link preview|outbrain|vkshare|w3c_validator/i;
 
@@ -440,13 +442,8 @@ async function fetchLocalProfessionals({ env, profession, cityName }) {
   const rows = await res.json();
   if (!Array.isArray(rows)) return [];
 
-  const cityNeedle = slugify(cityName);
-  return rows.filter((p) => {
-    const city = String(p.city || "");
-    if (!city) return true;
-    const s = slugify(city);
-    return s === cityNeedle || s.startsWith(cityNeedle) || s.includes(cityNeedle);
-  });
+  // Ciudad vacía excluida; multi-ciudad → solo segmento primario (ver city_match.js).
+  return rows.filter((p) => cityMatchesSeoLocation(p.city, cityName));
 }
 
 async function buildOgHtml({ env, origin, professionalId, isReview, canonicalPath }) {
@@ -530,20 +527,6 @@ async function buildOgHtml({ env, origin, professionalId, isReview, canonicalPat
   <p><a href="${escapeHtml(pageUrl)}">${title}</a></p>
 </body>
 </html>`;
-}
-
-function slugify(input) {
-  const from = "áàäâãéèëêíìïîóòöôõúùüûñç";
-  const to = "aaaaaeeeeiiiiooooouuuunc";
-  let out = "";
-  const s = String(input || "").trim().toLowerCase();
-  for (const ch of s) {
-    const idx = from.indexOf(ch);
-    if (idx >= 0) out += to[idx];
-    else if (/[a-z0-9]/.test(ch)) out += ch;
-    else if (/[\s_/.,;:()+\-]/.test(ch)) out += "-";
-  }
-  return out.replace(/-+/g, "-").replace(/^-|-$/g, "");
 }
 
 function absoluteUrl(origin, value) {
